@@ -11,10 +11,18 @@ function PLC:OnInitialize()
 	self.ErrorHandler:AttachDB(self.db)
 end
 
+-- Modules hook into the enable sequence via PLC:RegisterOnEnable instead of Init.lua needing to
+-- know every module by name -- keeps this file stable as later stages add Roster/Session/etc.
+local onEnableCallbacks = {}
+
+function PLC:RegisterOnEnable(fn)
+	table.insert(onEnableCallbacks, fn)
+end
+
 function PLC:OnEnable()
 	self.Events:RegisterAll()
-	if self.Session and self.Session.Restore then
-		self.Session:Restore()
+	for _, fn in ipairs(onEnableCallbacks) do
+		fn()
 	end
 end
 

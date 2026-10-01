@@ -14,3 +14,27 @@ L["TEST_ERROR_TRIGGERED"] = "Test error triggered and logged."
 
 L["TAINT_BLOCKED"] = "Blocked action captured: %s"
 L["TAINT_FORBIDDEN"] = "Forbidden action captured: %s"
+
+L["ROSTER_EMPTY"] = "Roster is empty (not in a group?)."
+L["ROSTER_ENTRY"] = "%s (%s) role=%s online=%s council=%s"
+
+L["LOOT_METHOD_NOT_MASTER"] = "This group's loot method isn't Master Loot -- PixlLootCouncil can't run a session until it is."
+L["DEBUG_ON"] = "Debug logging enabled."
+L["DEBUG_OFF"] = "Debug logging disabled."
+L["DETECTED_SLOT"] = "Detected loot slot %d: %s (quality %s)"
+
+L["AWARD_SUCCESS"] = "Awarded %s to %s."
+L["AWARD_FAILED"] = "Could not award %s to %s: %s"
+L["AWARD_TIMEOUT"] = "Award of %s to %s timed out -- no confirmation received."
+L["AWARD_USAGE"] = "Usage: /plc award <slot> <playerName>"
+
+L["CANGIVE_NO_SLOT"] = "no such loot slot"
+L["CANGIVE_LOOT_CLOSED"] = "loot window is not open"
+L["CANGIVE_ITEM_CHANGED"] = "the item in that slot has changed"
+L["CANGIVE_NO_BAG_SPACE"] = "not enough bag space"
+L["CANGIVE_NOT_IN_GROUP"] = "player is not in your group"
+L["CANGIVE_OFFLINE"] = "player is offline"
+L["CANGIVE_NOT_ELIGIBLE"] = "player is not an eligible master loot candidate for this item"
+
+L["ANNOUNCE_ITEM"] = "[PixlLootCouncil] Item up for council: %s"
+L["ANNOUNCE_AWARD"] = "[PixlLootCouncil] %s awarded to %s"
