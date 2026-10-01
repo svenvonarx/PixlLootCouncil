@@ -38,3 +38,17 @@ L["CANGIVE_NOT_ELIGIBLE"] = "player is not an eligible master loot candidate for
 
 L["ANNOUNCE_ITEM"] = "[PixlLootCouncil] Item up for council: %s"
 L["ANNOUNCE_AWARD"] = "[PixlLootCouncil] %s awarded to %s"
+
+L["COMMS_UNKNOWN_VERSION"] = "Ignored a message using protocol version %s (newer than this client understands)."
+
+L["SESSION_ALREADY_ACTIVE"] = "A loot session is already active."
+L["SESSION_STARTED"] = "Loot session started."
+L["SESSION_STARTED_BY"] = "%s started a loot session."
+L["SESSION_NOT_HOLDER"] = "You are not holding the current loot session."
+L["SESSION_ENDED"] = "Loot session ended."
+L["SESSION_CANNOT_FORCE_END"] = "Cannot force-end: the holder's heartbeat hasn't gone stale yet."
+L["SESSION_FORCE_ENDED"] = "Loot session force-ended."
+L["SESSION_FORCE_ENDED_BY"] = "%s force-ended the loot session (holder unresponsive)."
+L["SESSION_SYNCED"] = "Loot session synced from the holder."
+L["SESSION_RESTORED"] = "Restored your active loot session."
+L["SESSION_USAGE"] = "Usage: /plc session start|end|forceend|sync|respond <idx> <response>"
