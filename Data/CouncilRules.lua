@@ -7,13 +7,37 @@ local ADDON_NAME, PLC = ...
 local CouncilRules = {}
 PLC.CouncilRules = CouncilRules
 
--- GetLootMethod() returns (method, partyMasterLooterID, raidMasterLooterID); indices are unit
--- numbers, not GUIDs, and both are 0 when the master looter is the player themself.
+-- The legacy global GetLootMethod() (method, partyMasterLooterID, raidMasterLooterID as a
+-- string method) is nil on this client -- confirmed live via /plc errors
+-- ("attempt to call a nil value" from this function). The modern C_PartyInfo.GetLootMethod()
+-- namespace version returns the same shape but method as an Enum.LootMethod number (2 == Master
+-- Looter) instead of the string "master". Tried first, with the legacy global kept as a
+-- fallback in case some other client build has it the other way around. The single place this
+-- distinction is handled -- Loot/Detection.lua's own group-loot-method check goes through
+-- CouncilRules:IsMasterLootMethod() below instead of calling either API directly.
+local function getLootMethod()
+	if C_PartyInfo and C_PartyInfo.GetLootMethod then
+		local method, partyID, raidID = C_PartyInfo.GetLootMethod()
+		return method == 2, partyID, raidID -- Enum.LootMethod.Masterlooter
+	elseif GetLootMethod then
+		local method, partyID, raidID = GetLootMethod()
+		return method == "master", partyID, raidID
+	end
+	return false
+end
+
+function CouncilRules:IsMasterLootMethod()
+	return (getLootMethod())
+end
+
+-- Indices (partyID/raidID) are unit numbers, not GUIDs, and both are 0 when the master looter is
+-- the player themself.
 function CouncilRules:GetMasterLooterUnit()
-	local method, partyID, raidID = GetLootMethod()
-	if method ~= "master" then
+	local isMaster, partyID, raidID = getLootMethod()
+	if not isMaster then
 		return nil
 	end
+
 	if raidID and raidID > 0 then
 		return "raid" .. raidID
 	elseif partyID and partyID > 0 then

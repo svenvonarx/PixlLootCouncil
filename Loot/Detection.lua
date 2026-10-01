@@ -96,7 +96,7 @@ local function onStartLootRoll()
 	if warnedThisSession then
 		return
 	end
-	if GetLootMethod() == "master" then
+	if PLC.CouncilRules:IsMasterLootMethod() then
 		return
 	end
 	local myGuid = UnitGUID("player")
