@@ -11,7 +11,7 @@ local Theme = PLC.UI.Theme
 -- custom CreateFrame-based widgets, no BackdropTemplate, one bundled font (see
 -- docs/SPECIFICATION.md §4.2). Every texture/text these create registers itself into Theme's
 -- weak tables so Theme:Refresh() can re-skin it later without tracking frame references.
-local FONT = "Interface\\AddOns\\PixlLootCouncil\\font\\Numen.ttf"
+local FONT = "Interface\\AddOns\\PixlLootCouncil\\font\\PixlLootCouncil.ttf"
 
 function Primitives.color(name, alpha)
 	return Theme:Color(name, alpha)
