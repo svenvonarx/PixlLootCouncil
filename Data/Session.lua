@@ -193,6 +193,7 @@ function Session:QueueDetectedItems(lootSlotInfo)
 		PLC.Comms.Sync:SendItemAdd(self.sessionId, stripForTransmit(newItems))
 	end
 	self:notifyLootFrame()
+	self:notifySessionFrame()
 end
 
 function Session:OnSessionStartReceived(data)
@@ -211,6 +212,7 @@ function Session:OnSessionStartReceived(data)
 	applyReceivedItems(data.items)
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_STARTED_BY"], data.owner and data.owner.name or "?"))
 	self:notifyLootFrame()
+	self:notifySessionFrame()
 end
 
 function Session:OnItemAddReceived(data)
@@ -220,6 +222,7 @@ function Session:OnItemAddReceived(data)
 	self.lastHolderSeenAt = time()
 	applyReceivedItems(data.items)
 	self:notifyLootFrame()
+	self:notifySessionFrame()
 end
 
 -- UI/LootFrame.lua doesn't exist until Stage 5 -- guarded exactly like every other
@@ -227,6 +230,16 @@ end
 function Session:notifyLootFrame()
 	if PLC.UI and PLC.UI.LootFrame and PLC.UI.LootFrame.Refresh then
 		PLC.UI.LootFrame:Refresh()
+	end
+end
+
+-- UI/SessionFrame.lua's item list only cares about the item SET changing or an award status
+-- flipping (not per-vote detail, that's UI/VotingFrame.lua's embedded panel via
+-- notifyVotingFrame below) -- a full rebuild is cheap enough that there's no targeted-row
+-- variant of this one.
+function Session:notifySessionFrame()
+	if PLC.UI and PLC.UI.SessionFrame and PLC.UI.SessionFrame.OnSessionUpdated then
+		PLC.UI.SessionFrame:OnSessionUpdated()
 	end
 end
 
@@ -285,6 +298,7 @@ function Session:OnAwardConfirmed(entry)
 	persist()
 	PLC.Comms.Sync:SendAward(self.sessionId, item.idx, entry.winnerGuid)
 	self:notifyVotingFrame(item.idx)
+	self:notifySessionFrame()
 end
 
 -- Forward-hook target already called (defensively) from Loot/Award.lua:156-158. Local-only: a
@@ -301,6 +315,7 @@ function Session:OnAwardReceived(data)
 		item.awarded = data.winnerGuid
 	end
 	self:notifyVotingFrame(data.idx)
+	self:notifySessionFrame()
 end
 
 function Session:OnHeartbeatReceived(data)

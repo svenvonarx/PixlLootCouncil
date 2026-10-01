@@ -4,18 +4,18 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local Primitives = PLC.UI.Widgets.Primitives
 local ButtonWidget = PLC.UI.Widgets.Button
 local DataTable = PLC.UI.Widgets.DataTable
-local Theme = PLC.UI.Theme
 
--- Header + content only, no sidebar -- single-purpose window (see docs/SPECIFICATION.md §4.3).
--- The Award button on each row calls PLC.Loot.Award:TryAward directly, finally retiring
--- Loot/Award.lua's temporary /plc award debug command.
+-- Embeddable response-grid panel, NOT its own top-level window -- UI/SessionFrame.lua mounts
+-- this directly into its own content area as the "same window, all the answers" merged layout
+-- from the first live playtest's feedback (this used to open its own floating popup via a
+-- per-item Vote button; that's exactly what got reworked away, see docs/SPECIFICATION.md §4.3's
+-- single-purpose-window guidance -- this is no longer single-purpose on its own, it's a
+-- component of SessionFrame).
 local VotingFrame = {}
 PLC.UI.VotingFrame = VotingFrame
 
-local frame
-local dataTable
-local currentIdx
-local rowsData = {}
+local Panel = {}
+local PanelMeta = { __index = Panel }
 
 local function classColor(class)
 	local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
@@ -37,26 +37,7 @@ local function responseConfig(key)
 	return nil
 end
 
-local function buildRows()
-	local rows = {}
-	if not currentIdx then
-		return rows
-	end
-	local responses = PLC.Session.responses[currentIdx]
-	for guid, entry in PLC.Roster:IterateGroup() do
-		table.insert(rows, {
-			guid = guid,
-			name = entry.name,
-			class = entry.class,
-			role = entry.role,
-			response = responses and responses[guid] and responses[guid].response,
-		})
-	end
-	table.sort(rows, function(a, b) return a.name < b.name end)
-	return rows
-end
-
-local function findRowIndexByGuid(guid)
+local function findRowIndexByGuid(rowsData, guid)
 	for i, row in ipairs(rowsData) do
 		if row.guid == guid then
 			return i
@@ -64,11 +45,32 @@ local function findRowIndexByGuid(guid)
 	end
 end
 
-function VotingFrame:Award(guid)
-	if not currentIdx then
+function Panel:buildRows()
+	local rows = {}
+	if not self.currentIdx then
+		return rows
+	end
+	local responses = PLC.Session.responses[self.currentIdx]
+	for guid, entry in PLC.Roster:IterateGroup() do
+		local r = responses and responses[guid]
+		table.insert(rows, {
+			guid = guid,
+			name = entry.name,
+			class = entry.class,
+			role = entry.role,
+			response = r and r.response,
+			note = r and r.note,
+		})
+	end
+	table.sort(rows, function(a, b) return a.name < b.name end)
+	return rows
+end
+
+function Panel:Award(guid)
+	if not self.currentIdx then
 		return
 	end
-	local item = PLC.Session.items[currentIdx]
+	local item = PLC.Session.items[self.currentIdx]
 	if not item or not item.lootSlot then
 		print(L["CHAT_PREFIX"] .. L["VOTINGFRAME_NO_LOOT_SLOT"])
 		return
@@ -76,55 +78,51 @@ function VotingFrame:Award(guid)
 	PLC.Loot.Award:TryAward(item.lootSlot, guid, "council")
 end
 
-local function ensureFrame()
-	if frame then
-		return frame
+function Panel:ShowItem(idx)
+	self.currentIdx = idx
+	self.rowsData = self:buildRows()
+	self.dataTable:SetRows(self.rowsData)
+end
+
+-- Session:notifyVotingFrame's target (forwarded via VotingFrame:OnItemUpdated below). guid
+-- present means "just this one row changed" (targeted RefreshRow, no full rebuild, per
+-- docs/SPECIFICATION.md §4.4); omitted means "rebuild everything" (award changes, which can
+-- affect multiple rows at once).
+function Panel:OnItemUpdated(idx, guid)
+	if idx ~= self.currentIdx then
+		return
 	end
+	if not guid then
+		self.rowsData = self:buildRows()
+		self.dataTable:SetRows(self.rowsData)
+		return
+	end
+	local rowIndex = findRowIndexByGuid(self.rowsData, guid)
+	if not rowIndex then
+		self.rowsData = self:buildRows()
+		self.dataTable:SetRows(self.rowsData)
+		return
+	end
+	local responses = PLC.Session.responses[idx]
+	local r = responses and responses[guid]
+	self.rowsData[rowIndex].response = r and r.response
+	self.rowsData[rowIndex].note = r and r.note
+	self.dataTable:RefreshRow(rowIndex)
+end
 
-	frame = CreateFrame("Frame", "PixlLootCouncilVotingFrame", UIParent)
-	frame:SetSize(480, 360)
-	frame:SetPoint("CENTER")
-	frame:SetFrameStrata("DIALOG")
-	frame:SetMovable(true)
-	frame:EnableMouse(true)
-	frame:RegisterForDrag("LeftButton")
-	frame:SetScript("OnDragStart", frame.StartMoving)
-	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-	tinsert(UISpecialFrames, "PixlLootCouncilVotingFrame")
-
-	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
-	frame.bg:SetAllPoints()
-	frame.border = Primitives.createBorder(frame)
-
-	local header = CreateFrame("Frame", nil, frame)
-	header:SetHeight(Theme.LAYOUT.headerHeight)
-	header:SetPoint("TOPLEFT")
-	header:SetPoint("TOPRIGHT")
-	header.bg = Primitives.createTexture(header, "BACKGROUND", "header")
-	header.bg:SetAllPoints()
-
-	header.title = Primitives.createText(header, L["VOTINGFRAME_TITLE"], 14, "title")
-	header.title:SetPoint("LEFT", 10, 0)
-
-	header.close = CreateFrame("Button", nil, header)
-	header.close:SetSize(20, 20)
-	header.close:SetPoint("RIGHT", -6, 0)
-	header.close.bg = Primitives.createTexture(header.close, "BACKGROUND", "button")
-	header.close.bg:SetAllPoints()
-	header.close.label = Primitives.createText(header.close, "x", 14, "warning")
-	header.close.label:SetPoint("CENTER")
-	header.close:SetScript("OnClick", function()
-		frame:Hide()
-	end)
-
-	Primitives.createSeparator(frame, -Theme.LAYOUT.headerHeight)
-
-	local content = CreateFrame("Frame", nil, frame)
-	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
-	content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 10)
-
-	dataTable = DataTable.Create(content)
+-- Builds the candidate/role/response/Award grid into `parent` and returns the panel object.
+-- Only one is ever actually live at a time in practice (the one UI/SessionFrame.lua mounts), but
+-- nothing here assumes that -- VotingFrame.activePanel (set below) is just "whichever panel
+-- Session's forward-hooks should talk to."
+function VotingFrame.CreatePanel(parent)
+	local dataTable = DataTable.Create(parent)
 	dataTable.scroll:SetAllPoints()
+
+	local self = setmetatable({
+		dataTable = dataTable,
+		currentIdx = nil,
+		rowsData = {},
+	}, PanelMeta)
 
 	dataTable:SetColumns({
 		{
@@ -142,12 +140,36 @@ local function ensureFrame()
 		},
 		{
 			width = 110,
-			render = function(row)
-				local resp = responseConfig(row.response)
+			isWidget = true,
+			create = function(row)
+				local holder = CreateFrame("Frame", nil, row)
+				holder:SetSize(110, 20)
+				holder:EnableMouse(true)
+				holder.text = Primitives.createText(holder, "", 11)
+				holder.text:SetAllPoints()
+				holder:SetScript("OnEnter", function(frame)
+					if frame.note and frame.note ~= "" then
+						GameTooltip:SetOwner(frame, "ANCHOR_TOP")
+						GameTooltip:SetText(frame.note, nil, nil, nil, nil, true)
+						GameTooltip:Show()
+					end
+				end)
+				holder:SetScript("OnLeave", function()
+					GameTooltip:Hide()
+				end)
+				return holder
+			end,
+			update = function(holder, rowData)
+				local resp = responseConfig(rowData.response)
 				if resp then
-					return resp.text, resp.color.r, resp.color.g, resp.color.b
+					holder.text:SetText(resp.text)
+					holder.text:SetTextColor(resp.color.r, resp.color.g, resp.color.b)
+				else
+					holder.text:SetText("-")
+					local r, g, b = Primitives.color("text")
+					holder.text:SetTextColor(r, g, b)
 				end
-				return "-"
+				holder.note = rowData.note
 			end,
 		},
 		{
@@ -158,53 +180,18 @@ local function ensureFrame()
 			end,
 			update = function(button, rowData)
 				button:SetScript("OnClick", function()
-					VotingFrame:Award(rowData.guid)
+					self:Award(rowData.guid)
 				end)
 			end,
 		},
 	})
 
-	frame:Hide()
-	return frame
+	VotingFrame.activePanel = self
+	return self
 end
 
-function VotingFrame:ShowItem(idx)
-	currentIdx = idx
-	local f = ensureFrame()
-	rowsData = buildRows()
-	dataTable:SetRows(rowsData)
-	f:Show()
-end
-
--- Session:notifyVotingFrame's target -- guid present means "just this one row changed"
--- (targeted RefreshRow, no full rebuild, per docs/SPECIFICATION.md §4.4); omitted means
--- "rebuild everything" (used for award changes, which can affect multiple rows at once).
 function VotingFrame:OnItemUpdated(idx, guid)
-	if not frame or not frame:IsShown() or idx ~= currentIdx then
-		return
+	if self.activePanel then
+		self.activePanel:OnItemUpdated(idx, guid)
 	end
-	if not guid then
-		rowsData = buildRows()
-		dataTable:SetRows(rowsData)
-		return
-	end
-	local rowIndex = findRowIndexByGuid(guid)
-	if not rowIndex then
-		rowsData = buildRows()
-		dataTable:SetRows(rowsData)
-		return
-	end
-	local responses = PLC.Session.responses[idx]
-	rowsData[rowIndex].response = responses and responses[guid] and responses[guid].response
-	dataTable:RefreshRow(rowIndex)
 end
-
--- Temporary debug seed: fabricates one fake session item (no live loot slot, so the Award
--- button's CanGiveLoot call will correctly fail -- see VOTINGFRAME_NO_LOOT_SLOT) so the table's
--- layout/scroll/row-recycling can be exercised solo, without a real loot window open. See
--- docs/TESTING.md.
-PLC:RegisterSlashCommand("testdata", "Debug: seed a fake session item and open VotingFrame", function()
-	PLC.Session.items[1] = PLC.Session.items[1] or { idx = 1, lootSlot = nil, link = nil, quality = 4 }
-	PLC.Session.responses[1] = PLC.Session.responses[1] or {}
-	VotingFrame:ShowItem(1)
-end)

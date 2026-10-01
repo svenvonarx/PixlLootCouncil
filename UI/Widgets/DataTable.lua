@@ -54,6 +54,24 @@ local function getRow(self, index)
 	row = CreateFrame("Frame", nil, self.content)
 	row:SetHeight(self.rowHeight)
 	row.cells = {}
+
+	-- Optional row selection/click support (used by UI/SessionFrame.lua's item list) -- a row
+	-- is only clickable/highlightable when the table owner opts in via SetRowClickHandler.
+	row.selectionBg = Primitives.createTexture(row, "BACKGROUND", "accent", 0.12)
+	row.selectionBg:SetAllPoints()
+	row.selectionBg:Hide()
+
+	row:EnableMouse(true)
+	row:SetScript("OnMouseUp", function()
+		if self.onRowClick and row.dataIndex then
+			local rowData = self.data[row.dataIndex]
+			if rowData then
+				self:SetSelectedIndex(row.dataIndex)
+				self.onRowClick(rowData)
+			end
+		end
+	end)
+
 	self.rows[index] = row
 	return row
 end
@@ -133,12 +151,26 @@ function Table:Refresh()
 		if rowData then
 			row.dataIndex = dataIndex
 			row:Show()
+			row.selectionBg:SetShown(self.selectedIndex ~= nil and dataIndex == self.selectedIndex)
 			self:RenderRow(row, rowData)
 		else
 			row.dataIndex = nil
 			row:Hide()
 		end
 	end
+end
+
+-- Opt-in row click handling for tables that need "click a row to select it" (e.g.
+-- UI/SessionFrame.lua's item list) rather than per-row buttons; fn receives the clicked row's
+-- data. Plain display-only tables (VotingFrame's candidate grid, LootFrame's item list) never
+-- call this, so their rows stay inert.
+function Table:SetRowClickHandler(fn)
+	self.onRowClick = fn
+end
+
+function Table:SetSelectedIndex(dataIndex)
+	self.selectedIndex = dataIndex
+	self:Refresh()
 end
 
 -- Targeted single-row update -- touches only this row's cells, not a full table rebuild. This is

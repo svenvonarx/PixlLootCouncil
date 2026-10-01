@@ -6,25 +6,55 @@ local ButtonWidget = PLC.UI.Widgets.Button
 local DataTable = PLC.UI.Widgets.DataTable
 local Theme = PLC.UI.Theme
 
--- ML curation + Start/End control (header+content, no sidebar -- spec §4.3). Curation only
--- applies to the FIRST batch of a new session: once Session.state == "active", later corpses'
--- items auto-flow straight into the session via the existing Loot/Detection.lua hook (real raid
--- practice resolves each session's items before the next corpse anyway, and re-litigating an
--- already-broadcast item would need a wire command this addon doesn't have -- see
--- Data/Session.lua's QueueDetectedItems). "Remove" here only ever acts on items that haven't
+-- The single ML-facing window (header+content, no sidebar -- spec §4.3). Reworked from two
+-- separate windows (this + a standalone VotingFrame popup opened via a per-item Vote button)
+-- into one, per the first live playtest's feedback: items shown as icons, with the response
+-- grid visible in the SAME window (master-detail: click an item in the top list, its full
+-- candidate/response/Award grid -- UI/VotingFrame.lua, now an embedded panel, not its own
+-- window -- renders below it), not a second popup.
+--
+-- Curation only applies to the FIRST batch of a new session: once Session.state == "active",
+-- later corpses' items auto-flow straight into the session via the existing Loot/Detection.lua
+-- hook (real raid practice resolves each session's items before the next corpse anyway, and
+-- re-litigating an already-broadcast item would need a wire command this addon doesn't have --
+-- see Data/Session.lua's QueueDetectedItems). "Remove" here only ever acts on items that haven't
 -- been queued/broadcast yet.
 local SessionFrame = {}
 PLC.UI.SessionFrame = SessionFrame
 
 local frame
+local content
+local itemListContainer
 local dataTable
+local detailLabel
+local detailContainer
+local votingPanel
 local startButton
 local endButton
 local removedSlots = {} -- [lootSlot] = true, curation-only, cleared on Start()
+local selectedIdx -- which session item's response grid is currently shown below the list
+
+local function iconColumn()
+	return {
+		width = 28,
+		isWidget = true,
+		create = function(row)
+			local holder = CreateFrame("Frame", nil, row)
+			holder:SetSize(24, 24)
+			holder.texture = holder:CreateTexture(nil, "ARTWORK")
+			holder.texture:SetAllPoints()
+			return holder
+		end,
+		update = function(holder, rowData)
+			holder.texture:SetTexture(rowData.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+		end,
+	}
+end
 
 local PENDING_COLUMNS = {
+	iconColumn(),
 	{
-		width = 240,
+		width = 190,
 		render = function(row)
 			return row.link or "?"
 		end,
@@ -45,6 +75,7 @@ local PENDING_COLUMNS = {
 }
 
 local ACTIVE_COLUMNS = {
+	iconColumn(),
 	{
 		width = 180,
 		render = function(row)
@@ -52,21 +83,15 @@ local ACTIVE_COLUMNS = {
 		end,
 	},
 	{
-		width = 50,
+		width = 70,
 		render = function(row)
-			return row.awarded and L["SESSIONFRAME_AWARDED"] or L["SESSIONFRAME_PENDING"]
-		end,
-	},
-	{
-		width = 50,
-		isWidget = true,
-		create = function(row)
-			return ButtonWidget.createButton(row, L["SESSIONFRAME_VOTE"], 44)
-		end,
-		update = function(button, rowData)
-			button:SetScript("OnClick", function()
-				PLC.UI.VotingFrame:ShowItem(rowData.idx)
-			end)
+			if row.awarded then
+				return L["SESSIONFRAME_AWARDED"]
+			end
+			if row.deadlineAt and time() > row.deadlineAt then
+				return L["SESSIONFRAME_EXPIRED"], Primitives.color("warning")
+			end
+			return L["SESSIONFRAME_PENDING"]
 		end,
 	},
 }
@@ -75,7 +100,7 @@ local function pendingRows()
 	local rows = {}
 	for slot, info in pairs(PLC.Loot.Detection.lootSlotInfo) do
 		if not removedSlots[slot] and info.link then
-			table.insert(rows, { slot = slot, link = info.link })
+			table.insert(rows, { slot = slot, link = info.link, icon = info.icon })
 		end
 	end
 	table.sort(rows, function(a, b) return a.slot < b.slot end)
@@ -85,30 +110,102 @@ end
 local function activeRows()
 	local rows = {}
 	for idx, item in pairs(PLC.Session.items) do
-		table.insert(rows, { idx = idx, link = item.link, awarded = item.awarded })
+		table.insert(rows, {
+			idx = idx,
+			link = item.link,
+			icon = item.icon,
+			awarded = item.awarded,
+			deadlineAt = item.deadlineAt,
+		})
 	end
 	table.sort(rows, function(a, b) return a.idx < b.idx end)
 	return rows
 end
 
+local function showDetailFor(idx)
+	selectedIdx = idx
+	if selectedIdx then
+		detailLabel:Show()
+		detailContainer:Show()
+		votingPanel:ShowItem(selectedIdx)
+	else
+		detailLabel:Hide()
+		detailContainer:Hide()
+	end
+end
+
+local function firstPendingIdx(rows)
+	for _, row in ipairs(rows) do
+		if not row.awarded then
+			return row.idx
+		end
+	end
+	return nil
+end
+
+local function showActiveView()
+	itemListContainer:ClearAllPoints()
+	itemListContainer:SetPoint("TOPLEFT", content, "TOPLEFT")
+	itemListContainer:SetPoint("TOPRIGHT", content, "TOPRIGHT")
+	itemListContainer:SetHeight(140)
+
+	dataTable:SetColumns(ACTIVE_COLUMNS)
+	local rows = activeRows()
+	dataTable:SetRows(rows)
+
+	-- Auto-selects the first not-yet-awarded item, and auto-advances off whatever was selected
+	-- once it gets awarded -- never auto-advances AWAY from an item the user deliberately picked
+	-- while it's still pending.
+	if not selectedIdx or (PLC.Session.items[selectedIdx] and PLC.Session.items[selectedIdx].awarded) then
+		selectedIdx = firstPendingIdx(rows)
+	end
+
+	local dataIndex
+	for i, row in ipairs(rows) do
+		if row.idx == selectedIdx then
+			dataIndex = i
+			break
+		end
+	end
+	dataTable:SetSelectedIndex(dataIndex)
+	dataTable:SetRowClickHandler(function(rowData)
+		showDetailFor(rowData.idx)
+	end)
+
+	showDetailFor(selectedIdx)
+
+	startButton:Hide()
+	endButton:Show()
+end
+
+local function showPendingView()
+	itemListContainer:ClearAllPoints()
+	itemListContainer:SetPoint("TOPLEFT", content, "TOPLEFT")
+	itemListContainer:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
+
+	dataTable.pendingBuilder = pendingRows
+	dataTable:SetRowClickHandler(nil)
+	dataTable:SetColumns(PENDING_COLUMNS)
+	dataTable:SetRows(pendingRows())
+
+	detailLabel:Hide()
+	detailContainer:Hide()
+
+	startButton:Show()
+	endButton:Hide()
+end
+
 -- Rebuilds whichever view matches the session's current state -- called whenever the frame is
--- (re)shown, and after Start()/End() flip that state.
+-- (re)shown, after Start()/End() flip that state, and from Session's forward-hook whenever the
+-- item set or an award changes while this window is open.
 local function refresh()
 	if not dataTable then
 		return
 	end
 	if PLC.Session.state == "active" then
-		dataTable.pendingBuilder = activeRows
-		dataTable:SetColumns(ACTIVE_COLUMNS)
-		dataTable:SetRows(activeRows())
-		startButton:Hide()
-		endButton:Show()
+		showActiveView()
 	else
-		dataTable.pendingBuilder = pendingRows
-		dataTable:SetColumns(PENDING_COLUMNS)
-		dataTable:SetRows(pendingRows())
-		startButton:Show()
-		endButton:Hide()
+		showPendingView()
 	end
 end
 
@@ -119,6 +216,7 @@ local function onStartClick()
 			filtered[slot] = info
 		end
 	end
+	selectedIdx = nil
 	PLC.Session:Start()
 	PLC.Session:QueueDetectedItems(filtered)
 	wipe(removedSlots)
@@ -136,8 +234,8 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilSessionFrame", UIParent)
-	frame:SetSize(360, 320)
-	frame:SetPoint("CENTER", 0, 120)
+	frame:SetSize(520, 480)
+	frame:SetPoint("CENTER", 0, 60)
 	frame:SetFrameStrata("DIALOG")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
@@ -181,13 +279,26 @@ local function ensureFrame()
 	endButton:SetPoint("BOTTOM", 0, 12)
 	endButton:SetScript("OnClick", onEndClick)
 
-	local content = CreateFrame("Frame", nil, frame)
+	content = CreateFrame("Frame", nil, frame)
 	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
 	content:SetPoint("BOTTOMRIGHT", startButton, "TOPRIGHT", -10, 10)
 
-	dataTable = DataTable.Create(content)
+	itemListContainer = CreateFrame("Frame", nil, content)
+	-- anchored per-view in showActiveView/showPendingView (fixed-height-at-top when a response
+	-- grid is showing below it, full-height when it's the only thing in the window)
+
+	dataTable = DataTable.Create(itemListContainer)
 	dataTable.scroll:SetAllPoints()
 	dataTable.pendingBuilder = pendingRows
+
+	detailLabel = Primitives.createText(content, L["VOTINGFRAME_TITLE"], 12, "dim")
+	detailLabel:SetPoint("TOPLEFT", itemListContainer, "BOTTOMLEFT", 0, -8)
+
+	detailContainer = CreateFrame("Frame", nil, content)
+	detailContainer:SetPoint("TOPLEFT", detailLabel, "BOTTOMLEFT", 0, -4)
+	detailContainer:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
+
+	votingPanel = PLC.UI.VotingFrame.CreatePanel(detailContainer)
 
 	frame:Hide()
 	return frame
@@ -205,9 +316,46 @@ function SessionFrame:OnLootReady()
 	f:Show()
 end
 
--- Manual open, mainly so the holder can reach the End button once a session is already running
--- (there's no automatic re-show for that -- it's not tied to a loot event).
+-- Forward-hook target from Data/Session.lua whenever the item set or an award changes (new
+-- items queued/received, an award confirmed/received) -- only does anything while this window
+-- is actually open, same guard style as every other UI forward-hook in this codebase.
+function SessionFrame:OnSessionUpdated()
+	if not frame or not frame:IsShown() then
+		return
+	end
+	refresh()
+end
+
+-- Manual open, mainly so any council member (not just the live ML) can monitor/reach the
+-- End button for a session already running -- there's no automatic re-show for that, it's not
+-- tied to a loot event.
 PLC:RegisterSlashCommand("sessionframe", "Open the session curation/control window", function()
+	local f = ensureFrame()
+	refresh()
+	f:Show()
+end)
+
+-- Temporary debug seed: fabricates one fake session item (no live loot slot, so the embedded
+-- VotingFrame panel's Award button will correctly fail -- see VOTINGFRAME_NO_LOOT_SLOT) and
+-- forces the active view, so the merged layout's scrolling/selection/row-recycling can be
+-- exercised solo without a real session running. See docs/TESTING.md.
+PLC:RegisterSlashCommand("testdata", "Debug: seed a fake session item and open the session window", function()
+	if PLC.Session.state ~= "active" then
+		PLC.Session.state = "active"
+		PLC.Session.sessionId = PLC.Session.sessionId or "testdata"
+		PLC.Session.owner = PLC.Session.owner or { guid = UnitGUID("player"), name = UnitName("player") }
+	end
+	PLC.Session.items[1] = PLC.Session.items[1] or {
+		idx = 1,
+		lootSlot = nil,
+		link = "item:6948::::::::1:::::::",
+		icon = "Interface\\Icons\\INV_Misc_Book_09",
+		quality = 4,
+		deadlineAt = time() + 300,
+	}
+	PLC.Session.responses[1] = PLC.Session.responses[1] or {}
+	PLC.Session.nextIdx = math.max(PLC.Session.nextIdx, 2)
+
 	local f = ensureFrame()
 	refresh()
 	f:Show()
