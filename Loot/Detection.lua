@@ -63,15 +63,13 @@ local function onLootReady()
 	Detection.lootOpen = true
 	scanLootSlots()
 
-	if PLC.CouncilRules:AmIMasterLooter() and PLC.Session and PLC.Session.QueueDetectedItems then
-		PLC.Session:QueueDetectedItems(Detection.lootSlotInfo)
-	end
-
-	-- UI/SessionFrame.lua doesn't exist until Stage 5 -- same guard pattern as the Session hook
-	-- above. SessionFrame itself decides whether curation is actually relevant right now (no-op
-	-- once a session is already active; see UI/SessionFrame.lua).
-	if PLC.CouncilRules:AmIMasterLooter() and PLC.UI and PLC.UI.SessionFrame and PLC.UI.SessionFrame.OnLootReady then
-		PLC.UI.SessionFrame:OnLootReady()
+	-- Silent background collection (self-loots every qualifying item into the ML's own bag --
+	-- see Data/Session.lua:CollectDetectedItems) -- not gated on an active review session
+	-- anymore, only on actually being the live master looter. No UI pops up here on purpose:
+	-- across a multi-hour raid this fires constantly, and the whole point of this workflow is
+	-- that review happens once, deliberately, later (/plc sessionframe), not on every drop.
+	if PLC.CouncilRules:AmIMasterLooter() and PLC.Session and PLC.Session.CollectDetectedItems then
+		PLC.Session:CollectDetectedItems(Detection.lootSlotInfo)
 	end
 end
 

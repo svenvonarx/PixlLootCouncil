@@ -138,11 +138,18 @@ function Award:OnLootSlotCleared(slot)
 		if entry.slot == slot then
 			PLC:CancelTimer(entry.timerHandle)
 			table.remove(self.pendingQueue, i)
-			print(L["CHAT_PREFIX"] .. string.format(L["AWARD_SUCCESS"], entry.link, entry.winnerName))
+			-- reason == "collect" means this was silent background self-looting (see
+			-- Data/Session.lua:CollectDetectedItems), not a real award decision -- no success
+			-- print, no raid-chat announcement for every single item bagged across the raid.
+			-- Session:AwardBaggedItem handles the real "awarded to X" messaging separately, once
+			-- the council actually decides.
+			if entry.reason ~= "collect" then
+				print(L["CHAT_PREFIX"] .. string.format(L["AWARD_SUCCESS"], entry.link, entry.winnerName))
+			end
 			if PLC.Session and PLC.Session.OnAwardConfirmed then
 				PLC.Session:OnAwardConfirmed(entry)
 			end
-			if PLC.Loot.Announce and PLC.Loot.Announce.AnnounceAward then
+			if entry.reason ~= "collect" and PLC.Loot.Announce and PLC.Loot.Announce.AnnounceAward then
 				PLC.Loot.Announce:AnnounceAward(entry)
 			end
 			return

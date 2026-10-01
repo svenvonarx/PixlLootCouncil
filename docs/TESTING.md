@@ -19,55 +19,72 @@ instead of being silently swallowed.
   `council=true` or `false` depending on the default `raidAssist` mode and your current
   group-leader/assistant/ML status.
 
-### 1.3 Loot detection + award pre-validation (Stage 2)
-- Set loot method to Master Loot (works solo, party of 1), enter any instance, loot a trash
-  mob. `/plc debug` toggles verbose logging; with it on, `LOOT_READY` should print each detected
-  slot's link/quality.
-- There's no more standalone `/plc award` command (retired in Stage 4) — awarding now goes
-  through the Award button in the merged session window's embedded response grid, covered in 1.5
-  below.
+### 1.3 Silent background loot collection (Stage 2, reworked for the bagged-item workflow)
+Reworked after the second round of playtest feedback: the ML stays on Master Loot the whole raid
+and silently self-loots every qualifying item the moment it drops (items are BoP-tradeable for
+2h, so review/award happens later, not live at the corpse) — there is no more "vote live at this
+corpse's loot window" flow.
+- Set loot method to Master Loot (works solo, party of 1), enter any instance, loot a trash mob
+  whose drop meets `profile.lootThreshold` (Rare+ by default). `/plc debug` toggles verbose
+  Detection logging (prints every detected slot regardless of quality); confirm separately that
+  the item actually lands in **your own bags** with no window popping up at all — collection is
+  deliberately silent (see `Loot/Detection.lua`'s `onLootReady`).
+- Loot something *below* `profile.lootThreshold` (a gray/green): confirm it's left alone —
+  normal Blizzard looting, untouched by the addon, not self-looted or tracked.
+- `/plc sessionframe` any time afterward shows it in the list with a Pending status, confirming
+  it was tracked even though no review session has been started yet.
+- There's no more standalone `/plc award` command — awarding now goes through the Award/
+  Pre-Award buttons in the session window's embedded response grid, covered in 1.5 below.
 
 ### 1.4 Comms protocol (Stage 3, solo-checkable parts only)
 - Nothing to click solo here — `Comms/Protocol.lua`'s envelope/version-gate logic and the full
   command round-trip can only be exercised with a second client (Part 2.1).
 
-### 1.5 Merged session window + DataTable (Stages 4-5, reworked after first playtest)
-`UI/VotingFrame.lua` no longer opens its own popup — it's an embedded panel inside
-`UI/SessionFrame.lua`'s content area (click an item's row in the top list, its response grid
-renders below it in the same window). `UI/SessionFrame.lua`'s curation/active views and this
-embedded grid are exercised together now:
-- `/plc testdata` seeds one fake item (no live loot slot) and forces the session window into its
-  active view so the merged layout can be checked solo.
-- Confirm the top item list shows an icon + item name + a Pending/Awarded/Expired status column,
-  and that it auto-selects the fake item (row highlighted) with the candidate/role/response/
-  Award grid rendering below it.
-- Click the item's row again (or, with 2+ fake items, a different row) — confirm selection moves
-  and the response grid below swaps to that item.
-- Resize the window / seed more fake rows if you want to confirm scrolling and row recycling
-  don't leak frames (watch `/framestack` row count across repeated `/plc testdata` calls — it
-  should stay bounded, not grow unbounded).
-- Click Award in the response grid: since the fake item has no live loot slot, it should fail
-  cleanly with "This item has no live loot slot" rather than erroring.
+### 1.5 Session window: unified list + embedded response grid (Stages 4-5, reworked twice now)
+`UI/SessionFrame.lua` is one unified list driven directly by `PLC.Session.items` (no more
+separate "curate the live loot window" vs "active session" views — items are already bagged by
+the time anyone could react to them, see 1.3). `UI/VotingFrame.lua` is an embedded panel inside
+it, not its own popup (click an item's row in the top list, its response grid renders below it
+in the same window).
+- `/plc sessionframe` any time opens it — there's no more automatic popup on loot (that was pure
+  spam across a multi-hour raid; see 1.3's rework note).
+- `/plc testdata` adds one real test item (Hearthstone, itemID 6948 — always cached, so it
+  resolves instantly with a real name/icon/link, not placeholder text) via the same
+  `Session:AddManualItem` path `/plc additem` uses, and opens the window.
+- Confirm the top item list shows an icon + item name + a Pending/Pre-awarded/Awarded/Expired
+  status column, auto-selects the item (row highlighted), and the candidate/role/response/
+  Award/Pre-Award grid renders below it.
+- With `Session.state` still `"inactive"` (haven't clicked Start yet), confirm a Remove button
+  shows on the row; click it, confirm the item disappears from the list and `PLC.Session.items`
+  is actually empty.
+- Click "Start Session": confirm Remove disappears from every row (no wire command exists to
+  retract an already-broadcast item), End Session and Award All buttons appear, and (with a
+  second client, or `/plc additem` on the same one) that items keep showing up live if looted
+  while reviewing is still in progress.
+- Resize the window / `/plc additem` a few more things if you want to confirm scrolling and row
+  recycling don't leak frames (watch `/framestack` row count across repeated adds — it should
+  stay bounded, not grow unbounded).
+- Click Award on a candidate in the response grid: confirm the item's status flips to
+  "Awarded: PlayerName", a `[PixlLootCouncil] <item> awarded to <player> -- trade it to them!`
+  line prints (this workflow doesn't auto-trade — see 2.5), and selection auto-advances to the
+  next pending item.
+- Click Pre-Award instead on a different item/candidate: confirm that candidate's button reads
+  "Staged" (accent-colored) and the item's top-list status shows "Pre-awarded: PlayerName" —
+  *without* printing anything or changing the item's real Awarded state yet. Click Award All:
+  confirm every pre-awarded (not-yet-awarded) item commits in one pass, each printing its own
+  trade instruction.
 
-### 1.6 Session curation UI (Stage 5, reworked after first playtest, solo-visible parts)
-- Open a loot window as master looter with no PixlLootCouncil session active yet —
-  `UI/SessionFrame.lua` should pop up automatically showing the detected items as icon + name,
-  each with a Remove button.
-- Click Remove on an item, confirm it disappears from the list.
-- Click "Start Session" — the frame switches to its active view (see 1.5) and an End Session
-  button appears.
-- `/plc sessionframe` manually reopens it if you close it (any council member, not just the live
-  ML, can use this to monitor an in-progress session).
-- `UI/LootFrame.lua` should also pop up for you as a candidate once the session starts, showing
-  one row per item: an icon, a remaining-time countdown, response buttons built from your
-  configured responses (Need/Greed/Pass by default), and a note field next to them.
-  `/plc lootframe` reopens it manually.
-- Type something in an item's note field, then click a response button: the whole row should
-  disappear immediately (not swap to a "you voted" label — matches RCLootCouncil's behavior per
-  the first playtest's feedback) — other items in the list are unaffected.
-- Leave an item unanswered and watch the countdown: once `profile.responseTimeoutSeconds` passes,
-  that row should also disappear on its own (checked every second while the window is open) —
-  and if that was the only pending item, the whole Loot Response window should auto-hide.
+### 1.6 Candidate response window (Stage 5, unchanged by the bagged-item rework)
+- `UI/LootFrame.lua` pops up for you as a candidate once a review session starts (`Session:Start`
+  broadcasts the backlog), showing one row per item: an icon, a remaining-time countdown,
+  response buttons built from your configured responses (Need/Greed/Pass by default), and a note
+  field next to them. `/plc lootframe` reopens it manually.
+- Type something in an item's note field, then click a response button: the whole row disappears
+  immediately (not a "you voted" label) — other items in the list are unaffected.
+- Leave an item unanswered and watch the countdown: once `profile.responseTimeoutSeconds` passes
+  (stamped fresh the moment `Start()` broadcasts, not however long ago the item was actually
+  bagged), that row disappears on its own (checked every second while the window is open) — and
+  if that was the only pending item, the whole window auto-hides.
 
 ### 1.7 Chat announcements (Stage 6, reworked after first playtest, solo-visible parts)
 - With `profile.announce.sessionStart` on (default), starting a session should post **one**
@@ -134,8 +151,8 @@ All three with the holder actually holding an active session with at least one i
   ends up with the identical item/response state the holder has — not just the messages sent
   since it joined.
 
-### 2.3 Embedded response grid live refresh + notes (Stages 4-5, reworked after first playtest)
-- With a real active session item, have the council member select that item in their
+### 2.3 Embedded response grid live refresh + notes (Stages 4-5)
+- With a real session item, have the council member select that item in their
   `UI/SessionFrame.lua` window (it's auto-selected if it's the only pending one), and have the
   candidate respond — with a note — on their Loot Frame.
 - Confirm the council member's response grid updates that one row immediately, and that it's a
@@ -145,33 +162,46 @@ All three with the holder actually holding an active session with at least one i
   show which path actually fired).
 - Hover the response cell on the council member's side: confirm the note text shows in a tooltip
   (`GameTooltip`), and that a response with no note shows no tooltip at all.
-- With 2+ pending items, have the council member award one: confirm the top item list's status
-  flips to "Awarded" and selection auto-advances to the next pending item on its own — without
-  needing to click anything or reopen the window.
 
-### 2.4 Session curation + vote-makes-item-disappear + response deadline (Stage 5, reworked)
-- ML side: open a loot window with 2+ items, remove one via the Session Frame's curation list
-  before clicking Start, confirm the removed item never appears in the candidate's Loot Frame or
-  in `PLC.Session.items` on either client.
-- Candidate side: click a response button, confirm the whole row vanishes immediately (not a
-  "You voted: X" label) — but that a *different* item in the same session still has its own live
-  row, unaffected.
-- Response deadline: lower `profile.responseTimeoutSeconds` on the holder's client (Options →
-  General) *before* starting the session, confirm the candidate's countdown matches the holder's
-  configured value (not whatever the candidate's own Options panel happens to say — this is the
-  "takes the one from loot master" requirement), and that the row disappears on its own once it
-  expires, with the item's status on the ML's side showing "Expired" rather than "Pending" (but
-  Award still works on it regardless).
+### 2.4 Collection across the whole raid + response deadline (reworked for the bagged-item workflow)
+- ML side: loot 2+ qualifying items across *different* corpses/trash packs over a few minutes
+  (not all from one loot window), confirming each lands silently in your bags with no popup, no
+  broadcast yet, and no comms traffic (check with a packet/throttle add-on or just confirm the
+  candidate sees nothing in their Loot Frame during this phase).
+- Still pre-Start(): remove one of the collected items via `UI/SessionFrame.lua`'s Remove button,
+  confirm it never appears in the candidate's Loot Frame or in `PLC.Session.items` on either
+  client once you do start.
+- Click Start Session: confirm **all** remaining collected items broadcast at once (not just the
+  most recently looted one) and the candidate's Loot Frame shows every one of them simultaneously
+  with a *fresh* full countdown each — not an already-half-expired one, even for an item that was
+  actually bagged several minutes before Start() was clicked.
+- Response deadline, "takes the one from loot master": lower `profile.responseTimeoutSeconds` on
+  the holder's client (Options → General) *before* clicking Start, confirm the candidate's
+  countdown matches the holder's configured value (not whatever the candidate's own Options panel
+  happens to say), and that the row disappears on its own once it expires, with the item's status
+  on the ML's side showing "Expired" rather than "Pending" (Award still works on it regardless).
+- Candidate side: click a response button, confirm the whole row vanishes immediately — a
+  *different* item in the same session keeps its own live row, unaffected.
 
-### 2.5 Award flow end-to-end (Stages 2-6 together)
-- Council member clicks Award on a real session item's row (with its loot window still open on
-  the holder's client — see the note in `docs/SPECIFICATION.md`'s plan about award keying off
-  the live Blizzard loot slot). Confirm: the item actually transfers, the holder's client shows
-  `AWARD_SUCCESS`, the item's row shows "Awarded" status on both clients, and the `award` comm
-  updates `PLC.Session.items[idx].awarded` on every client without a full resync.
-- Close the loot window first, then attempt Award again on a *different* (not-yet-resolved) item
-  whose underlying loot slot is now stale — confirm it fails cleanly with the existing
-  `CanGiveLoot` rejection message rather than erroring.
+### 2.5 Bagged-item award flow + pre-award + Award All (reworked for the bagged-item workflow)
+There is no live loot slot by the time anyone's reviewing — Award now means "record the decision
+and tell the holder who to trade it to," not "transfer it directly" (no trade automation yet,
+per the user's explicit choice — see the plan).
+- Council member clicks Award on a real (already-bagged) item's row. Confirm: the item's status
+  flips to "Awarded: PlayerName" on every client via the `award` comm (no full resync needed),
+  and the holder's client alone prints the `... awarded to ... -- trade it to them!` instruction
+  and posts the chat announcement (if `profile.announce.award` is on) — the candidate's client
+  does neither.
+- Attempt to Award the same item again (from either client): confirm it refuses cleanly
+  (`SESSION_ALREADY_AWARDED`) rather than double-committing or erroring.
+- Pre-award + Award All: Pre-Award two different items to two different candidates (confirm
+  "Staged" shows locally on the holder's client only — the candidate clients should see no
+  change at all, since pre-award is never broadcast), then click Award All. Confirm both commit
+  in one pass, each with its own trade-instruction print and its own `award` comm, and that a
+  third, un-staged item is left untouched (still "Pending").
+- The actual item transfer is manual now (holder trades it in-game) — confirm the addon does
+  *not* attempt to open a trade window or otherwise touch the trade UI; that's explicitly out of
+  scope for this round.
 
 ### 2.6 Chat announcements, exactly once (Stage 6, reworked after first playtest)
 - With a real session and award happening, confirm the session-start summary line (one line

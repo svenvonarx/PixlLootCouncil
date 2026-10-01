@@ -7,15 +7,22 @@ local DataTable = PLC.UI.Widgets.DataTable
 
 -- Embeddable response-grid panel, NOT its own top-level window -- UI/SessionFrame.lua mounts
 -- this directly into its own content area as the "same window, all the answers" merged layout
--- from the first live playtest's feedback (this used to open its own floating popup via a
--- per-item Vote button; that's exactly what got reworked away, see docs/SPECIFICATION.md §4.3's
--- single-purpose-window guidance -- this is no longer single-purpose on its own, it's a
--- component of SessionFrame).
+-- (see docs/SPECIFICATION.md §4.3's single-purpose-window guidance -- this is no longer
+-- single-purpose on its own, it's a component of SessionFrame).
+--
+-- Bagged-item workflow: by the time anyone's reviewing an item it's always already in the ML's
+-- bags (Data/Session.lua:CollectDetectedItems self-loots everything at collection time), so
+-- there's never a live loot slot left for Award to transfer through directly -- Award here means
+-- "record who should get it, the holder trades it to them manually" (Session:AwardBaggedItem).
+-- Pre-Award stages a choice (Session:SetPreAward) without committing, for Session:
+-- AwardAllPreAwarded to commit in bulk later.
 local VotingFrame = {}
 PLC.UI.VotingFrame = VotingFrame
 
 local Panel = {}
 local PanelMeta = { __index = Panel }
+
+local ROLE_ABBR = { TANK = "Tank", HEALER = "Heal", DAMAGER = "DPS" }
 
 local function classColor(class)
 	local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
@@ -50,6 +57,7 @@ function Panel:buildRows()
 	if not self.currentIdx then
 		return rows
 	end
+	local item = PLC.Session.items[self.currentIdx]
 	local responses = PLC.Session.responses[self.currentIdx]
 	for guid, entry in PLC.Roster:IterateGroup() do
 		local r = responses and responses[guid]
@@ -60,6 +68,7 @@ function Panel:buildRows()
 			role = entry.role,
 			response = r and r.response,
 			note = r and r.note,
+			staged = item ~= nil and item.preAwardGuid == guid,
 		})
 	end
 	table.sort(rows, function(a, b) return a.name < b.name end)
@@ -70,12 +79,14 @@ function Panel:Award(guid)
 	if not self.currentIdx then
 		return
 	end
-	local item = PLC.Session.items[self.currentIdx]
-	if not item or not item.lootSlot then
-		print(L["CHAT_PREFIX"] .. L["VOTINGFRAME_NO_LOOT_SLOT"])
+	PLC.Session:AwardBaggedItem(self.currentIdx, guid)
+end
+
+function Panel:PreAward(guid)
+	if not self.currentIdx then
 		return
 	end
-	PLC.Loot.Award:TryAward(item.lootSlot, guid, "council")
+	PLC.Session:SetPreAward(self.currentIdx, guid)
 end
 
 function Panel:ShowItem(idx)
@@ -86,8 +97,8 @@ end
 
 -- Session:notifyVotingFrame's target (forwarded via VotingFrame:OnItemUpdated below). guid
 -- present means "just this one row changed" (targeted RefreshRow, no full rebuild, per
--- docs/SPECIFICATION.md §4.4); omitted means "rebuild everything" (award changes, which can
--- affect multiple rows at once).
+-- docs/SPECIFICATION.md §4.4); omitted means "rebuild everything" (award/pre-award changes,
+-- which can affect multiple rows at once -- e.g. staging a new pre-award un-stages the old one).
 function Panel:OnItemUpdated(idx, guid)
 	if idx ~= self.currentIdx then
 		return
@@ -110,13 +121,13 @@ function Panel:OnItemUpdated(idx, guid)
 	self.dataTable:RefreshRow(rowIndex)
 end
 
--- Builds the candidate/role/response/Award grid into `parent` and returns the panel object.
--- Only one is ever actually live at a time in practice (the one UI/SessionFrame.lua mounts), but
--- nothing here assumes that -- VotingFrame.activePanel (set below) is just "whichever panel
--- Session's forward-hooks should talk to."
+-- Builds the candidate/role/response/Award/Pre-Award grid into `parent` and returns the panel
+-- object. Only one is ever actually live at a time in practice (the one UI/SessionFrame.lua
+-- mounts), but nothing here assumes that -- VotingFrame.activePanel (set below) is just
+-- "whichever panel Session's forward-hooks should talk to."
 function VotingFrame.CreatePanel(parent)
 	local dataTable = DataTable.Create(parent, 32) -- taller than the 24px default: the Award
-	-- button column is 28px tall and would otherwise vertically overflow/clip against the next row
+	-- buttons are 28px tall and would otherwise vertically overflow/clip against the next row
 	dataTable.scroll:SetAllPoints()
 
 	local self = setmetatable({
@@ -127,24 +138,24 @@ function VotingFrame.CreatePanel(parent)
 
 	dataTable:SetColumns({
 		{
-			width = 180,
+			width = 150,
 			render = function(row)
 				local r, g, b = classColor(row.class)
 				return row.name, r, g, b
 			end,
 		},
 		{
-			width = 90,
+			width = 50,
 			render = function(row)
-				return row.role or "-"
+				return ROLE_ABBR[row.role] or "-"
 			end,
 		},
 		{
-			width = 110,
+			width = 90,
 			isWidget = true,
 			create = function(row)
 				local holder = CreateFrame("Frame", nil, row)
-				holder:SetSize(110, 20)
+				holder:SetSize(90, 20)
 				holder:EnableMouse(true)
 				holder.text = Primitives.createText(holder, "", 11)
 				holder.text:SetAllPoints()
@@ -174,14 +185,35 @@ function VotingFrame.CreatePanel(parent)
 			end,
 		},
 		{
-			width = 80,
+			width = 60,
 			isWidget = true,
 			create = function(row)
-				return ButtonWidget.createButton(row, L["VOTINGFRAME_AWARD"], 70)
+				return ButtonWidget.createButton(row, L["VOTINGFRAME_AWARD"], 54)
 			end,
 			update = function(button, rowData)
 				button:SetScript("OnClick", function()
 					self:Award(rowData.guid)
+				end)
+			end,
+		},
+		{
+			width = 70,
+			isWidget = true,
+			create = function(row)
+				return ButtonWidget.createButton(row, L["VOTINGFRAME_PREAWARD"], 64)
+			end,
+			update = function(button, rowData)
+				if rowData.staged then
+					button.label:SetText(L["VOTINGFRAME_STAGED"])
+					local r, g, b = Primitives.color("accent")
+					button.label:SetTextColor(r, g, b)
+				else
+					button.label:SetText(L["VOTINGFRAME_PREAWARD"])
+					local r, g, b = Primitives.color("text")
+					button.label:SetTextColor(r, g, b)
+				end
+				button:SetScript("OnClick", function()
+					self:PreAward(rowData.guid)
 				end)
 			end,
 		},

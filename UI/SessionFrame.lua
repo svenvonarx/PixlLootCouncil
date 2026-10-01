@@ -6,19 +6,13 @@ local ButtonWidget = PLC.UI.Widgets.Button
 local DataTable = PLC.UI.Widgets.DataTable
 local Theme = PLC.UI.Theme
 
--- The single ML-facing window (header+content, no sidebar -- spec §4.3). Reworked from two
--- separate windows (this + a standalone VotingFrame popup opened via a per-item Vote button)
--- into one, per the first live playtest's feedback: items shown as icons, with the response
--- grid visible in the SAME window (master-detail: click an item in the top list, its full
--- candidate/response/Award grid -- UI/VotingFrame.lua, now an embedded panel, not its own
--- window -- renders below it), not a second popup.
---
--- Curation only applies to the FIRST batch of a new session: once Session.state == "active",
--- later corpses' items auto-flow straight into the session via the existing Loot/Detection.lua
--- hook (real raid practice resolves each session's items before the next corpse anyway, and
--- re-litigating an already-broadcast item would need a wire command this addon doesn't have --
--- see Data/Session.lua's QueueDetectedItems). "Remove" here only ever acts on items that haven't
--- been queued/broadcast yet.
+-- The single ML-facing window (header+content, no sidebar -- spec §4.3): master-detail, one
+-- unified list. Items accumulate in Data/Session.lua's PLC.Session.items from the moment they're
+-- silently self-looted (Session:CollectDetectedItems), long before any review pass -- this list
+-- always reflects that directly, not a separate pre-Start() "curation of the live loot window"
+-- step (that step doesn't exist anymore under the bagged-item workflow: by the time anyone could
+-- react to an item it's already bagged). Click a row to select it; its full candidate/response/
+-- Award/Pre-Award grid (UI/VotingFrame.lua, embedded, not its own window) renders below.
 local SessionFrame = {}
 PLC.UI.SessionFrame = SessionFrame
 
@@ -31,11 +25,11 @@ local detailContainer
 local votingPanel
 local startButton
 local endButton
-local removedSlots = {} -- [lootSlot] = true, curation-only, cleared on Start()
+local awardAllButton
 local selectedIdx -- which session item's response grid is currently shown below the list
 
-local function iconColumn()
-	return {
+local ITEM_COLUMNS = {
+	{
 		width = 28,
 		isWidget = true,
 		create = function(row)
@@ -48,45 +42,25 @@ local function iconColumn()
 		update = function(holder, rowData)
 			holder.texture:SetTexture(rowData.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
 		end,
-	}
-end
-
-local PENDING_COLUMNS = {
-	iconColumn(),
+	},
 	{
-		width = 190,
+		width = 170,
 		render = function(row)
 			return row.link or "?"
 		end,
 	},
 	{
-		width = 50,
-		isWidget = true,
-		create = function(row)
-			return ButtonWidget.createButton(row, L["SESSIONFRAME_REMOVE"], 44)
-		end,
-		update = function(button, rowData)
-			button:SetScript("OnClick", function()
-				removedSlots[rowData.slot] = true
-				dataTable:SetRows(dataTable.pendingBuilder())
-			end)
-		end,
-	},
-}
-
-local ACTIVE_COLUMNS = {
-	iconColumn(),
-	{
-		width = 180,
-		render = function(row)
-			return row.link or "?"
-		end,
-	},
-	{
-		width = 70,
+		-- Priority Awarded > Pre-awarded > Expired > Pending -- the "visibly flagged" overview
+		-- status (see docs/SPECIFICATION.md's bagged-item workflow notes).
+		width = 140,
 		render = function(row)
 			if row.awarded then
-				return L["SESSIONFRAME_AWARDED"]
+				local entry = PLC.Roster:Get(row.awarded)
+				return string.format(L["SESSIONFRAME_AWARDED_TO"], (entry and entry.name) or "?")
+			end
+			if row.preAwardGuid then
+				local entry = PLC.Roster:Get(row.preAwardGuid)
+				return string.format(L["SESSIONFRAME_PREAWARDED_TO"], (entry and entry.name) or "?"), Primitives.color("accent")
 			end
 			if row.deadlineAt and time() > row.deadlineAt then
 				return L["SESSIONFRAME_EXPIRED"], Primitives.color("warning")
@@ -94,20 +68,32 @@ local ACTIVE_COLUMNS = {
 			return L["SESSIONFRAME_PENDING"]
 		end,
 	},
+	{
+		-- Only shown pre-Start()/post-End() for a not-yet-awarded item -- there's no wire command
+		-- to retract an item once it's been broadcast, so removal has to stop being offered the
+		-- moment that becomes possible (Session:RemoveItem enforces the same rule independently).
+		width = 50,
+		isWidget = true,
+		create = function(row)
+			return ButtonWidget.createButton(row, L["SESSIONFRAME_REMOVE"], 44)
+		end,
+		update = function(button, rowData)
+			if PLC.Session.state ~= "active" and not rowData.awarded then
+				button:Show()
+				button:SetScript("OnClick", function()
+					if selectedIdx == rowData.idx then
+						selectedIdx = nil
+					end
+					PLC.Session:RemoveItem(rowData.idx)
+				end)
+			else
+				button:Hide()
+			end
+		end,
+	},
 }
 
-local function pendingRows()
-	local rows = {}
-	for slot, info in pairs(PLC.Loot.Detection.lootSlotInfo) do
-		if not removedSlots[slot] and info.link then
-			table.insert(rows, { slot = slot, link = info.link, icon = info.icon })
-		end
-	end
-	table.sort(rows, function(a, b) return a.slot < b.slot end)
-	return rows
-end
-
-local function activeRows()
+local function itemRows()
 	local rows = {}
 	for idx, item in pairs(PLC.Session.items) do
 		table.insert(rows, {
@@ -115,11 +101,21 @@ local function activeRows()
 			link = item.link,
 			icon = item.icon,
 			awarded = item.awarded,
+			preAwardGuid = item.preAwardGuid,
 			deadlineAt = item.deadlineAt,
 		})
 	end
 	table.sort(rows, function(a, b) return a.idx < b.idx end)
 	return rows
+end
+
+local function firstPendingIdx(rows)
+	for _, row in ipairs(rows) do
+		if not row.awarded then
+			return row.idx
+		end
+	end
+	return nil
 end
 
 local function showDetailFor(idx)
@@ -134,23 +130,28 @@ local function showDetailFor(idx)
 	end
 end
 
-local function firstPendingIdx(rows)
-	for _, row in ipairs(rows) do
-		if not row.awarded then
-			return row.idx
-		end
+local function updateButtons()
+	if PLC.Session.state == "active" then
+		startButton:Hide()
+		endButton:Show()
+		awardAllButton:Show()
+	else
+		startButton:Show()
+		endButton:Hide()
+		awardAllButton:Hide()
 	end
-	return nil
 end
 
-local function showActiveView()
-	itemListContainer:ClearAllPoints()
-	itemListContainer:SetPoint("TOPLEFT", content, "TOPLEFT")
-	itemListContainer:SetPoint("TOPRIGHT", content, "TOPRIGHT")
-	itemListContainer:SetHeight(140)
+-- Rebuilds the list, keeps/advances the selection, and updates the bottom button row -- called
+-- whenever the frame is (re)shown, after Start()/End()/Award All, and from Session's
+-- notifySessionFrame forward-hook whenever the item set or an award/pre-award changes while this
+-- window is open.
+local function refresh()
+	if not dataTable then
+		return
+	end
 
-	dataTable:SetColumns(ACTIVE_COLUMNS)
-	local rows = activeRows()
+	local rows = itemRows()
 	dataTable:SetRows(rows)
 
 	-- Auto-selects the first not-yet-awarded item, and auto-advances off whatever was selected
@@ -168,63 +169,23 @@ local function showActiveView()
 		end
 	end
 	dataTable:SetSelectedIndex(dataIndex)
-	dataTable:SetRowClickHandler(function(rowData)
-		showDetailFor(rowData.idx)
-	end)
-
 	showDetailFor(selectedIdx)
 
-	startButton:Hide()
-	endButton:Show()
-end
-
-local function showPendingView()
-	itemListContainer:ClearAllPoints()
-	itemListContainer:SetPoint("TOPLEFT", content, "TOPLEFT")
-	itemListContainer:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
-
-	dataTable.pendingBuilder = pendingRows
-	dataTable:SetRowClickHandler(nil)
-	dataTable:SetColumns(PENDING_COLUMNS)
-	dataTable:SetRows(pendingRows())
-
-	detailLabel:Hide()
-	detailContainer:Hide()
-
-	startButton:Show()
-	endButton:Hide()
-end
-
--- Rebuilds whichever view matches the session's current state -- called whenever the frame is
--- (re)shown, after Start()/End() flip that state, and from Session's forward-hook whenever the
--- item set or an award changes while this window is open.
-local function refresh()
-	if not dataTable then
-		return
-	end
-	if PLC.Session.state == "active" then
-		showActiveView()
-	else
-		showPendingView()
-	end
+	updateButtons()
 end
 
 local function onStartClick()
-	local filtered = {}
-	for slot, info in pairs(PLC.Loot.Detection.lootSlotInfo) do
-		if not removedSlots[slot] then
-			filtered[slot] = info
-		end
-	end
-	selectedIdx = nil
 	PLC.Session:Start()
-	PLC.Session:QueueDetectedItems(filtered)
-	wipe(removedSlots)
 	refresh()
 end
 
 local function onEndClick()
 	PLC.Session:End()
+	refresh()
+end
+
+local function onAwardAllClick()
+	PLC.Session:AwardAllPreAwarded()
 	refresh()
 end
 
@@ -275,29 +236,32 @@ local function ensureFrame()
 	startButton:SetPoint("BOTTOM", 0, 12)
 	startButton:SetScript("OnClick", onStartClick)
 
-	endButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_END"], 160)
-	endButton:SetPoint("BOTTOM", 0, 12)
+	endButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_END"], 140)
+	endButton:SetPoint("BOTTOM", 90, 12)
 	endButton:SetScript("OnClick", onEndClick)
 
-	-- BUG FIX: this used to anchor to startButton's TOPRIGHT, which only gave content the width
-	-- of that single centered 160px-wide button instead of the window's actual right edge --
-	-- everything past ~column 2 was being silently clipped by the DataTable's scroll-frame
-	-- bounds (the Award button, most of the response text). Went unnoticed through Stage 5
-	-- because the narrower pending-only layout happened to fit inside the too-small width by
-	-- accident; became obviously broken once the wider embedded response grid needed the real
-	-- window width. Anchor to frame's actual corners instead, with enough bottom clearance for
-	-- the button row (12px margin + 28px button height + 10px gap = 50px).
+	awardAllButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_AWARDALL"], 140)
+	awardAllButton:SetPoint("BOTTOM", -90, 12)
+	awardAllButton:SetScript("OnClick", onAwardAllClick)
+
+	-- Anchored to frame's actual corners, not a button's position -- see git history for why
+	-- this matters (a prior version anchored to a centered button's TOPRIGHT and silently
+	-- clipped everything past ~half the window's real width).
 	content = CreateFrame("Frame", nil, frame)
 	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
 	content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 50)
 
 	itemListContainer = CreateFrame("Frame", nil, content)
-	-- anchored per-view in showActiveView/showPendingView (fixed-height-at-top when a response
-	-- grid is showing below it, full-height when it's the only thing in the window)
+	itemListContainer:SetPoint("TOPLEFT", content, "TOPLEFT")
+	itemListContainer:SetPoint("TOPRIGHT", content, "TOPRIGHT")
+	itemListContainer:SetHeight(160)
 
 	dataTable = DataTable.Create(itemListContainer)
 	dataTable.scroll:SetAllPoints()
-	dataTable.pendingBuilder = pendingRows
+	dataTable:SetColumns(ITEM_COLUMNS)
+	dataTable:SetRowClickHandler(function(rowData)
+		showDetailFor(rowData.idx)
+	end)
 
 	detailLabel = Primitives.createText(content, L["VOTINGFRAME_TITLE"], 12, "dim")
 	detailLabel:SetPoint("TOPLEFT", itemListContainer, "BOTTOMLEFT", 0, -8)
@@ -312,21 +276,9 @@ local function ensureFrame()
 	return frame
 end
 
--- Called (defensively) from Loot/Detection.lua:onLootReady whenever the local player is the live
--- Blizzard master looter. No-ops once a PixlLootCouncil session is already active -- see the
--- file banner comment above (curation only matters before Start()).
-function SessionFrame:OnLootReady()
-	if PLC.Session.state == "active" then
-		return
-	end
-	local f = ensureFrame()
-	refresh()
-	f:Show()
-end
-
--- Forward-hook target from Data/Session.lua whenever the item set or an award changes (new
--- items queued/received, an award confirmed/received) -- only does anything while this window
--- is actually open, same guard style as every other UI forward-hook in this codebase.
+-- Forward-hook target from Data/Session.lua whenever the item set or an award/pre-award status
+-- changes -- only does anything while this window is actually open, same guard style as every
+-- other UI forward-hook in this codebase.
 function SessionFrame:OnSessionUpdated()
 	if not frame or not frame:IsShown() then
 		return
@@ -334,26 +286,21 @@ function SessionFrame:OnSessionUpdated()
 	refresh()
 end
 
--- Manual open, mainly so any council member (not just the live ML) can monitor/reach the
--- End button for a session already running -- there's no automatic re-show for that, it's not
--- tied to a loot event.
-PLC:RegisterSlashCommand("sessionframe", "Open the session curation/control window", function()
+-- Manual open -- there's no automatic popup on loot anymore (collection is deliberately silent
+-- across the whole raid, see Loot/Detection.lua); any council member, not just the live ML, can
+-- use this to check progress or reach the controls for a session already running.
+PLC:RegisterSlashCommand("sessionframe", "Open the loot session window", function()
 	local f = ensureFrame()
 	refresh()
 	f:Show()
 end)
 
--- Debug seed: starts a session (if none is running) and adds a real item -- Hearthstone
--- (itemID 6948), always cached client-side since every character starts with one, so
--- C_Item.GetItemInfo resolves it instantly instead of needing a server round-trip -- via the
--- same Session:AddManualItem path /plc additem uses, so the merged layout's scrolling/
--- selection/row-recycling can be exercised solo with real resolved item data (name/icon/link),
--- not a hand-typed placeholder string. No live loot slot, so the embedded VotingFrame panel's
--- Award button will correctly refuse it -- see VOTINGFRAME_NO_LOOT_SLOT. See docs/TESTING.md.
+-- Debug seed: adds a real item -- Hearthstone (itemID 6948), always cached client-side since
+-- every character starts with one, so C_Item.GetItemInfo resolves it instantly -- via the same
+-- Session:AddManualItem path /plc additem uses, so the layout's scrolling/selection/row-
+-- recycling can be exercised solo with real resolved item data (name/icon/link), not a
+-- hand-typed placeholder string. See docs/TESTING.md.
 PLC:RegisterSlashCommand("testdata", "Debug: seed a real test item and open the session window", function()
-	if PLC.Session.state ~= "active" then
-		PLC.Session:Start()
-	end
 	PLC.Session:AddManualItem(6948)
 
 	local f = ensureFrame()
