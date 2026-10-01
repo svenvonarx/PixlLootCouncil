@@ -169,6 +169,9 @@ function Session:QueueDetectedItems(lootSlotInfo)
 	if not self.sentFirstBatch then
 		self.sentFirstBatch = true
 		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(self.items))
+		-- Announced here, once the session actually has its (curated) first batch -- not from
+		-- Start() itself, which runs before any items exist yet.
+		PLC.Loot.Announce:AnnounceSessionStart(self.items)
 	else
 		PLC.Comms.Sync:SendItemAdd(self.sessionId, stripForTransmit(newItems))
 	end
