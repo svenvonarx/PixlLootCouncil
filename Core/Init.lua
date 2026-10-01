@@ -19,10 +19,23 @@ function PLC:RegisterOnEnable(fn)
 	table.insert(onEnableCallbacks, fn)
 end
 
+-- Each callback runs through pcall so one module's enable-time error can't silently abort every
+-- module registered after it -- without this, a single bad callback (or Events:RegisterAll()
+-- itself) would leave every later module's setup (Roster's bucket registration, Session's
+-- restore, Theme's palette, Comms' RegisterComm, ...) never having run, with no visible error.
+local function guardedCall(fn)
+	local ok, err = pcall(fn)
+	if not ok then
+		PLC.ErrorHandler:LogError(err)
+	end
+end
+
 function PLC:OnEnable()
-	self.Events:RegisterAll()
+	guardedCall(function()
+		self.Events:RegisterAll()
+	end)
 	for _, fn in ipairs(onEnableCallbacks) do
-		fn()
+		guardedCall(fn)
 	end
 end
 
