@@ -183,6 +183,13 @@ function Session:QueueDetectedItems(lootSlotInfo)
 
 	persist()
 
+	self:broadcastNewItems(newItems)
+end
+
+-- Shared by QueueDetectedItems and AddManualItem below -- persists, sends session_start (first
+-- batch ever) or item_add (everything after), announces once, and notifies the UI. Caller is
+-- responsible for having already added the item(s) to self.items and called persist() first.
+function Session:broadcastNewItems(newItems)
 	if not self.sentFirstBatch then
 		self.sentFirstBatch = true
 		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(self.items), self.responseTimeoutSeconds)
@@ -194,6 +201,42 @@ function Session:QueueDetectedItems(lootSlotInfo)
 	end
 	self:notifyLootFrame()
 	self:notifySessionFrame()
+end
+
+-- Manually adds one item to the active session by itemID or item link -- e.g. a world-drop
+-- already in someone's bag, or anything else that didn't come through a Blizzard loot window.
+-- Holder-only, requires a session already started (Start() first, even with zero items, then
+-- add one or more this way). No lootSlot, so the embedded VotingFrame panel's Award button will
+-- correctly refuse it (VOTINGFRAME_NO_LOOT_SLOT) until Phase 2 adds real bagged/manually-added-
+-- item awarding (spec §7) -- this still lets the council vote/discuss it today.
+function Session:AddManualItem(itemIdOrLink)
+	if not self:IsHolder() then
+		print(L["CHAT_PREFIX"] .. L["SESSION_NOT_HOLDER"])
+		return
+	end
+
+	local _, link, quality, _, _, _, _, _, _, icon = C_Item.GetItemInfo(itemIdOrLink)
+	if not link then
+		print(L["CHAT_PREFIX"] .. L["SESSION_ADDITEM_UNKNOWN"])
+		return
+	end
+
+	local idx = self.nextIdx
+	self.nextIdx = self.nextIdx + 1
+	local entry = {
+		idx = idx,
+		lootSlot = nil,
+		itemString = itemStringFromLink(link),
+		boss = nil,
+		quality = quality,
+		deadlineAt = time() + self.responseTimeoutSeconds,
+		link = link,
+		icon = icon,
+	}
+	self.items[idx] = entry
+	persist()
+	self:broadcastNewItems({ [idx] = entry })
+	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_ADDITEM_SUCCESS"], link))
 end
 
 function Session:OnSessionStartReceived(data)
@@ -459,4 +502,16 @@ PLC:RegisterSlashCommand("session", "Debug: forceend|sync the loot session", fun
 	else
 		print(L["CHAT_PREFIX"] .. L["SESSION_USAGE"])
 	end
+end)
+
+-- Real utility command, not a debug stub -- lets the holder add an item to the running session
+-- by itemID or item link, for anything that didn't come through a live loot window (a world
+-- drop someone already picked up, an item worth a council vote outside of a boss kill, etc).
+PLC:RegisterSlashCommand("additem", "Manually add an item to the active session by itemID or link", function(args)
+	local itemArg = args:match("^%s*(.-)%s*$")
+	if itemArg == "" then
+		print(L["CHAT_PREFIX"] .. L["SESSION_ADDITEM_USAGE"])
+		return
+	end
+	Session:AddManualItem(tonumber(itemArg) or itemArg)
 end)

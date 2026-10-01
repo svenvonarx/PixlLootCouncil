@@ -115,7 +115,8 @@ end
 -- nothing here assumes that -- VotingFrame.activePanel (set below) is just "whichever panel
 -- Session's forward-hooks should talk to."
 function VotingFrame.CreatePanel(parent)
-	local dataTable = DataTable.Create(parent)
+	local dataTable = DataTable.Create(parent, 32) -- taller than the 24px default: the Award
+	-- button column is 28px tall and would otherwise vertically overflow/clip against the next row
 	dataTable.scroll:SetAllPoints()
 
 	local self = setmetatable({

@@ -279,9 +279,17 @@ local function ensureFrame()
 	endButton:SetPoint("BOTTOM", 0, 12)
 	endButton:SetScript("OnClick", onEndClick)
 
+	-- BUG FIX: this used to anchor to startButton's TOPRIGHT, which only gave content the width
+	-- of that single centered 160px-wide button instead of the window's actual right edge --
+	-- everything past ~column 2 was being silently clipped by the DataTable's scroll-frame
+	-- bounds (the Award button, most of the response text). Went unnoticed through Stage 5
+	-- because the narrower pending-only layout happened to fit inside the too-small width by
+	-- accident; became obviously broken once the wider embedded response grid needed the real
+	-- window width. Anchor to frame's actual corners instead, with enough bottom clearance for
+	-- the button row (12px margin + 28px button height + 10px gap = 50px).
 	content = CreateFrame("Frame", nil, frame)
 	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
-	content:SetPoint("BOTTOMRIGHT", startButton, "TOPRIGHT", -10, 10)
+	content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 50)
 
 	itemListContainer = CreateFrame("Frame", nil, content)
 	-- anchored per-view in showActiveView/showPendingView (fixed-height-at-top when a response
@@ -335,26 +343,18 @@ PLC:RegisterSlashCommand("sessionframe", "Open the session curation/control wind
 	f:Show()
 end)
 
--- Temporary debug seed: fabricates one fake session item (no live loot slot, so the embedded
--- VotingFrame panel's Award button will correctly fail -- see VOTINGFRAME_NO_LOOT_SLOT) and
--- forces the active view, so the merged layout's scrolling/selection/row-recycling can be
--- exercised solo without a real session running. See docs/TESTING.md.
-PLC:RegisterSlashCommand("testdata", "Debug: seed a fake session item and open the session window", function()
+-- Debug seed: starts a session (if none is running) and adds a real item -- Hearthstone
+-- (itemID 6948), always cached client-side since every character starts with one, so
+-- C_Item.GetItemInfo resolves it instantly instead of needing a server round-trip -- via the
+-- same Session:AddManualItem path /plc additem uses, so the merged layout's scrolling/
+-- selection/row-recycling can be exercised solo with real resolved item data (name/icon/link),
+-- not a hand-typed placeholder string. No live loot slot, so the embedded VotingFrame panel's
+-- Award button will correctly refuse it -- see VOTINGFRAME_NO_LOOT_SLOT. See docs/TESTING.md.
+PLC:RegisterSlashCommand("testdata", "Debug: seed a real test item and open the session window", function()
 	if PLC.Session.state ~= "active" then
-		PLC.Session.state = "active"
-		PLC.Session.sessionId = PLC.Session.sessionId or "testdata"
-		PLC.Session.owner = PLC.Session.owner or { guid = UnitGUID("player"), name = UnitName("player") }
+		PLC.Session:Start()
 	end
-	PLC.Session.items[1] = PLC.Session.items[1] or {
-		idx = 1,
-		lootSlot = nil,
-		link = "item:6948::::::::1:::::::",
-		icon = "Interface\\Icons\\INV_Misc_Book_09",
-		quality = 4,
-		deadlineAt = time() + 300,
-	}
-	PLC.Session.responses[1] = PLC.Session.responses[1] or {}
-	PLC.Session.nextIdx = math.max(PLC.Session.nextIdx, 2)
+	PLC.Session:AddManualItem(6948)
 
 	local f = ensureFrame()
 	refresh()

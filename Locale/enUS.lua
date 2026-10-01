@@ -51,6 +51,9 @@ L["SESSION_FORCE_ENDED_BY"] = "%s force-ended the loot session (holder unrespons
 L["SESSION_SYNCED"] = "Loot session synced from the holder."
 L["SESSION_RESTORED"] = "Restored your active loot session."
 L["SESSION_USAGE"] = "Usage: /plc session forceend|sync"
+L["SESSION_ADDITEM_USAGE"] = "Usage: /plc additem <itemID or itemLink>"
+L["SESSION_ADDITEM_UNKNOWN"] = "Could not resolve that item -- check the itemID/link, or try again once it's cached."
+L["SESSION_ADDITEM_SUCCESS"] = "Added %s to the session."
 
 L["VOTINGFRAME_TITLE"] = "Loot Council"
 L["VOTINGFRAME_AWARD"] = "Award"
