@@ -207,6 +207,7 @@ function Session:SendMyResponse(idx, response, note)
 	self.responses[idx] = self.responses[idx] or {}
 	self.responses[idx][guid] = { response = response, note = note }
 	PLC.Comms.Sync:SendResponse(self.sessionId, idx, guid, response, note)
+	self:notifyVotingFrame(idx, guid)
 end
 
 function Session:OnResponseReceived(data)
@@ -215,6 +216,17 @@ function Session:OnResponseReceived(data)
 	end
 	self.responses[data.idx] = self.responses[data.idx] or {}
 	self.responses[data.idx][data.guid] = { response = data.response, note = data.note }
+	self:notifyVotingFrame(data.idx, data.guid)
+end
+
+-- UI/VotingFrame.lua doesn't exist until Stage 4 -- guarded exactly like every other
+-- not-yet-built-module forward-call in this codebase (see Loot/Detection.lua:66-68). guid is the
+-- one row that changed, so VotingFrame can target-refresh just that row instead of rebuilding;
+-- omitted (e.g. a fresh sync) means "rebuild everything."
+function Session:notifyVotingFrame(idx, guid)
+	if PLC.UI and PLC.UI.VotingFrame and PLC.UI.VotingFrame.OnItemUpdated then
+		PLC.UI.VotingFrame:OnItemUpdated(idx, guid)
+	end
 end
 
 -- Forward-hook target already called (defensively) from Loot/Award.lua:117-119. Kept as an
@@ -237,6 +249,7 @@ function Session:OnAwardConfirmed(entry)
 	item.awarded = entry.winnerGuid
 	persist()
 	PLC.Comms.Sync:SendAward(self.sessionId, item.idx, entry.winnerGuid)
+	self:notifyVotingFrame(item.idx)
 end
 
 -- Forward-hook target already called (defensively) from Loot/Award.lua:156-158. Local-only: a
@@ -252,6 +265,7 @@ function Session:OnAwardReceived(data)
 	if item then
 		item.awarded = data.winnerGuid
 	end
+	self:notifyVotingFrame(data.idx)
 end
 
 function Session:OnHeartbeatReceived(data)

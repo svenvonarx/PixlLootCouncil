@@ -157,30 +157,3 @@ function Award:OnTimeout(entry)
 		PLC.Session:OnAwardFailed(entry, "timeout")
 	end
 end
-
--- Temporary debug entry point for Stage 2 -- lets the award path (the highest-risk piece: the
--- actual protected GiveMasterLoot call) be exercised and verified before any UI exists. Removed
--- once UI/VotingFrame.lua's real Award button lands in Stage 4.
-PLC:RegisterSlashCommand("award", "Debug: award a loot slot to a player by name", function(args)
-	local slotStr, name = args:match("^(%S+)%s+(.+)$")
-	local slot = slotStr and tonumber(slotStr)
-	if not slot or not name or name == "" then
-		print(L["CHAT_PREFIX"] .. L["AWARD_USAGE"])
-		return
-	end
-
-	local targetGuid
-	for guid, entry in pairs(PLC.Roster.members) do
-		local shortName = entry.name:match("^([^-]+)")
-		if entry.name:lower() == name:lower() or (shortName and shortName:lower() == name:lower()) then
-			targetGuid = guid
-			break
-		end
-	end
-	if not targetGuid then
-		print(L["CHAT_PREFIX"] .. string.format(L["AWARD_FAILED"], "?", name, L["CANGIVE_NOT_IN_GROUP"]))
-		return
-	end
-
-	Award:TryAward(slot, targetGuid, "debug")
-end)

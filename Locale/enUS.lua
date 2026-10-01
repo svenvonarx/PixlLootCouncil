@@ -26,7 +26,6 @@ L["DETECTED_SLOT"] = "Detected loot slot %d: %s (quality %s)"
 L["AWARD_SUCCESS"] = "Awarded %s to %s."
 L["AWARD_FAILED"] = "Could not award %s to %s: %s"
 L["AWARD_TIMEOUT"] = "Award of %s to %s timed out -- no confirmation received."
-L["AWARD_USAGE"] = "Usage: /plc award <slot> <playerName>"
 
 L["CANGIVE_NO_SLOT"] = "no such loot slot"
 L["CANGIVE_LOOT_CLOSED"] = "loot window is not open"
@@ -52,3 +51,7 @@ L["SESSION_FORCE_ENDED_BY"] = "%s force-ended the loot session (holder unrespons
 L["SESSION_SYNCED"] = "Loot session synced from the holder."
 L["SESSION_RESTORED"] = "Restored your active loot session."
 L["SESSION_USAGE"] = "Usage: /plc session start|end|forceend|sync|respond <idx> <response>"
+
+L["VOTINGFRAME_TITLE"] = "Loot Council"
+L["VOTINGFRAME_AWARD"] = "Award"
+L["VOTINGFRAME_NO_LOOT_SLOT"] = "This item has no live loot slot (test data, or the loot window has closed)."
