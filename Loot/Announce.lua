@@ -26,6 +26,8 @@ local function iAmHolder()
 	return PLC.Session and PLC.Session.IsHolder and PLC.Session:IsHolder()
 end
 
+-- One summary line, not one per item -- the per-item breakdown belongs in each candidate's
+-- UI/LootFrame.lua window, not raid chat.
 function Announce:AnnounceSessionStart(items)
 	if not (iAmHolder() and PLC.db.profile.announce.sessionStart) then
 		return
@@ -34,9 +36,11 @@ function Announce:AnnounceSessionStart(items)
 	if not channel then
 		return
 	end
-	for _, item in pairs(items) do
-		SendChatMessage(string.format(L["ANNOUNCE_ITEM"], item.link), channel)
+	local count = 0
+	for _ in pairs(items) do
+		count = count + 1
 	end
+	SendChatMessage(string.format(L["ANNOUNCE_SESSION_START"], count), channel)
 end
 
 function Announce:AnnounceAward(entry)

@@ -62,6 +62,19 @@ local function buildGeneralPage(page)
 		profile.sessionForceEndMinutes = value
 		forceEnd.valueText:SetText(tostring(value))
 	end)
+	y = y - 70
+
+	-- The holder's value at session start wins for every candidate -- see
+	-- Data/Session.lua:Start()/OnSessionStartReceived -- so changing this only affects sessions
+	-- this character goes on to hold, never a session already in progress.
+	local responseTimeout = SliderWidget.createSlider(page, L["OPTIONS_RESPONSE_TIMEOUT"], 15, 300, 5)
+	responseTimeout.container:SetPoint("TOPLEFT", 0, y)
+	responseTimeout:SetValue(profile.responseTimeoutSeconds)
+	responseTimeout.valueText:SetText(tostring(profile.responseTimeoutSeconds))
+	responseTimeout:SetScript("OnValueChanged", function(_, value)
+		profile.responseTimeoutSeconds = value
+		responseTimeout.valueText:SetText(tostring(value))
+	end)
 end
 
 -- Read-only: full response customization (add/remove/reorder custom response sets) is Phase 3
@@ -161,7 +174,7 @@ local function ensurePanel()
 	panel = PanelLayout.Create({
 		name = "PixlLootCouncilOptionsFrame",
 		width = 560,
-		height = 420,
+		height = 460, -- General now stacks 2 checkboxes + 4 sliders; give it room
 		title = L["OPTIONS_TITLE"],
 	})
 

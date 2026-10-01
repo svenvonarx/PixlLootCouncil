@@ -11,12 +11,17 @@ local function channel()
 	return PLC.Loot.Announce:GetChannel()
 end
 
-function Sync:SendSessionStart(sessionId, owner, items)
+function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds)
 	local ch = channel()
 	if not ch then
 		return
 	end
-	Protocol:Send("session_start", { sessionId = sessionId, owner = owner, items = items }, ch)
+	Protocol:Send("session_start", {
+		sessionId = sessionId,
+		owner = owner,
+		items = items,
+		responseTimeoutSeconds = responseTimeoutSeconds,
+	}, ch)
 end
 
 function Sync:SendItemAdd(sessionId, items)

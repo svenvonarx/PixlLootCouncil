@@ -13,11 +13,12 @@ PLC.Session = Session
 Session.state = "inactive"
 Session.sessionId = nil
 Session.owner = nil -- { guid, name }
-Session.items = {} -- [idx] = { idx, lootSlot, itemString, boss, quality, link, awarded }
+Session.items = {} -- [idx] = { idx, lootSlot, itemString, boss, quality, deadlineAt, link, icon, awarded }
 Session.responses = {} -- [idx][guid] = { response, note }
 Session.lastHolderSeenAt = nil
 Session.nextIdx = 1
 Session.sentFirstBatch = false
+Session.responseTimeoutSeconds = 60 -- the holder's db.profile.responseTimeoutSeconds wins for everyone -- see Start()
 
 local heartbeatTimerHandle
 
@@ -39,17 +40,28 @@ local function persist()
 		responses = Session.responses,
 		lastHolderSeenAt = Session.lastHolderSeenAt,
 		nextIdx = Session.nextIdx,
+		responseTimeoutSeconds = Session.responseTimeoutSeconds,
 	}
 end
 
 -- Strips everything that's only meaningful on the holder's own client (lootSlot -- a live
--- Blizzard loot-window index, not a stable identifier -- and the already-resolved display link)
--- before a batch crosses the wire. Mirrors the minimal-wire-shape approach that keeps
--- RCLootCouncil_Classic's per-item send to {typeCode, string, session, boss, owner}.
+-- Blizzard loot-window index, not a stable identifier -- and the already-resolved display link/
+-- icon) before a batch crosses the wire. Mirrors the minimal-wire-shape approach that keeps
+-- RCLootCouncil_Classic's per-item send to {typeCode, string, session, boss, owner}. deadlineAt
+-- DOES cross the wire, unlike those -- it's computed once by the holder at queue time (see
+-- QueueDetectedItems) and must stay the SAME absolute value for every client, including one that
+-- resyncs well after the fact; recomputing it fresh on receipt would silently reset/extend an
+-- already-ticking or already-expired deadline.
 local function stripForTransmit(entries)
 	local out = {}
 	for idx, entry in pairs(entries) do
-		out[idx] = { idx = entry.idx, itemString = entry.itemString, boss = entry.boss, quality = entry.quality }
+		out[idx] = {
+			idx = entry.idx,
+			itemString = entry.itemString,
+			boss = entry.boss,
+			quality = entry.quality,
+			deadlineAt = entry.deadlineAt,
+		}
 	end
 	return out
 end
@@ -58,17 +70,19 @@ local function itemStringFromLink(link)
 	return link and link:match("|H(.-)|h")
 end
 
-local function reconstructLink(itemString)
+-- GetItemInfo's 10th return value is the item's icon texture -- already being fetched for the
+-- link reconstruction, just wasn't being read before.
+local function reconstructItemVisuals(itemString)
 	if not itemString then
-		return nil
+		return nil, nil
 	end
-	local _, link = C_Item.GetItemInfo(itemString)
-	return link
+	local _, link, _, _, _, _, _, _, _, icon = C_Item.GetItemInfo(itemString)
+	return link, icon
 end
 
 local function applyReceivedItems(items)
 	for idx, entry in pairs(items) do
-		entry.link = reconstructLink(entry.itemString)
+		entry.link, entry.icon = reconstructItemVisuals(entry.itemString)
 		Session.items[idx] = entry
 	end
 end
@@ -121,6 +135,7 @@ function Session:Start()
 	self.nextIdx = 1
 	self.sentFirstBatch = false
 	self.lastHolderSeenAt = time()
+	self.responseTimeoutSeconds = PLC.db.profile.responseTimeoutSeconds
 	startHeartbeat()
 	persist()
 	print(L["CHAT_PREFIX"] .. L["SESSION_STARTED"])
@@ -153,7 +168,9 @@ function Session:QueueDetectedItems(lootSlotInfo)
 				itemString = itemStringFromLink(info.link),
 				boss = info.boss,
 				quality = info.quality,
+				deadlineAt = time() + self.responseTimeoutSeconds,
 				link = info.link,
+				icon = info.icon,
 			}
 			self.items[idx] = entry
 			newItems[idx] = entry
@@ -168,7 +185,7 @@ function Session:QueueDetectedItems(lootSlotInfo)
 
 	if not self.sentFirstBatch then
 		self.sentFirstBatch = true
-		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(self.items))
+		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(self.items), self.responseTimeoutSeconds)
 		-- Announced here, once the session actually has its (curated) first batch -- not from
 		-- Start() itself, which runs before any items exist yet.
 		PLC.Loot.Announce:AnnounceSessionStart(self.items)
@@ -188,6 +205,9 @@ function Session:OnSessionStartReceived(data)
 	self.items = {}
 	self.responses = {}
 	self.lastHolderSeenAt = time()
+	-- The holder's configured timeout wins for everyone, never the receiving client's own
+	-- profile.responseTimeoutSeconds.
+	self.responseTimeoutSeconds = data.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
 	applyReceivedItems(data.items)
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_STARTED_BY"], data.owner and data.owner.name or "?"))
 	self:notifyLootFrame()
@@ -363,6 +383,7 @@ function Session:OnSyncRequestReceived(data, sender)
 		items = stripForTransmit(self.items),
 		responses = self.responses,
 		lastHolderSeenAt = self.lastHolderSeenAt,
+		responseTimeoutSeconds = self.responseTimeoutSeconds,
 	}, sender)
 end
 
@@ -374,6 +395,7 @@ function Session:OnSyncDataReceived(data)
 	self.owner = data.owner
 	self.state = "active"
 	self.items = {}
+	self.responseTimeoutSeconds = data.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
 	applyReceivedItems(data.items)
 	self.responses = data.responses or {}
 	self.lastHolderSeenAt = data.lastHolderSeenAt or time()
@@ -391,6 +413,7 @@ local function restoreFromSaved()
 	Session.responses = saved.responses or {}
 	Session.lastHolderSeenAt = saved.lastHolderSeenAt or time()
 	Session.nextIdx = saved.nextIdx or 1
+	Session.responseTimeoutSeconds = saved.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
 	Session.state = "active"
 	Session.sentFirstBatch = true
 	startHeartbeat()

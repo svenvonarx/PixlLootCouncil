@@ -35,7 +35,7 @@ L["CANGIVE_NOT_IN_GROUP"] = "player is not in your group"
 L["CANGIVE_OFFLINE"] = "player is offline"
 L["CANGIVE_NOT_ELIGIBLE"] = "player is not an eligible master loot candidate for this item"
 
-L["ANNOUNCE_ITEM"] = "[PixlLootCouncil] Item up for council: %s"
+L["ANNOUNCE_SESSION_START"] = "[PixlLootCouncil] Loot session started with %d item(s) -- check your Loot Response window!"
 L["ANNOUNCE_AWARD"] = "[PixlLootCouncil] %s awarded to %s"
 
 L["COMMS_UNKNOWN_VERSION"] = "Ignored a message using protocol version %s (newer than this client understands)."
@@ -65,7 +65,7 @@ L["SESSIONFRAME_AWARDED"] = "Awarded"
 L["SESSIONFRAME_PENDING"] = "Pending"
 
 L["LOOTFRAME_TITLE"] = "Loot Response"
-L["LOOTFRAME_VOTED"] = "You voted: %s"
+L["LOOTFRAME_NOTE_PLACEHOLDER"] = "note (optional)"
 
 L["OPTIONS_TITLE"] = "PixlLootCouncil Options"
 L["OPTIONS_SECTION_RAID"] = "RAID TOOLS"
@@ -80,6 +80,7 @@ L["OPTIONS_ANNOUNCE_AWARD"] = "Announce awards in chat"
 L["OPTIONS_LOOT_THRESHOLD"] = "Minimum item quality"
 L["OPTIONS_HEARTBEAT_SECONDS"] = "Holder heartbeat interval (seconds)"
 L["OPTIONS_FORCE_END_MINUTES"] = "Force-end after holder is unresponsive for (minutes)"
+L["OPTIONS_RESPONSE_TIMEOUT"] = "Response deadline per item (seconds)"
 
 L["OPTIONS_COUNCIL_MODE"] = "Council membership"
 L["OPTIONS_COUNCIL_MODE_RAIDASSIST"] = "Master looter, leader, and assistants"
