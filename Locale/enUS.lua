@@ -66,3 +66,25 @@ L["SESSIONFRAME_PENDING"] = "Pending"
 
 L["LOOTFRAME_TITLE"] = "Loot Response"
 L["LOOTFRAME_VOTED"] = "You voted: %s"
+
+L["OPTIONS_TITLE"] = "PixlLootCouncil Options"
+L["OPTIONS_SECTION_RAID"] = "RAID TOOLS"
+L["OPTIONS_SECTION_SETTINGS"] = "SETTINGS"
+L["OPTIONS_TAB_GENERAL"] = "General"
+L["OPTIONS_TAB_RESPONSES"] = "Responses"
+L["OPTIONS_TAB_COUNCIL"] = "Council"
+L["OPTIONS_TAB_APPEARANCE"] = "Appearance"
+
+L["OPTIONS_ANNOUNCE_START"] = "Announce session start in chat"
+L["OPTIONS_ANNOUNCE_AWARD"] = "Announce awards in chat"
+L["OPTIONS_LOOT_THRESHOLD"] = "Minimum item quality"
+L["OPTIONS_HEARTBEAT_SECONDS"] = "Holder heartbeat interval (seconds)"
+L["OPTIONS_FORCE_END_MINUTES"] = "Force-end after holder is unresponsive for (minutes)"
+
+L["OPTIONS_COUNCIL_MODE"] = "Council membership"
+L["OPTIONS_COUNCIL_MODE_RAIDASSIST"] = "Master looter, leader, and assistants"
+L["OPTIONS_COUNCIL_MODE_MANUAL"] = "Manual list"
+L["OPTIONS_COUNCIL_MODE_MLONLY"] = "Master looter only"
+L["OPTIONS_COUNCIL_MODE_HINT"] = "Controls who can vote and award loot."
+
+L["OPTIONS_ACCENT_COLOR"] = "Accent color"

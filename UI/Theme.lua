@@ -34,6 +34,15 @@ Theme.COLORS = {
 Theme.LAYOUT = {
 	buttonHeight = 28,
 	headerHeight = 32,
+	checkboxWidth = 240,
+	checkboxHeight = 22,
+	sliderWidth = 220,
+	sliderHeight = 60,
+	fieldWidth = 260,
+	fieldHeight = 28,
+	menuMaxRows = 7,
+	sidebarWidth = 140,
+	contentPadding = 16,
 }
 
 -- Weak-keyed so a destroyed widget's entry is collected instead of leaking. Every
