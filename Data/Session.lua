@@ -172,6 +172,7 @@ function Session:QueueDetectedItems(lootSlotInfo)
 	else
 		PLC.Comms.Sync:SendItemAdd(self.sessionId, stripForTransmit(newItems))
 	end
+	self:notifyLootFrame()
 end
 
 function Session:OnSessionStartReceived(data)
@@ -186,6 +187,7 @@ function Session:OnSessionStartReceived(data)
 	self.lastHolderSeenAt = time()
 	applyReceivedItems(data.items)
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_STARTED_BY"], data.owner and data.owner.name or "?"))
+	self:notifyLootFrame()
 end
 
 function Session:OnItemAddReceived(data)
@@ -194,6 +196,15 @@ function Session:OnItemAddReceived(data)
 	end
 	self.lastHolderSeenAt = time()
 	applyReceivedItems(data.items)
+	self:notifyLootFrame()
+end
+
+-- UI/LootFrame.lua doesn't exist until Stage 5 -- guarded exactly like every other
+-- not-yet-built-module forward-call in this codebase.
+function Session:notifyLootFrame()
+	if PLC.UI and PLC.UI.LootFrame and PLC.UI.LootFrame.Refresh then
+		PLC.UI.LootFrame:Refresh()
+	end
 end
 
 -- Broadcast to the whole group, not whispered to the holder -- every council member's client
@@ -208,6 +219,7 @@ function Session:SendMyResponse(idx, response, note)
 	self.responses[idx][guid] = { response = response, note = note }
 	PLC.Comms.Sync:SendResponse(self.sessionId, idx, guid, response, note)
 	self:notifyVotingFrame(idx, guid)
+	self:notifyLootFrame()
 end
 
 function Session:OnResponseReceived(data)
@@ -392,27 +404,17 @@ PLC:RegisterOnEnable(function()
 	end
 end)
 
--- Temporary debug entry point for Stage 3 -- exercises the full session lifecycle (start, item
--- queueing via real loot detection, response/award broadcast, end, force-end, sync) before any
--- UI exists. Removed once UI/SessionFrame.lua's Start/End controls land in Stage 5.
-PLC:RegisterSlashCommand("session", "Debug: start|end|forceend|sync|respond the loot session", function(args)
+-- Debug entry point for the two lifecycle actions that still have no real UI anywhere in the
+-- Phase 1 plan: force-end (spec §5.1's stuck-session escape hatch is a user action, but no stage
+-- builds it a button) and a manual sync request. Start/End/respond were also here from Stage 3,
+-- but are retired now that UI/SessionFrame.lua's Start/End buttons and UI/LootFrame.lua's
+-- response buttons are the real controls (Stage 5).
+PLC:RegisterSlashCommand("session", "Debug: forceend|sync the loot session", function(args)
 	local sub = args:match("^(%S*)") or ""
-	if sub == "start" then
-		Session:Start()
-	elseif sub == "end" then
-		Session:End()
-	elseif sub == "forceend" then
+	if sub == "forceend" then
 		Session:ForceEnd()
 	elseif sub == "sync" then
 		Session:RequestSync()
-	elseif sub == "respond" then
-		local idxStr, response = args:match("^respond%s+(%S+)%s+(%S+)$")
-		local idx = idxStr and tonumber(idxStr)
-		if not idx or not response then
-			print(L["CHAT_PREFIX"] .. L["SESSION_USAGE"])
-			return
-		end
-		Session:SendMyResponse(idx, response:upper(), nil)
 	else
 		print(L["CHAT_PREFIX"] .. L["SESSION_USAGE"])
 	end

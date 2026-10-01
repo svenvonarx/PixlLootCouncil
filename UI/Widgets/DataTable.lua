@@ -58,9 +58,16 @@ local function getRow(self, index)
 	return row
 end
 
+-- Hides (never destroys -- WoW frames can't be) every existing cell before dropping the row's
+-- reference to it, so switching column sets on an existing table (e.g. UI/SessionFrame.lua
+-- toggling between its pending/active views) never leaves an orphaned widget visible underneath
+-- the new layout.
 function Table:SetColumns(columns)
 	self.columns = columns
 	for _, row in ipairs(self.rows) do
+		for _, cell in pairs(row.cells) do
+			cell:Hide()
+		end
 		row.cells = {}
 	end
 	self:Layout()

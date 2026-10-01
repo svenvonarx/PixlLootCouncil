@@ -66,6 +66,13 @@ local function onLootReady()
 	if PLC.CouncilRules:AmIMasterLooter() and PLC.Session and PLC.Session.QueueDetectedItems then
 		PLC.Session:QueueDetectedItems(Detection.lootSlotInfo)
 	end
+
+	-- UI/SessionFrame.lua doesn't exist until Stage 5 -- same guard pattern as the Session hook
+	-- above. SessionFrame itself decides whether curation is actually relevant right now (no-op
+	-- once a session is already active; see UI/SessionFrame.lua).
+	if PLC.CouncilRules:AmIMasterLooter() and PLC.UI and PLC.UI.SessionFrame and PLC.UI.SessionFrame.OnLootReady then
+		PLC.UI.SessionFrame:OnLootReady()
+	end
 end
 
 local function onLootSlotCleared(eventName, slot)
