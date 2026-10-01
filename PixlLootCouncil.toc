@@ -1,0 +1,42 @@
+## Interface: 20506
+## Title: PixlLootCouncil
+## Notes: Master-looter-driven, council-voted loot distribution for TBC Anniversary Classic
+## Author: Pixl
+## Version: 0.1.0
+## SavedVariables: PixlLootCouncilDB
+## DefaultState: enabled
+
+embeds.xml
+Locale\Locales.xml
+
+Core\ErrorHandler.lua
+Core\Defaults.lua
+Core\Init.lua
+Core\Events.lua
+
+Data\Roster.lua
+Data\CouncilRules.lua
+Data\Session.lua
+
+Comms\Protocol.lua
+Comms\Sync.lua
+
+Loot\Detection.lua
+Loot\Award.lua
+Loot\Announce.lua
+
+UI\Theme.lua
+UI\Widgets\Primitives.lua
+UI\Widgets\Button.lua
+UI\Widgets\Checkbox.lua
+UI\Widgets\Slider.lua
+UI\Widgets\PopupMenu.lua
+UI\Widgets\Dropdown.lua
+UI\Widgets\ScrollFrame.lua
+UI\Widgets\DataTable.lua
+UI\Widgets\PanelLayout.lua
+
+UI\LootFrame.lua
+UI\SessionFrame.lua
+UI\VotingFrame.lua
+UI\OptionsFrame.lua
