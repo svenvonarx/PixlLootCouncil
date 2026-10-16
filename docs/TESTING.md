@@ -149,6 +149,14 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   `Data/Gear.lua`'s `notifyVotingFrame` should re-render the grid the moment each `gear` message
   arrives. Switch to a different item in the sidebar and back: confirm the numbers update to
   match that item's own slot, not the previous item's.
+- **One-handed weapon/offhand gear comparison (per-candidate, not per-item):** seed a one-handed
+  weapon or offhand item (`/plc additem <itemID>`). For a candidate currently dual-wielding (or
+  with a shield/offhand item equipped), confirm both gear-icon columns show something — their
+  mainhand AND their offhand. For a candidate currently using a two-handed weapon, confirm only
+  the first gear-icon column shows anything (their 2H weapon) and the second stays empty — there's
+  no real offhand slot to compare for them. With two test candidates set up differently (one
+  dual-wielding, one with a 2H weapon), confirm both show correctly on the SAME loot item at the
+  same time — this is resolved per candidate, not once for the whole item.
 - **Late-joiner gear sync:** with a session already active, join the group (or `/reload`) on the
   second client, then trigger a resync (`/plc session sync` or just wait for the automatic one on
   join) — confirm that client's own gear eventually shows up in the OTHER client's candidate grid
