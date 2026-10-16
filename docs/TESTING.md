@@ -83,13 +83,14 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   icon, full width at broadcast and shrinking to nothing as `profile.responseTimeoutSeconds` runs
   out, with the same accent→warning-red flip under 10s as the main response window. Confirm it's
   clearly visible (not faint) and independent per item — seed two items a few seconds apart and
-  watch their bars empty at different rates, not in lockstep. Confirm it keeps counting down live
-  while the window is open (no click/refresh needed — a 1-second ticker drives it), disappears
-  once that item is awarded or pre-awarded, and that hovering a still-pending icon shows a
-  tooltip line ("Time left: Ns") that also counts down live and is absent once awarded. Confirm
-  adding a new item mid-review (via `/plc additem` or a live loot while Session is active) still
-  works exactly as before — this round deliberately did **not** touch per-item deadlines or lock
-  out adding items during a session.
+  watch their bars empty at different rates, not in lockstep. **Confirm the bar visibly slides
+  smoothly** rather than jumping in small steps (it now updates every frame via the icon's own
+  OnUpdate, not just once a second off the ticker). Confirm it disappears once that item is
+  awarded or pre-awarded, and that hovering a still-pending icon shows a tooltip line ("Time
+  left: Ns") that also counts down live (still 1-second resolution, text doesn't need to be
+  smooth) and is absent once awarded. Confirm adding a new item mid-review (via `/plc additem` or
+  a live loot while Session is active) still works exactly as before — this round deliberately
+  did **not** touch per-item deadlines or lock out adding items during a session.
 - Selected-icon highlight: confirm the currently-selected icon shows a visible accent glow (not
   a whole-row tint anymore, since a row can hold a second, unrelated item) and that it moves to
   exactly the icon you clicked.
@@ -104,10 +105,13 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   "Started by" disappears again.
 - Seed several test items and confirm the sidebar scrolls without leaking frames (watch
   `/framestack` row count across repeated adds — it should stay bounded, not grow unbounded).
-- Click Award on a candidate in the response grid: confirm the item's icon border flips to the
-  "awarded" color, a `[PixlLootCouncil] <item> awarded to <player> -- trade it to them!` line
-  prints (this workflow doesn't auto-trade — see 2.5), and selection auto-advances to the next
-  pending icon.
+- Click Award on a candidate in the response grid: confirm the item's icon border flips to a
+  clearly visible **green** (not the dim gray it was before — that was nearly indistinguishable
+  from a plain pending icon and, combined with the view auto-advancing away from the item you
+  just awarded, made it look like clicking Award did nothing), a `[PixlLootCouncil] <item>
+  awarded to <player> -- trade it to them!` line prints (this workflow doesn't auto-trade — see
+  2.5), and selection auto-advances to the next pending icon. Hover the now-green icon: confirm
+  the tooltip still correctly shows "Awarded to: <name>".
 - Click Pre-Award instead on a different item/candidate: confirm that candidate's button reads
   "Staged" (accent-colored) and the item's icon border turns accent-colored — *without* printing
   anything or changing the item's real Awarded state yet. Click Award All: confirm every
@@ -135,23 +139,28 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   depleting **background across the whole row** (full-row tint at broadcast, shrinking
   right-to-left to nothing as `profile.responseTimeoutSeconds` runs out), with the standalone
   number column kept for precision. Confirm the row background visibly empties in step with the
-  number, and both the number's text color and the background tint flip from accent to
-  warning-red together once under 10 seconds remain. Confirm it's still per-row/per-item — add a
-  second item a few seconds after the first (mid-review item additions still work, see 1.5) and
-  confirm its row counts down independently, not tied to the first item's or any shared clock.
+  number. **Confirm the background slides smoothly** rather than jumping in small steps (it now
+  updates every frame via the row's own OnUpdate, not just once a second). Confirm both the
+  number's text color and the background tint flip from accent to warning-red together once
+  under 10 seconds remain. Confirm it's still per-row/per-item — add a second item a few seconds
+  after the first (mid-review item additions still work, see 1.5) and confirm its row counts down
+  independently, not tied to the first item's or any shared clock.
 - Dynamic button widths (new this round): confirm the 5 response buttons are no longer all the
   same fixed width — short labels like "OS" should hug their text with modest padding, while
   "Upgrade" is visibly wider to fit its longer label, and none of them look cramped or overly
   padded next to each other.
-- Note field sizing (refined this round): confirm the note box is the same height as the response
-  buttons next to it (no visible size mismatch), and that it stretches to use essentially all the
-  remaining width in the row rather than a small fixed box — resize the window wider and confirm
-  the note box visibly grows with it (recalculated on every resize, not fixed at window-open
-  time). Confirm it shows "Optional Note..." as placeholder text (gray, cleared on real input).
-  Type a longer note (~40+ characters): confirm the text **wraps onto a second line inside the
-  box** (scrolling to follow the cursor as you keep typing) instead of running past the box's
-  right edge/border — this was the "overlap"
-  bug from the previous fixed-width single-line box.
+- Note field — fixed size, capped length (corrected this round): confirm the note box is **the
+  same height as the response buttons** next to it and **the same width as the full button row**
+  — a fixed size that does not change when you resize the window (an in-between round made it
+  dynamically resize per-window-width instead, which this round reverted — the window itself
+  defaults wider now specifically so this fixed-size row fits without spilling past the right
+  edge; if you shrink the window a lot, the note box may extend past the edge, which is expected
+  with a fixed-size row). Confirm it shows "Optional Note..." as placeholder text (gray, cleared
+  on real input). Type a long note (60+ characters): confirm the text wraps onto a second line
+  and then **stops accepting more characters** once it's about full — it should NOT keep growing
+  downward past the box's bottom border or past 2 lines; if you do manage to get a 3rd line's
+  worth of text in, that's a bug (the box clips its own content as a backstop, but the character
+  cap is what should actually prevent it in normal use).
 - Type something in an item's note field, then click a response button: the whole row disappears
   immediately (not a "you voted" label) — other items in the list are unaffected.
 - Leave an item unanswered and watch it run out: once `profile.responseTimeoutSeconds` passes

@@ -68,6 +68,15 @@ local function getRow(self, index)
 	row.timerBg = row:CreateTexture(nil, "BACKGROUND")
 	row.timerBg:Hide()
 
+	-- Recomputed every frame (not just once a second via whatever ticker calls Refresh()/
+	-- RenderRow) so the bar visibly slides instead of stepping/jumping between ticks. Only a
+	-- Frame can run OnUpdate -- row.timerBg itself is a plain Texture region and has no
+	-- SetScript -- which is why this lives on the row. WoW already skips OnUpdate for hidden
+	-- frames, so this costs nothing for rows scrolled out of view.
+	row:SetScript("OnUpdate", function()
+		self:ApplyRowTimer(row)
+	end)
+
 	row:EnableMouse(true)
 	row:SetScript("OnMouseUp", function()
 		if self.onRowClick and row.dataIndex then
@@ -200,22 +209,31 @@ function Table:RefreshRow(dataIndex)
 	end
 end
 
-function Table:RenderRow(row, rowData)
-	if self.rowTimerProvider then
-		local fraction, r, g, b, a = self.rowTimerProvider(rowData)
-		if fraction then
-			row.timerBg:ClearAllPoints()
-			row.timerBg:SetPoint("TOPLEFT")
-			row.timerBg:SetPoint("BOTTOMLEFT")
-			row.timerBg:SetWidth(math.max(0, row:GetWidth() * math.min(1, math.max(0, fraction))))
-			row.timerBg:SetColorTexture(r or 1, g or 1, b or 1, a or 0.15)
-			row.timerBg:Show()
-		else
-			row.timerBg:Hide()
-		end
+-- Shared by RenderRow (immediate correctness whenever the row's bound data actually changes) and
+-- the per-frame OnUpdate set up in getRow above (continuous smooth motion in between) -- reads
+-- row.dataIndex/self.data itself rather than taking rowData as a parameter, since OnUpdate only
+-- has the row to work from.
+function Table:ApplyRowTimer(row)
+	local rowData = row.dataIndex and self.data[row.dataIndex]
+	if not self.rowTimerProvider or not rowData then
+		row.timerBg:Hide()
+		return
+	end
+	local fraction, r, g, b, a = self.rowTimerProvider(rowData)
+	if fraction then
+		row.timerBg:ClearAllPoints()
+		row.timerBg:SetPoint("TOPLEFT")
+		row.timerBg:SetPoint("BOTTOMLEFT")
+		row.timerBg:SetWidth(math.max(0, row:GetWidth() * math.min(1, math.max(0, fraction))))
+		row.timerBg:SetColorTexture(r or 1, g or 1, b or 1, a or 0.15)
+		row.timerBg:Show()
 	else
 		row.timerBg:Hide()
 	end
+end
+
+function Table:RenderRow(row, rowData)
+	self:ApplyRowTimer(row)
 
 	for colIndex, col in ipairs(self.columns) do
 		local cell = row.cells[colIndex]

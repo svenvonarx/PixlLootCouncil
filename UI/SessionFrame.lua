@@ -92,6 +92,27 @@ local ICON_ROW_HEIGHT = ICON_CELL_HEIGHT
 -- the icons' own width and showing up as blank padding after them).
 local ICON_SIDEBAR_WIDTH = ICON_SIZE * 2 + ICON_GAP
 
+-- Recomputes just the depleting bar from whatever update() last stashed on the holder
+-- (holder.deadlineAt/holder.awardedState) -- factored out so it can run both from update() (for
+-- immediate correctness whenever the underlying data actually changes) and from a per-frame
+-- OnUpdate (see iconColumn below) for smooth continuous motion in between. Driving the bar purely
+-- from the once-a-second ticker made it visibly step/jump instead of sliding.
+local function applyIconTimerVisual(holder)
+	if holder.awardedState or not holder.deadlineAt or time() >= holder.deadlineAt then
+		holder.timerTrack:Hide()
+		holder.timerBar:Hide()
+		return
+	end
+	local remaining = holder.deadlineAt - time()
+	local total = math.max(1, PLC.Session.responseTimeoutSeconds)
+	local colorName = remaining <= 10 and "warning" or "accent"
+	local r, g, b = Primitives.color(colorName)
+	holder.timerTrack:Show()
+	holder.timerBar:Show()
+	holder.timerBar:SetWidth(math.max(0.5, ICON_SIZE * math.min(1, remaining / total)))
+	holder.timerBar:SetColorTexture(r, g, b, 1)
+end
+
 -- Each DataTable row holds up to two items (see pairItemRows below) -- `suffix` ("1"/"2") picks
 -- which half of the row this particular column reads/writes, so the same builder serves both
 -- columns. Each icon is its own clickable Button (not a generic DataTable row click, which only
@@ -133,6 +154,14 @@ local function iconColumn(suffix)
 			holder.timerBar:SetPoint("TOPLEFT", holder.timerTrack, "TOPLEFT")
 			holder.timerBar:SetHeight(BAR_HEIGHT)
 			holder.timerBar:Hide()
+
+			-- Only a Frame/Button can run OnUpdate (plain Texture regions can't -- there's no
+			-- `texture:SetScript`), which is why this lives on `holder` itself rather than on the
+			-- bar texture directly. WoW already skips OnUpdate for hidden frames, so this costs
+			-- nothing while the row is scrolled out of view.
+			holder:SetScript("OnUpdate", function()
+				applyIconTimerVisual(holder)
+			end)
 
 			holder:SetScript("OnEnter", function(self)
 				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -183,7 +212,12 @@ local function iconColumn(suffix)
 			if awarded then
 				local entry = PLC.Roster:Get(awarded)
 				holder.tooltipStatus = string.format(L["SESSIONFRAME_AWARDED_TO"], PLC.Roster:ShortName(entry and entry.name) or "?")
-				borderColor = "borderDim"
+				-- Green, not the dim gray this used to be -- that was nearly indistinguishable
+				-- from a plain pending icon, so clicking Award looked like it did nothing (the
+				-- auto-advance to the next pending item made it worse, since the view moves away
+				-- immediately). Distinct from the accent/orange "Staged" pre-award color on
+				-- purpose -- Awarded is final, Pre-Award isn't.
+				borderColor = "success"
 			elseif preAwardGuid then
 				local entry = PLC.Roster:Get(preAwardGuid)
 				holder.tooltipStatus = string.format(L["SESSIONFRAME_PREAWARDED_TO"], PLC.Roster:ShortName(entry and entry.name) or "?")
@@ -201,20 +235,12 @@ local function iconColumn(suffix)
 			-- the background too (CollectDetectedItems/AddManualItem never clear it just because a
 			-- decision was staged), so the bar/tooltip line only show while still actually counting
 			-- down for someone to respond to.
+			holder.deadlineAt = deadlineAt
+			holder.awardedState = awarded
 			if not awarded and deadlineAt and time() < deadlineAt then
-				local remaining = deadlineAt - time()
-				local total = math.max(1, PLC.Session.responseTimeoutSeconds)
-				local colorName = remaining <= 10 and "warning" or "accent"
-				local r, g, b = Primitives.color(colorName)
-				holder.timerTrack:Show()
-				holder.timerBar:Show()
-				holder.timerBar:SetWidth(math.max(0.5, ICON_SIZE * math.min(1, remaining / total)))
-				holder.timerBar:SetColorTexture(r, g, b, 1)
-				holder.tooltipRemaining = string.format(L["SESSIONFRAME_TIME_LEFT"], math.ceil(remaining))
-			else
-				holder.timerTrack:Hide()
-				holder.timerBar:Hide()
+				holder.tooltipRemaining = string.format(L["SESSIONFRAME_TIME_LEFT"], math.ceil(deadlineAt - time()))
 			end
+			applyIconTimerVisual(holder)
 		end,
 	}
 end

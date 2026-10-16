@@ -28,6 +28,7 @@ Theme.COLORS = {
 	scroll = { 0.08, 0.09, 0.11 },
 	white = { 1, 1, 1 },
 	warning = { 1.00, 0.25, 0.25 },
+	success = { 0.25, 0.85, 0.35 },
 }
 
 -- Shared widget sizing constants -- extended as later stages add widgets that need them.

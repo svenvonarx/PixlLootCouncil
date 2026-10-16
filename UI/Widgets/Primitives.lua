@@ -173,19 +173,29 @@ end
 -- placeholder text shown/cleared on focus); call :GetValue() rather than :GetText() to get ""
 -- while the placeholder is showing instead of the placeholder string itself.
 --
--- `multiline`, when true, lets text word-wrap onto a second line instead of running past the
--- box's right edge (UI/LootFrame.lua's note field -- a fixed single-line box let typed text
--- overflow visibly past its own border, into whatever sat to its right). The box itself stays a
--- single line tall -- a second wrapped line scrolls into view as you type past the first, same
--- as a normal EditBox already scrolls horizontally to keep the cursor visible, rather than
--- growing the row's own height. Capped at roughly two lines' worth of characters.
-function Primitives.createEditBox(parent, width, height, placeholder, multiline)
+-- An EditBox does NOT clip its own text to its frame bounds on its own -- typed text just keeps
+-- extending past the box's declared width/height with nothing to stop it, both for a single-line
+-- box (text running past the right border) and a multi-line one (wrapped lines running past the
+-- bottom border, growing downward without limit). SetClipsChildren(true) clips the EditBox's own
+-- internal FontString to its frame rect like every other child region, fixing both at the root --
+-- applied unconditionally, not just for `multiline`, since the single-line case had the exact
+-- same bug.
+--
+-- `multiline`, when true, lets text wrap onto a second line instead of running past the box's
+-- right edge on the first one. The box's own height is still whatever `height` says -- callers
+-- that want 2 lines actually visible should size it for 2 lines; this only stops a 3rd+ line (or
+-- a too-long single line) from being typed at all, via `maxLetters`, rather than relying on the
+-- clip to hide runaway overflow.
+function Primitives.createEditBox(parent, width, height, placeholder, multiline, maxLetters)
 	local box = CreateFrame("EditBox", nil, parent)
 	box:SetSize(width, height or 20)
 	box:SetAutoFocus(false)
+	if box.SetClipsChildren then
+		box:SetClipsChildren(true)
+	end
 	if multiline then
 		box:SetMultiLine(true)
-		box:SetMaxLetters(120)
+		box:SetMaxLetters(maxLetters or 80)
 		box:SetTextInsets(6, 6, 2, 2)
 		box:SetJustifyV("TOP")
 	else
