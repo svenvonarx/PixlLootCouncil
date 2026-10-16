@@ -727,6 +727,24 @@ function Session:MarkItemTraded(idx)
 	self:notifyTradeFrame()
 end
 
+-- Manual escape hatch from UI/TradeFrame.lua's remove button, for a row that's stuck (traded
+-- outside the addon, item lost, bugged state). The owner's removal counts as a completed handoff
+-- and is broadcast, so the recipient's matching "collect" row clears too; a recipient's removal
+-- only dismisses the row in their own window.
+function Session:DismissTradeItem(idx)
+	local item = self.items[idx]
+	if not item or not item.awarded or item.traded then
+		return
+	end
+	if self:IsOwner() then
+		self:MarkItemTraded(idx)
+		return
+	end
+	item.traded = true
+	self:notifySessionFrame()
+	self:notifyTradeFrame()
+end
+
 function Session:OnTradeCompleteReceived(data)
 	if not data.sessionId or data.sessionId ~= self.sessionId then
 		return

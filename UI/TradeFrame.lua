@@ -25,6 +25,7 @@ local ROW_HEIGHT = Theme.LAYOUT.buttonHeight + 6
 local TRADE_BUTTON_WIDTH = 54
 local FOLLOW_BUTTON_WIDTH = 54
 local OVERDUE_SECONDS = 180 -- elapsed text turns warning-colored past this; informational only
+local DOUBLE_CLICK_SECONDS = 0.5
 
 -- kind: "handout" (I own the session, item goes to someone else), "self" (I own the session and
 -- awarded it to myself -- only reachable for disenchant, a self-award auto-completes), or
@@ -178,6 +179,40 @@ local COLUMNS = {
 			button:SetShown(not rowData.isSelf)
 			button:SetScript("OnClick", function()
 				PLC.Loot.Trade:FollowPartner(rowData.idx)
+			end)
+		end,
+	},
+	{
+		-- Manual removal for a stuck row: two clicks within DOUBLE_CLICK_SECONDS, same as the
+		-- history window's delete (UI/HistoryFrame.lua). See Session:DismissTradeItem.
+		width = 24,
+		isWidget = true,
+		create = function(row)
+			local button = Primitives.createCloseButton(row, 16)
+			button:HookScript("OnEnter", function(self)
+				GameTooltip:SetOwner(self, "ANCHOR_TOP")
+				GameTooltip:SetText(L["TRADEFRAME_REMOVE_TIP"], nil, nil, nil, nil, true)
+				GameTooltip:Show()
+			end)
+			button:HookScript("OnLeave", function()
+				GameTooltip:Hide()
+			end)
+			return button
+		end,
+		update = function(button, rowData)
+			if button.idx ~= rowData.idx then
+				button.lastClick = nil
+			end
+			button.idx = rowData.idx
+			button:SetScript("OnClick", function(self)
+				local now = GetTime()
+				if self.lastClick and now - self.lastClick <= DOUBLE_CLICK_SECONDS then
+					self.lastClick = nil
+					GameTooltip:Hide()
+					PLC.Session:DismissTradeItem(rowData.idx)
+				else
+					self.lastClick = now
+				end
 			end)
 		end,
 	},

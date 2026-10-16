@@ -96,6 +96,7 @@ L["TRADEFRAME_AWARDED_JUST_NOW"] = "Awarded just now"
 L["TRADEFRAME_AWARDED_AGO"] = "Awarded %dm ago"
 L["TRADEFRAME_NO_ITEMS"] = "Nothing to trade right now."
 L["TRADEFRAME_SELF"] = "Yourself"
+L["TRADEFRAME_REMOVE_TIP"] = "Double click to remove this entry (if it's stuck or was handled outside the addon)."
 
 L["HISTORY_TITLE"] = "Loot History"
 L["HISTORY_COL_DATE"] = "Date"
