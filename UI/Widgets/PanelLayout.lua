@@ -17,6 +17,7 @@ local PanelMeta = { __index = Panel }
 -- opts: width, height, title, name (global frame name, for UISpecialFrames/Escape-to-close).
 function PanelLayout.Create(opts)
 	local frame = CreateFrame("Frame", opts.name, UIParent)
+	Primitives.refreshFontsOnShow(frame)
 	frame:SetSize(opts.width or 760, opts.height or 540)
 	frame:SetPoint("CENTER")
 	-- One tier below UI/SessionFrame.lua's "DIALOG" on purpose (both used to sit at "DIALOG",

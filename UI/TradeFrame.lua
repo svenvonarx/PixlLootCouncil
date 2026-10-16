@@ -231,6 +231,7 @@ local function ensureFrame()
 	local frameWidth = rowContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + 10 + 20
 
 	frame = CreateFrame("Frame", "PixlLootCouncilTradeFrame", UIParent)
+	Primitives.refreshFontsOnShow(frame)
 	frame:SetSize(frameWidth, 220)
 	frame:SetPoint("CENTER", 0, 120)
 	-- Highest strata, per the explicit "highest prio" ask.

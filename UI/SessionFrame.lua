@@ -521,6 +521,7 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilSessionFrame", UIParent)
+	Primitives.refreshFontsOnShow(frame)
 	-- Width is fixed (set at the very end of this function, once VotingFrame.GRID_WIDTH is known
 	-- -- see the comment down there) but every child below positions itself via relative anchors,
 	-- not absolute pixel coordinates, so building them before the frame has a final size is fine;

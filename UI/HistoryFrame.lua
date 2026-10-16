@@ -310,6 +310,7 @@ local function ensureExportFrame()
 	end
 	local width, height = 700, 360
 	exportFrame = CreateFrame("Frame", "PixlLootCouncilHistoryExportFrame", UIParent)
+	Primitives.refreshFontsOnShow(exportFrame)
 	exportFrame:SetSize(width, height)
 	exportFrame:SetPoint("CENTER")
 	exportFrame:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -416,6 +417,7 @@ local function ensureImportFrame()
 	end
 	local width, height = 560, 340
 	importFrame = CreateFrame("Frame", "PixlLootCouncilHistoryImportFrame", UIParent)
+	Primitives.refreshFontsOnShow(importFrame)
 	importFrame:SetSize(width, height)
 	importFrame:SetPoint("CENTER")
 	importFrame:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -687,6 +689,7 @@ local function ensureFrame()
 	local frameWidth = mainWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + 20
 
 	frame = CreateFrame("Frame", "PixlLootCouncilHistoryFrame", UIParent)
+	Primitives.refreshFontsOnShow(frame)
 	frame:SetSize(frameWidth, 480)
 	frame:SetPoint("CENTER")
 	-- Its own strata, below every other window here (Options HIGH, Session DIALOG, Loot

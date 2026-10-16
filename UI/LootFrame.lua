@@ -103,6 +103,7 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
+	Primitives.refreshFontsOnShow(frame)
 	-- Width is derived from the response buttons' own real total width (measureResponseButtonsWidth
 	-- above), not a hardcoded literal -- a fixed "700" could never stay correct anyway, since
 	-- profile.responses (the button set/labels) is user-customizable via the Options panel, and a

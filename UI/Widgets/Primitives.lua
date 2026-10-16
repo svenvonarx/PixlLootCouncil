@@ -158,39 +158,80 @@ function Primitives.createNoteIcon(parent, size)
 	return icon
 end
 
--- Requested size is scaled ~20% down before SetFont (ported formula, min 9px) -- falls back to
--- the default Blizzard font if the bundled one fails to load (e.g. font file missing on disk),
--- same safety net FojjiCore's own OptionsMenu.lua uses.
+-- Bundled-font loading. On a cold game start, labels created before WoW finished loading the
+-- custom .ttf could stay blank forever (button captions, window titles), while table cells looked
+-- fine. The difference: cells get SetText with *new* text on every refresh, which forces a
+-- re-layout; a label set once never does. Re-applying the same font/text (an earlier retry fix)
+-- doesn't help, because WoW skips SetFont/SetText calls that change nothing. The file size isn't
+-- the issue -- the timing is. So:
+--   1. Preload: reference the font at file load, i.e. during the loading screen, long before any
+--      window exists.
+--   2. Every label uses a shared Font object per pixel size (CreateFont + SetFontObject), so the
+--      font can be re-applied to all of them at once.
+--   3. Primitives.RefreshFonts() forces a real change -- each Font object's size is bumped and
+--      restored, and each label's text is cleared and re-set -- so anything laid out before the
+--      font was ready gets redrawn. It runs after login and whenever one of our windows is shown.
+local fontObjects = {} -- [pixelSize] = Font
+
+local function applyFont(target, pixelSize)
+	if target:SetFont(FONT, pixelSize, "") == false then
+		target:SetFont(STANDARD_TEXT_FONT, pixelSize, "")
+	end
+end
+
+local function fontObject(pixelSize)
+	local obj = fontObjects[pixelSize]
+	if not obj then
+		obj = CreateFont("PixlLootCouncilFont" .. pixelSize)
+		applyFont(obj, pixelSize)
+		fontObjects[pixelSize] = obj
+	end
+	return obj
+end
+
+do
+	local preload = UIParent:CreateFontString(nil, "BACKGROUND")
+	preload:SetFontObject(fontObject(12))
+	preload:SetPoint("BOTTOMLEFT", UIParent, "TOPLEFT", 0, 100) -- off-screen
+	preload:SetText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+end
+
+function Primitives.RefreshFonts()
+	for pixelSize, obj in pairs(fontObjects) do
+		obj:SetFont(FONT, pixelSize + 1, "")
+		applyFont(obj, pixelSize)
+	end
+	for fontString in pairs(Theme.themeFonts) do
+		local text = fontString:GetText()
+		if text and text ~= "" then
+			fontString:SetText("")
+			fontString:SetText(text)
+		end
+	end
+end
+
+-- Call once per top-level window right after creating it.
+function Primitives.refreshFontsOnShow(frame)
+	frame:HookScript("OnShow", Primitives.RefreshFonts)
+end
+
+-- A few passes after login: on a cold start the font can finish loading a while after
+-- PLAYER_ENTERING_WORLD, and a window may already have been built (e.g. restored session).
+PLC.Events:RegisterHandler("PLAYER_ENTERING_WORLD", function()
+	Primitives.RefreshFonts()
+	for _, delay in ipairs({ 1, 3, 8 }) do
+		PLC:ScheduleTimer(Primitives.RefreshFonts, delay)
+	end
+end)
+
+-- Requested size is scaled ~20% down (ported formula, min 9px); falls back to the default
+-- Blizzard font if the bundled one fails to load (e.g. font file missing on disk), same safety
+-- net FojjiCore's own OptionsMenu.lua uses.
 function Primitives.createText(parent, text, size, colorName)
 	local font = parent:CreateFontString(nil, "OVERLAY")
 	local pixelSize = math.max(9, math.floor((size or 12) * 0.8 + 0.5))
-	if font:SetFont(FONT, pixelSize, "") == false then
-		font:SetFont(STANDARD_TEXT_FONT, pixelSize, "")
-	end
+	font:SetFontObject(fontObject(pixelSize))
 	font:SetText(text or "")
-
-	-- A brand-new FontString using the bundled custom font sometimes doesn't actually render its
-	-- very first SetText until the font is truly ready -- observed as: every label that gets
-	-- SetText called again shortly after creation (DataTable cells, re-rendered on every refresh/
-	-- update) always shows correctly, while a label set exactly once at creation time (e.g. a
-	-- static button's text, set here and never touched again) sometimes stays blank forever.
-	-- WoW exposes no actual "is this custom font ready yet" signal to key off of instead, so this
-	-- stays a retry -- but a ~1.5s window of retries (this addon's first attempt at a fix) still
-	-- wasn't long enough on a real cold login (far more addons/textures/fonts all loading at once
-	-- than a plain /reload ever has, and apparently further out than 1.5s on some systems) -- a
-	-- second report of the exact same symptom. Widened substantially (now out to 15s) rather than
-	-- nudged again, and now also re-applies SetFont, not just SetText -- if the actual delay is the
-	-- custom font FILE itself not being ready yet (a real alternative explanation this addon hadn't
-	-- ruled out), re-sending SetText alone would never have fixed anything regardless of the
-	-- retry window's length. Still cheap and self-terminating either way -- a few dozen trivial
-	-- calls spread across 15s, not an ongoing cost. Each one reads font:GetText() at fire time (not
-	-- the `text` parameter) so it can never clobber a legitimate SetText call that lands in between.
-	for _, delay in ipairs({ 0, 0.3, 0.75, 1.5, 3, 6, 10, 15 }) do
-		PLC:ScheduleTimer(function()
-			font:SetFont(FONT, pixelSize, "")
-			font:SetText(font:GetText() or "")
-		end, delay)
-	end
 
 	local r, g, b = Primitives.color(colorName or "text")
 	font:SetTextColor(r, g, b)
@@ -360,10 +401,7 @@ function Primitives.createEditBox(parent, width, height, placeholder, multiline,
 		box:SetTextInsets(6, 6, 0, 0)
 	end
 
-	local pixelSize = math.max(9, math.floor(11 * 0.8 + 0.5))
-	if box:SetFont(FONT, pixelSize, "") == false then
-		box:SetFont(STANDARD_TEXT_FONT, pixelSize, "")
-	end
+	box:SetFontObject(fontObject(math.max(9, math.floor(11 * 0.8 + 0.5))))
 
 	box.bg = Primitives.createTexture(box, "BACKGROUND", "field")
 	box.bg:SetAllPoints()
