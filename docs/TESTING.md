@@ -33,6 +33,12 @@ corpse's loot window" flow.
   normal Blizzard looting, untouched by the addon, not self-looted or tracked.
 - `/plc sessionframe` any time afterward shows it in the list with a Pending status, confirming
   it was tracked even though no review session has been started yet.
+- **Live update while inactive (fixed this round):** with `UI/SessionFrame.lua` already open and
+  no review started yet, loot another qualifying item (or run `/plc additem`) *without* closing
+  the window — confirm the new icon appears in the sidebar immediately, not just "No items yet"
+  until you close and reopen it. This was broken: collection/manual-add only notified the UI
+  when a review was already active, which is the *less* common state — most of a raid happens
+  while silently collecting.
 - There's no more standalone `/plc award` command — awarding now goes through the Award/
   Pre-Award buttons in the session window's embedded response grid, covered in 1.5 below.
 
@@ -244,6 +250,12 @@ per the user's explicit choice — see the plan).
   `SendChatMessage`, which it is).
 
 ### 2.7 Addon-presence detection (new this round, `Data/Presence.lua`)
+- **Grid refresh on presence arrival (fixed this round):** open the session window on one client
+  *immediately* after reload, before the 2s-delayed first broadcast can possibly have landed from
+  anyone — confirm that once presence pings do start arriving, rows that were showing "No addon
+  detected" flip to "Waiting for response..." on their own, without needing to click away and
+  reselect the item. This was broken: nothing ever told an already-rendered grid to re-check
+  presence after the fact, so a row rendered too early stayed wrong forever.
 - Reload one client, wait a few seconds (the first broadcast is delayed ~2s on purpose), then
   open the session window on the other client with a test item selected: confirm the just-reloaded
   player's response cell reads "Waiting for response..." quickly, not "No addon detected" —

@@ -26,6 +26,20 @@ end
 
 function Presence:OnPresenceReceived(data)
 	self:MarkSeen(data.guid)
+	self:notifyVotingFrame()
+end
+
+-- Without this, a response grid rendered before someone's presence ping actually arrived (e.g.
+-- opened right as the addon loaded, before the 2s-delayed first broadcast) would show
+-- "No addon detected" for them FOREVER -- nothing else ever re-reads Presence:IsPresent for an
+-- already-rendered row. Only the currently-selected item needs a nudge; forces a full-rows
+-- rebuild (cheap at normal roster sizes) so every row's presence check gets re-evaluated.
+function Presence:notifyVotingFrame()
+	local VotingFrame = PLC.UI and PLC.UI.VotingFrame
+	local panel = VotingFrame and VotingFrame.activePanel
+	if panel and panel.currentIdx then
+		panel:OnItemUpdated(panel.currentIdx)
+	end
 end
 
 local function broadcastPresence()

@@ -227,6 +227,11 @@ function Session:CollectDetectedItems(lootSlotInfo)
 
 	self.isCollector = true
 	persist()
+	-- Always notify, even while silently collecting (state ~= "active" -- the normal state for
+	-- most of a raid under this workflow) -- an already-open UI/SessionFrame.lua needs to show
+	-- newly bagged items live, not just once a review pass starts. broadcastNewItems below
+	-- notifies again when active, which is a harmless redundant call, not a correctness issue.
+	self:notifySessionFrame()
 
 	-- A review pass may already be active (the ML kept raiding while reviewing) -- broadcast
 	-- these immediately so candidates see them live. Otherwise this stays silent; Start() below
@@ -347,6 +352,10 @@ function Session:AddManualItem(itemIdOrLink)
 	self.items[idx] = entry
 	self.isCollector = true
 	persist()
+	-- Same reasoning as CollectDetectedItems above: notify regardless of state, so an
+	-- already-open UI/SessionFrame.lua picks up a manually-added item immediately even before
+	-- any review pass has started.
+	self:notifySessionFrame()
 
 	if self.state == "active" then
 		entry.deadlineAt = time() + self.responseTimeoutSeconds
