@@ -57,30 +57,88 @@ function CouncilRules:AmIMasterLooter()
 	return self:IsMasterLooterUnit("player")
 end
 
--- entry: the roster entry being built (identity data only); unit: the live unit token it came
--- from (used for authority checks that need a fresh Blizzard query); profile: PLC.db.profile.
-function CouncilRules:Evaluate(entry, unit, profile)
-	local mode = profile.council.mode
+-- Guild rank of a group member: GetGuildInfo(unit) when the client has it (same guild, nearby),
+-- else the guild roster by name. Returns guildName, rankIndex (0 = guild master) or nil.
+local guildRankByName = {}
 
-	if mode == "manual" then
-		return profile.council.manualList[entry.name] == true
+function CouncilRules:RefreshGuildRoster()
+	wipe(guildRankByName)
+	if not IsInGuild() then
+		return
 	end
-
-	local isML = self:IsMasterLooterUnit(unit)
-
-	if mode == "mlOnly" then
-		return isML
+	local getInfo = GetGuildRosterInfo
+	for i = 1, (GetNumGuildMembers and GetNumGuildMembers()) or 0 do
+		local name, _, rankIndex = getInfo(i)
+		if name then
+			guildRankByName[name] = rankIndex
+			guildRankByName[(strsplit("-", name))] = guildRankByName[(strsplit("-", name))] or rankIndex
+		end
 	end
-
-	-- "raidAssist" (default): master looter, raid leader, and raid assistants are all council.
-	if isML then
-		return true
-	end
-	if UnitIsGroupLeader and UnitIsGroupLeader(unit) then
-		return true
-	end
-	if UnitIsGroupAssistant and UnitIsGroupAssistant(unit) then
-		return true
-	end
-	return false
 end
+
+local function guildRank(unit, fullName)
+	local myGuild = GetGuildInfo("player")
+	if not myGuild then
+		return nil
+	end
+	local guildName, _, rankIndex = GetGuildInfo(unit)
+	if guildName then
+		return guildName == myGuild and rankIndex or nil
+	end
+	local short = fullName and (strsplit("-", fullName))
+	return guildRankByName[fullName] or (short and guildRankByName[short])
+end
+
+-- The current guild's ranks as { index = rankIndex, name = rankName }, highest first -- for the
+-- Council options page. rankIndex is 0-based (0 = guild master), like GetGuildInfo's.
+function CouncilRules:GetGuildRanks()
+	local ranks = {}
+	if not IsInGuild() or not GuildControlGetNumRanks then
+		return ranks
+	end
+	for i = 1, GuildControlGetNumRanks() do
+		table.insert(ranks, { index = i - 1, name = GuildControlGetRankName(i) or ("Rank " .. i) })
+	end
+	return ranks
+end
+
+-- Who's on the loot council, from the profile's council settings. The master looter is always on
+-- it; on top of that: raid leader and assistants (council.raidAssist), members of the selected
+-- guild ranks (council.guildRanks[rankIndex]) and manually listed names (council.manualList, by
+-- "Name-Realm" or plain "Name"). Only the session HOLDER's settings matter once a session runs --
+-- the holder broadcasts the resulting member list (Data/Session.lua:OnRosterRebuilt).
+-- entry: the roster entry being built; unit: its live unit token; profile: PLC.db.profile.
+function CouncilRules:Evaluate(entry, unit, profile)
+	local council = profile.council
+	if self:IsMasterLooterUnit(unit) then
+		return true
+	end
+	if council.raidAssist then
+		if (UnitIsGroupLeader and UnitIsGroupLeader(unit)) or (UnitIsGroupAssistant and UnitIsGroupAssistant(unit)) then
+			return true
+		end
+	end
+	if next(council.guildRanks) then
+		local rank = guildRank(unit, entry.name)
+		if rank and council.guildRanks[rank] then
+			return true
+		end
+	end
+	local short = entry.name and (strsplit("-", entry.name))
+	return council.manualList[entry.name] == true or (short ~= nil and council.manualList[short] == true)
+end
+
+-- One-time move from the old single "mode" setting (raidAssist / manual / mlOnly) to the
+-- combinable settings above. The master looter was council in every old mode and still is.
+PLC:RegisterOnEnable(function()
+	local council = PLC.db.profile.council
+	if council.mode then
+		council.raidAssist = council.mode == "raidAssist"
+		council.mode = nil
+	end
+	if GuildRoster then
+		GuildRoster()
+	elseif C_GuildInfo and C_GuildInfo.GuildRoster then
+		C_GuildInfo.GuildRoster()
+	end
+end)

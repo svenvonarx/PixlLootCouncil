@@ -11,7 +11,7 @@ local function channel()
 	return PLC.Loot.Announce:GetChannel()
 end
 
-function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, enchanterGuid)
+function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, enchanterGuid, council)
 	local ch = channel()
 	if not ch then
 		return
@@ -22,6 +22,7 @@ function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, 
 		items = items,
 		responseTimeoutSeconds = responseTimeoutSeconds,
 		enchanterGuid = enchanterGuid,
+		council = council,
 	}, ch)
 end
 
@@ -140,6 +141,24 @@ function Sync:SendHistory(name, entry)
 	Protocol:Send("history", { name = name, entry = entry }, ch)
 end
 
+-- Holder-only: the loot council for this session (list of GUIDs), whenever it changes.
+function Sync:SendCouncil(sessionId, council)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("council", { sessionId = sessionId, council = council }, ch)
+end
+
+-- Holder-only: a staged (not yet committed) pick, so the council sees review progress.
+function Sync:SendStage(sessionId, idx, guid, reason)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("stage", { sessionId = sessionId, idx = idx, guid = guid, reason = reason }, ch)
+end
+
 -- Holder-only: items taken back out of an active review pass (Remove / Remove All).
 function Sync:SendItemRemove(sessionId, idxs)
 	local ch = channel()
@@ -160,6 +179,8 @@ end
 Protocol:RegisterHandler("session_start", function(data) PLC.Session:OnSessionStartReceived(data) end)
 Protocol:RegisterHandler("item_add", function(data) PLC.Session:OnItemAddReceived(data) end)
 Protocol:RegisterHandler("item_remove", function(data) PLC.Session:OnItemRemoveReceived(data) end)
+Protocol:RegisterHandler("council", function(data) PLC.Session:OnCouncilReceived(data) end)
+Protocol:RegisterHandler("stage", function(data) PLC.Session:OnStageReceived(data) end)
 Protocol:RegisterHandler("response", function(data) PLC.Session:OnResponseReceived(data) end)
 Protocol:RegisterHandler("award", function(data) PLC.Session:OnAwardReceived(data) end)
 Protocol:RegisterHandler("session_heartbeat", function(data) PLC.Session:OnHeartbeatReceived(data) end)

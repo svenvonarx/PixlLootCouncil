@@ -3,8 +3,8 @@ local ADDON_NAME, PLC = ...
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local Primitives = PLC.UI.Widgets.Primitives
 local CheckboxWidget = PLC.UI.Widgets.Checkbox
+local ButtonWidget = PLC.UI.Widgets.Button
 local SliderWidget = PLC.UI.Widgets.Slider
-local DropdownWidget = PLC.UI.Widgets.Dropdown
 local PanelLayout = PLC.UI.Widgets.PanelLayout
 local Theme = PLC.UI.Theme
 
@@ -110,37 +110,142 @@ local function buildResponsesPage(page)
 	end
 end
 
-local COUNCIL_MODES = { "raidAssist", "manual", "mlOnly" }
+-- Who's on the loot council (Data/CouncilRules.lua:Evaluate). The master looter is always on it
+-- and runs the session; these settings add members. While a session runs, the HOLDER's settings
+-- decide the council for everyone. Any change rebuilds the roster, which re-broadcasts the council
+-- if this client is holding a session (Session:OnRosterRebuilt).
+local MAX_RANKS = 10
+local NAME_ROW_HEIGHT = 20
+
+local function councilChanged()
+	PLC.Roster:Rebuild()
+end
 
 local function buildCouncilPage(page)
-	local profile = PLC.db.profile
+	local council = PLC.db.profile.council
 
-	local label = Primitives.createText(page, L["OPTIONS_COUNCIL_MODE"], 13, "white")
-	label:SetPoint("TOPLEFT")
+	local intro = Primitives.createText(page, L["OPTIONS_COUNCIL_INTRO"], 11, "dim")
+	intro:SetPoint("TOPLEFT")
+	intro:SetPoint("RIGHT", page, "RIGHT")
+	intro:SetJustifyH("LEFT")
+	intro:SetWordWrap(true)
 
-	local dropdown = DropdownWidget.createDropdownButton(page)
-	dropdown:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -10)
+	local raidAssist = CheckboxWidget.createCheckbox(page, L["OPTIONS_COUNCIL_RAIDASSIST"], function(checked)
+		council.raidAssist = checked
+		councilChanged()
+	end)
+	raidAssist:SetPoint("TOPLEFT", 0, -52)
+	raidAssist:SetChecked(council.raidAssist)
 
-	local function refreshDropdown()
-		local entries = {}
-		for _, mode in ipairs(COUNCIL_MODES) do
-			table.insert(entries, {
-				text = L["OPTIONS_COUNCIL_MODE_" .. mode:upper()] or mode,
-				selected = profile.council.mode == mode,
-				onClick = function()
-					profile.council.mode = mode
-					refreshDropdown()
-				end,
-			})
-		end
-		DropdownWidget.setEntries(dropdown, L["OPTIONS_COUNCIL_MODE_" .. profile.council.mode:upper()] or profile.council.mode, entries)
+	-- Guild ranks: one checkbox per rank, two columns, rebuilt whenever the page is shown (rank
+	-- names load lazily, and can change).
+	local ranksLabel = Primitives.createText(page, L["OPTIONS_COUNCIL_GUILD_RANKS"], 13, "white")
+	ranksLabel:SetPoint("TOPLEFT", 0, -90)
+	local noGuild = Primitives.createText(page, L["OPTIONS_COUNCIL_NO_GUILD"], 11, "dim")
+	noGuild:SetPoint("TOPLEFT", ranksLabel, "BOTTOMLEFT", 0, -8)
+
+	local rankBoxes = {}
+	for i = 1, MAX_RANKS do
+		local box = CheckboxWidget.createCheckbox(page, "", function(checked)
+			council.guildRanks[rankBoxes[i].rankIndex] = checked or nil
+			councilChanged()
+		end)
+		box:SetWidth(180)
+		local column, row = (i - 1) % 2, math.floor((i - 1) / 2)
+		box:SetPoint("TOPLEFT", ranksLabel, "BOTTOMLEFT", column * 190, -8 - row * 24)
+		box:Hide()
+		rankBoxes[i] = box
 	end
-	refreshDropdown()
 
-	local hint = Primitives.createText(page, L["OPTIONS_COUNCIL_MODE_HINT"], 10, "dim")
-	hint:SetPoint("TOPLEFT", dropdown, "BOTTOMLEFT", 0, -10)
-	hint:SetWidth(300)
-	hint:SetJustifyH("LEFT")
+	-- Manual names.
+	local namesTop = -90 - 18 - 8 - math.ceil(MAX_RANKS / 2) * 24 - 12
+	local namesLabel = Primitives.createText(page, L["OPTIONS_COUNCIL_NAMES"], 13, "white")
+	namesLabel:SetPoint("TOPLEFT", 0, namesTop)
+
+	local nameBox = Primitives.createEditBox(page, 200, 24, L["OPTIONS_COUNCIL_NAME_PLACEHOLDER"])
+	nameBox:SetPoint("TOPLEFT", namesLabel, "BOTTOMLEFT", 0, -8)
+	local addButton = ButtonWidget.createButton(page, L["OPTIONS_COUNCIL_ADD"], 70)
+	addButton:SetHeight(24)
+	addButton:SetPoint("LEFT", nameBox, "RIGHT", 6, 0)
+
+	local listHolder = CreateFrame("Frame", nil, page)
+	listHolder:SetPoint("TOPLEFT", nameBox, "BOTTOMLEFT", 0, -8)
+	listHolder:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT")
+	listHolder.border = Primitives.createBorder(listHolder, "borderDim")
+	local nameTable = PLC.UI.Widgets.DataTable.Create(listHolder, NAME_ROW_HEIGHT)
+
+	local refreshNames
+	nameTable:SetColumns({
+		{
+			width = 220,
+			render = function(rowData)
+				return "  " .. rowData.name
+			end,
+		},
+		{
+			width = 24,
+			isWidget = true,
+			create = function(row)
+				return Primitives.createCloseButton(row, 14)
+			end,
+			update = function(button, rowData)
+				button:SetScript("OnClick", function()
+					council.manualList[rowData.name] = nil
+					refreshNames()
+					councilChanged()
+				end)
+			end,
+		},
+	})
+
+	function refreshNames()
+		local rows = {}
+		for name in pairs(council.manualList) do
+			table.insert(rows, { name = name })
+		end
+		table.sort(rows, function(a, b) return a.name < b.name end)
+		nameTable:SetRows(rows)
+	end
+
+	local function addName()
+		local name = strtrim(nameBox:GetValue() or "")
+		if name == "" then
+			return
+		end
+		-- Character names are stored capitalized, like the game shows them.
+		name = name:sub(1, 1):upper() .. name:sub(2)
+		council.manualList[name] = true
+		nameBox:SetText("")
+		nameBox:ClearFocus()
+		refreshNames()
+		councilChanged()
+	end
+	addButton:SetScript("OnClick", addName)
+	nameBox:SetScript("OnEnterPressed", addName)
+
+	local function refreshRanks()
+		local ranks = PLC.CouncilRules:GetGuildRanks()
+		noGuild:SetShown(#ranks == 0)
+		for i, box in ipairs(rankBoxes) do
+			local rank = ranks[i]
+			if rank then
+				box.rankIndex = rank.index
+				box.label:SetText(rank.name)
+				box:SetChecked(council.guildRanks[rank.index])
+				box:Show()
+			else
+				box:Hide()
+			end
+		end
+	end
+
+	page:HookScript("OnShow", function()
+		raidAssist:SetChecked(council.raidAssist)
+		refreshRanks()
+		refreshNames()
+	end)
+	refreshRanks()
+	refreshNames()
 end
 
 local function buildAppearancePage(page)

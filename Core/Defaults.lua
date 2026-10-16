@@ -10,9 +10,11 @@ PLC.Defaults = {
 	profile = {
 		accent = { r = 0.91, g = 0.64, b = 0.24 }, -- #E8A33D, see docs/SPECIFICATION.md §4.1
 
+		-- Data/CouncilRules.lua:Evaluate. The master looter is always council; these add to it.
 		council = {
-			mode = "raidAssist", -- "raidAssist" | "manual" | "mlOnly"
-			manualList = {}, -- [charName] = true, used only when mode == "manual"
+			raidAssist = true, -- raid leader and assistants
+			guildRanks = {}, -- [rankIndex] = true (0 = guild master)
+			manualList = {}, -- ["Name-Realm" or "Name"] = true
 		},
 
 		responses = {

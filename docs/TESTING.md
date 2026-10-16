@@ -566,3 +566,23 @@ addon's own existing taint capture, and the fastest signal if a protected-functi
   active session (holder only) the removal is broadcast — candidates' Loot Response windows drop
   the items — and the session ends. Awarded-but-untraded items stay in Loot Trades.
 - **Trading** picks the exact tracked copy (by item GUID) when one is known.
+
+### 2.12 Council membership and permissions (`Data/CouncilRules.lua`)
+- **Options → Council:** "Raid leader and assistants" checkbox, one checkbox per guild rank (names
+  of your guild's ranks; "Not in a guild." otherwise), and an "Additional members" list (type a
+  name, Add / Enter; × removes). The master looter is always council. Old settings migrate:
+  `mlOnly`/`manual` → raid leader & assistants off; manual names are kept.
+- **Starting:** with Master Loot on, only the master looter sees Start Session (and auto-start).
+  Without Master Loot: the group leader; solo: anyone. Others get "Only the master looter can
+  start a loot session." from `/plc`-triggered starts.
+- **Holder:** full controls — Award per row, Disenchant, Award All, End Session, Remove/Remove All,
+  Enchanter picker.
+- **Council member (not holder):** sees the grid with responses; no Award buttons, no Disenchant,
+  no Award All/End/Remove All; Enchanter picker is read-only. When the holder stages a pick, the
+  row shows "Staged" (and the sidebar icon turns orange) within a second; a staged disenchant shows
+  as "Staged: Disenchant" next to the vote count.
+- **Not on the council:** the Loot Session window lists the items but shows "Only the loot council
+  can see responses and award decisions for this item." instead of the grid.
+- **Holder's settings win:** change who's council on the holder mid-session (e.g. promote someone
+  to assistant, tick a guild rank) — that player's window switches to the council view without a
+  reload. A council member's own Council settings don't affect the running session.

@@ -156,7 +156,14 @@ function Panel:updateHeader()
 			responded = responded + 1
 		end
 	end
-	self.header:SetText(string.format(L["VOTINGFRAME_VOTE_COUNT"], responded, total))
+	local text = string.format(L["VOTINGFRAME_VOTE_COUNT"], responded, total)
+	-- The holder sees a staged disenchant on the Disenchant button itself; everyone else only
+	-- has this header line to see it.
+	local item = self.currentIdx and PLC.Session.items[self.currentIdx]
+	if item and item.preAwardReason == "disenchant" and not PLC.Session:IsHolder() then
+		text = text .. "  |  " .. L["VOTINGFRAME_STAGED_DISENCHANT"]
+	end
+	self.header:SetText(text)
 end
 
 -- Stages, never commits (see the file-header comment) -- then auto-advances the sidebar off this
@@ -471,9 +478,19 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton)
 			width = 54 + BUTTON_GAP,
 			isWidget = true,
 			create = function(row)
-				return ButtonWidget.createButton(row, L["VOTINGFRAME_AWARD"], 54)
+				local button = ButtonWidget.createButton(row, L["VOTINGFRAME_AWARD"], 54)
+				-- What the rest of the council sees instead of the button: just the staged pick.
+				button.stagedLabel = Primitives.createText(row, L["VOTINGFRAME_STAGED"], 11, "accent")
+				button.stagedLabel:SetPoint("CENTER", button, "CENTER")
+				button.stagedLabel:Hide()
+				return button
 			end,
 			update = function(button, rowData)
+				-- Only the session holder awards. Everyone else on the council sees the holder's
+				-- staged pick (broadcast via Session:SetPreAward) but no button.
+				local isHolder = PLC.Session:IsHolder()
+				button:SetShown(isHolder)
+				button.stagedLabel:SetShown(not isHolder and rowData.staged)
 				-- "Staged" swap (previously the separate Pre-Award button's own state) now lives
 				-- directly on this one button -- there's nothing left for a second column to do.
 				if rowData.staged then

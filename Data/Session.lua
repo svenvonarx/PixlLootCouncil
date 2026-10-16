@@ -36,6 +36,10 @@ Session.nextIdx = 1
 Session.sentFirstBatch = false
 Session.responseTimeoutSeconds = 60 -- the holder's db.profile.responseTimeoutSeconds wins for everyone -- see Start()
 Session.isCollector = false -- true once this client has silently bagged at least one item -- see persist()
+-- [guid] = true: the loot council for the current session, decided by the HOLDER's council
+-- settings and broadcast by the holder (session_start, sync, "council" on roster changes), so every
+-- client agrees on who sees the voting grid. nil = no session info yet; fall back to the local roster.
+Session.council = nil
 
 local heartbeatTimerHandle
 local persist -- forward-declared: SetEnchanter (above its definition) calls it
@@ -55,6 +59,92 @@ end
 -- long as it needs to: until the NEXT review pass starts under a (possibly different) holder.
 function Session:IsOwner()
 	return self.owner ~= nil and self.owner.guid == UnitGUID("player")
+end
+
+-- Who may START a review pass: the live master looter whenever the group is on Master Loot (the
+-- ML holds the loot, so the ML is always the session master); without Master Loot, the group
+-- leader -- or anyone solo, for testing.
+function Session:CanStart()
+	if self.state == "active" then
+		return false
+	end
+	if PLC.CouncilRules:IsMasterLootMethod() then
+		return PLC.CouncilRules:AmIMasterLooter()
+	end
+	return not IsInGroup() or UnitIsGroupLeader("player")
+end
+
+-- Who may manage the item list (Remove / Remove All / Enchanter): the holder during a review pass;
+-- outside one, whoever actually holds the backlog (the collector / session owner / master looter).
+function Session:CanManage()
+	if self.state == "active" then
+		return self:IsHolder()
+	end
+	return self.isCollector or self:IsOwner() or PLC.CouncilRules:AmIMasterLooter()
+end
+
+-- The council set from the local roster (this client's own council settings) plus the holder.
+function Session:ComputeCouncil()
+	local council = {}
+	for guid in pairs(PLC.Roster:GetCouncil()) do
+		council[guid] = true
+	end
+	if self.owner then
+		council[self.owner.guid] = true
+	end
+	return council
+end
+
+function Session:IsCouncilMember(guid)
+	guid = guid or UnitGUID("player")
+	if self.owner and self.owner.guid == guid and self.state == "active" then
+		return true
+	end
+	if self.council and self.state ~= "inactive" then
+		return self.council[guid] == true
+	end
+	local entry = PLC.Roster:Get(guid)
+	return entry ~= nil and entry.council == true
+end
+
+local function councilList(set)
+	local list = {}
+	for guid in pairs(set or {}) do
+		table.insert(list, guid)
+	end
+	table.sort(list)
+	return list
+end
+
+local function councilSet(list)
+	local set = {}
+	for _, guid in ipairs(list or {}) do
+		set[guid] = true
+	end
+	return set
+end
+
+-- Called by Data/Roster.lua after every rebuild (group changes, loot method, guild ranks, council
+-- options). The holder re-broadcasts the council when it changed.
+function Session:OnRosterRebuilt()
+	if not self:IsHolder() then
+		return
+	end
+	local council = self:ComputeCouncil()
+	local before, after = table.concat(councilList(self.council), ","), table.concat(councilList(council), ",")
+	if before ~= after then
+		self.council = council
+		PLC.Comms.Sync:SendCouncil(self.sessionId, councilList(council))
+		self:notifySessionFrame()
+	end
+end
+
+function Session:OnCouncilReceived(data)
+	if not data.sessionId or data.sessionId ~= self.sessionId then
+		return
+	end
+	self.council = councilSet(data.council)
+	self:notifySessionFrame()
 end
 
 -- Strictly a known Enchanter or nothing -- NEVER a random roster member picked by alphabetical
@@ -135,6 +225,7 @@ function persist()
 			nextIdx = Session.nextIdx,
 			responseTimeoutSeconds = Session.responseTimeoutSeconds,
 			isCollector = Session.isCollector,
+			council = Session.council,
 		}
 	else
 		PLC.db.char.activeSession = nil
@@ -164,6 +255,8 @@ local function stripForTransmit(entries)
 			tradeRemaining = entry.tradeExpiresAt and math.max(0, entry.tradeExpiresAt - time()) or nil,
 			boe = entry.boe,
 			untradable = entry.untradable,
+			preAwardGuid = entry.preAwardGuid,
+			preAwardReason = entry.preAwardReason,
 		}
 	end
 	return out
@@ -476,6 +569,10 @@ function Session:Start()
 		print(L["CHAT_PREFIX"] .. L["SESSION_ALREADY_ACTIVE"])
 		return
 	end
+	if not self:CanStart() then
+		print(L["CHAT_PREFIX"] .. L["SESSION_ONLY_ML_STARTS"])
+		return
+	end
 	self.sessionId = UnitGUID("player") .. "-" .. time()
 	self.owner = { guid = UnitGUID("player"), name = UnitName("player") }
 	self.state = "active"
@@ -483,6 +580,7 @@ function Session:Start()
 	self.sentFirstBatch = false
 	self.lastHolderSeenAt = time()
 	self.responseTimeoutSeconds = PLC.db.profile.responseTimeoutSeconds
+	self.council = self:ComputeCouncil()
 	startHeartbeat()
 	-- The holder is almost always also a candidate -- announce their own equipped gear and
 	-- professions the same as every other candidate does (see Data/Gear.lua, Data/Professions.lua),
@@ -523,7 +621,7 @@ end
 function Session:broadcastNewItems(newItems)
 	if not self.sentFirstBatch then
 		self.sentFirstBatch = true
-		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(newItems), self.responseTimeoutSeconds, self.enchanterGuid)
+		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(newItems), self.responseTimeoutSeconds, self.enchanterGuid, councilList(self.council))
 		PLC.Loot.Announce:AnnounceSessionStart(newItems)
 	else
 		PLC.Comms.Sync:SendItemAdd(self.sessionId, stripForTransmit(newItems))
@@ -641,12 +739,10 @@ function Session:AwardBaggedItem(idx, winnerGuid, reason)
 	return true
 end
 
--- Holder-local staging only -- never broadcast, never visible to anyone but the holder's own
--- client. This is now THE way every decision gets made (see UI/VotingFrame.lua's Award/Disenchant
--- buttons) -- the ML's "who I'm planning to pick" scratch space, committed only in bulk via
--- AwardAllPreAwarded below. Calling this again (a different candidate, or the other reason) just
--- overwrites the previous pick -- that's the whole "you can still go back and award it to someone
--- else" behavior, already free from this always having been overwrite-not-append.
+-- Holder-only staging -- THE way every decision gets made (see UI/VotingFrame.lua's Award/
+-- Disenchant buttons), committed only in bulk via AwardAllPreAwarded below. Calling this again (a
+-- different candidate, or the other reason) just overwrites the previous pick. Broadcast ("stage")
+-- so the rest of the council sees the review progress live; nothing is final until Award All.
 function Session:SetPreAward(idx, winnerGuid, reason)
 	if not self:IsHolder() then
 		return
@@ -658,7 +754,22 @@ function Session:SetPreAward(idx, winnerGuid, reason)
 	item.preAwardGuid = winnerGuid
 	item.preAwardReason = reason or "award"
 	persist()
+	PLC.Comms.Sync:SendStage(self.sessionId, idx, winnerGuid, item.preAwardReason)
 	self:notifyVotingFrame(idx)
+	self:notifySessionFrame()
+end
+
+function Session:OnStageReceived(data)
+	if not data.sessionId or data.sessionId ~= self.sessionId then
+		return
+	end
+	local item = self.items[data.idx]
+	if not item or item.awarded then
+		return
+	end
+	item.preAwardGuid = data.guid
+	item.preAwardReason = data.reason
+	self:notifyVotingFrame(data.idx)
 	self:notifySessionFrame()
 end
 
@@ -679,7 +790,7 @@ local function removeItems(idxs)
 end
 
 function Session:CanRemoveItems()
-	return self.state ~= "active" or self:IsHolder()
+	return self:CanManage()
 end
 
 function Session:RemoveItem(idx)
@@ -773,6 +884,7 @@ function Session:OnSessionStartReceived(data)
 	-- The holder's configured timeout wins for everyone, never the receiving client's own
 	-- profile.responseTimeoutSeconds.
 	self.responseTimeoutSeconds = data.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
+	self.council = data.council and councilSet(data.council) or nil
 	applyReceivedItems(data.items)
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_STARTED_BY"], data.owner and data.owner.name or "?"))
 	-- Announces OUR gear and professions now that we know a review pass actually started -- see
@@ -1037,6 +1149,7 @@ function Session:OnSyncRequestReceived(data, sender)
 		responses = self.responses,
 		lastHolderSeenAt = self.lastHolderSeenAt,
 		responseTimeoutSeconds = self.responseTimeoutSeconds,
+		council = councilList(self.council),
 	}, sender)
 end
 
@@ -1053,6 +1166,7 @@ function Session:OnSyncDataReceived(data)
 	applyReceivedItems(data.items)
 	self.responses = data.responses or {}
 	self.lastHolderSeenAt = data.lastHolderSeenAt or time()
+	self.council = data.council and councilSet(data.council) or nil
 	print(L["CHAT_PREFIX"] .. L["SESSION_SYNCED"])
 	-- A late joiner catching up never got the session-start broadcast that would otherwise have
 	-- triggered this -- announce our gear and professions now so we're not a permanent gap in the
@@ -1075,6 +1189,7 @@ local function restoreFromSaved()
 	Session.nextIdx = saved.nextIdx or 1
 	Session.responseTimeoutSeconds = saved.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
 	Session.isCollector = saved.isCollector or false
+	Session.council = saved.council
 
 	local isOwner = saved.owner and saved.owner.guid == UnitGUID("player")
 	-- Only a save explicitly marked active resumes. Saves from before state was persisted

@@ -58,6 +58,9 @@ function Roster:Rebuild()
 	end
 
 	self.members = members
+	if PLC.Session and PLC.Session.OnRosterRebuilt then
+		PLC.Session:OnRosterRebuilt()
+	end
 end
 
 function Roster:Get(guid)
@@ -90,7 +93,12 @@ end
 -- A raid-wide roster churn (wipe, boss kill, mass reconnect) fires GROUP_ROSTER_UPDATE many times
 -- in the same frame; AceBucket coalesces that into a single rebuild instead of rebuilding N times.
 function Roster:Enable()
-	PLC:RegisterBucketEvent({ "GROUP_ROSTER_UPDATE", "PARTY_LEADER_CHANGED", "PLAYER_ENTERING_WORLD" }, 1, function()
+	PLC:RegisterBucketEvent({ "GROUP_ROSTER_UPDATE", "PARTY_LEADER_CHANGED", "PLAYER_ENTERING_WORLD", "PARTY_LOOT_METHOD_CHANGED" }, 1, function()
+		Roster:Rebuild()
+	end)
+	-- Guild ranks feed council membership (Data/CouncilRules.lua).
+	PLC:RegisterBucketEvent({ "GUILD_ROSTER_UPDATE" }, 2, function()
+		PLC.CouncilRules:RefreshGuildRoster()
 		Roster:Rebuild()
 	end)
 	Roster:Rebuild()

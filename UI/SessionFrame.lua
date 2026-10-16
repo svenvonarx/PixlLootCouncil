@@ -37,6 +37,7 @@ local detailRemoveButton
 local detailVoteCountText
 local detailDisenchantButton
 local detailContainer
+local detailNotice
 local votingPanel
 local startButton
 local endButton
@@ -409,13 +410,25 @@ end
 function showDetailFor(idx)
 	selectedIdx = idx
 	local item = idx and PLC.Session.items[idx]
-	if item then
+	-- Only the council sees the voting grid (responses, staged picks); only the holder gets the
+	-- controls (Disenchant here, Award in the grid -- see UI/VotingFrame.lua). Everyone else sees
+	-- the item list and a short notice.
+	local isCouncil = PLC.Session:IsCouncilMember() or PLC.Session:IsHolder()
+	detailNotice:SetShown(item ~= nil and not isCouncil)
+	if item and not isCouncil then
 		setDetailLabel(item)
 		detailItemHover.itemLink = item.link
-		local showRemove = PLC.Session.state ~= "active" and not item.awarded
-		detailRemoveButton:SetShown(showRemove)
-		detailDisenchantButton:SetShown(not showRemove)
-		detailVoteCountText:SetShown(not showRemove)
+		detailRemoveButton:Hide()
+		detailDisenchantButton:Hide()
+		detailVoteCountText:Hide()
+		detailContainer:Hide()
+	elseif item then
+		setDetailLabel(item)
+		detailItemHover.itemLink = item.link
+		local active = PLC.Session.state == "active"
+		detailRemoveButton:SetShown(not active and not item.awarded and PLC.Session:CanManage())
+		detailDisenchantButton:SetShown(active and PLC.Session:IsHolder())
+		detailVoteCountText:SetShown(active)
 		detailContainer:Show()
 		votingPanel:ShowItem(idx)
 	else
@@ -428,17 +441,14 @@ function showDetailFor(idx)
 	end
 end
 
+-- Start: whoever may start a review pass (the master looter -- Session:CanStart). End / Award
+-- All: only the holder of the running session. Remove All: whoever manages the item list.
 local function updateButtons(flat)
-	if PLC.Session.state == "active" then
-		startButton:Hide()
-		endButton:Show()
-		awardAllButton:Show()
-	else
-		startButton:Show()
-		endButton:Hide()
-		awardAllButton:Hide()
-	end
-	removeAllButton:SetShown(#flat > 0 and PLC.Session:CanRemoveItems())
+	local isHolder = PLC.Session:IsHolder()
+	startButton:SetShown(PLC.Session.state ~= "active" and PLC.Session:CanStart())
+	endButton:SetShown(isHolder)
+	awardAllButton:SetShown(isHolder)
+	removeAllButton:SetShown(#flat > 0 and PLC.Session:CanManage())
 end
 
 -- Shows who holds the current review pass directly in the window's own title bar (previously
@@ -496,7 +506,11 @@ local function updateEnchanterDropdown()
 			end,
 		})
 	end
-	DropdownWidget.setEntries(enchanterDropdown, displayText, entries)
+	-- Read-only for everyone but the holder (Session:SetEnchanter is holder-only anyway).
+	local canEdit = PLC.Session:IsHolder()
+	DropdownWidget.setEntries(enchanterDropdown, displayText, canEdit and entries or nil)
+	enchanterDropdown:EnableMouse(canEdit)
+	enchanterDropdown.arrow:SetShown(canEdit)
 end
 
 -- Rebuilds the icon list, keeps/advances the selection, and updates the bottom button row --
@@ -810,6 +824,13 @@ local function ensureFrame()
 	detailContainer = CreateFrame("Frame", nil, detailArea)
 	detailContainer:SetPoint("TOPLEFT", 0, -36)
 	detailContainer:SetPoint("BOTTOMRIGHT")
+
+	detailNotice = Primitives.createText(detailArea, L["SESSIONFRAME_COUNCIL_ONLY"], 12, "dim")
+	detailNotice:SetPoint("TOPLEFT", 0, -48)
+	detailNotice:SetPoint("RIGHT", detailArea, "RIGHT", -10, 0)
+	detailNotice:SetJustifyH("LEFT")
+	detailNotice:SetWordWrap(true)
+	detailNotice:Hide()
 
 	votingPanel = PLC.UI.VotingFrame.CreatePanel(detailContainer, detailVoteCountText, detailDisenchantButton)
 
