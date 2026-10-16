@@ -313,9 +313,22 @@ function Primitives.makeResizable(frame, minWidth, minHeight, maxWidth, maxHeigh
 	grip:SetSize(16, 16)
 	grip:SetPoint("BOTTOMRIGHT", -3, 3)
 
-	grip.dot = Primitives.createTexture(grip, "OVERLAY", "dim")
-	grip.dot:SetPoint("BOTTOMRIGHT", -2, 2)
-	grip.dot:SetSize(8, 8)
+	-- A triangular grid of 6 small dots -- 3 right along the very corner, 2 one step in, 1
+	-- furthest -- instead of one undifferentiated square. This is the same glyph classic
+	-- Windows/GTK/textarea resize handles use; a single flat dot didn't read as "drag to
+	-- resize" to someone who hadn't already stumbled onto it, where this shape is something
+	-- most people already recognize on sight.
+	local DOT_SIZE = 2
+	local PITCH = 4
+	grip.dots = {}
+	for row = 0, 2 do
+		for col = 0, 2 - row do
+			local dot = Primitives.createTexture(grip, "OVERLAY", "dim")
+			dot:SetSize(DOT_SIZE, DOT_SIZE)
+			dot:SetPoint("BOTTOMRIGHT", -(2 + col * PITCH), 2 + row * PITCH)
+			table.insert(grip.dots, dot)
+		end
+	end
 
 	grip:SetScript("OnMouseDown", function()
 		frame:StartSizing("BOTTOMRIGHT")
@@ -327,10 +340,14 @@ function Primitives.makeResizable(frame, minWidth, minHeight, maxWidth, maxHeigh
 		frame:StopMovingOrSizing()
 	end)
 	grip:SetScript("OnEnter", function()
-		grip.dot:SetColorTexture(Primitives.color("accent"))
+		for _, dot in ipairs(grip.dots) do
+			dot:SetColorTexture(Primitives.color("accent"))
+		end
 	end)
 	grip:SetScript("OnLeave", function()
-		grip.dot:SetColorTexture(Primitives.color("dim"))
+		for _, dot in ipairs(grip.dots) do
+			dot:SetColorTexture(Primitives.color("dim"))
+		end
 	end)
 
 	return grip

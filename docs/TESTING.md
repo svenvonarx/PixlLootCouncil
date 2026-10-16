@@ -213,6 +213,10 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   below a usable minimum), and that a taller `UI/SessionFrame.lua` actually shows more item icons
   at once (the icon list is a real scrolling table, so it picks up the extra height) — widening
   either window just adds blank space on the right, since column widths are still fixed for now.
+  Grip glyph (changed this round): confirm it now shows as a small triangular cluster of 6 dots
+  (3 along the very corner, 2 one step in, 1 furthest — the same shape most other apps' resize
+  handles use) instead of a single plain square, and that the whole cluster still brightens to
+  accent together on hover.
 - Every window's header (this one, Session, Options) now shows the brand logo to the left of the
   title, accent-tinted — confirm it re-tints live along with everything else when you change the
   accent color in Options → Appearance.
