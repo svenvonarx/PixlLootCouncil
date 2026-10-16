@@ -104,15 +104,28 @@ function Primitives.createClassIcon(parent, classToken)
 end
 
 -- The standard Blizzard role-icon atlas (Tank/Healer/Damager, matching the group finder tool and
--- raid frame role icons) -- GetTexCoordsForRole is a long-standing Blizzard global that returns
--- {left, right, top, bottom} for "Interface\LFGFrame\UI-LFG-ICON-ROLES" given one of the same
--- "TANK"/"HEALER"/"DAMAGER" strings Data/Roster.lua already stores (from
--- UnitGroupRolesAssigned). No new art asset, and no hardcoded texture-coordinate guessing.
+-- raid frame role icons), "Interface\LFGFrame\UI-LFG-ICON-ROLES". The global function that used
+-- to hand back these texture coordinates (GetTexCoordsForRole / GetTexCoordsForRoleSmallCircle)
+-- was removed by Blizzard in patch 10.1.5 -- calling it here silently broke every role icon
+-- (nil-function-call error on every row, not something a /reload vs full restart would ever have
+-- fixed). Confirmed against two other already-installed addons that hit the same removal and
+-- worked around it their own way (WeakAuras/BuffTrigger2.lua keeps a local reimplementation
+-- explicitly marked "-- Deprecated in 10.1.5"; NovaInstanceTracker.lua hardcodes the identical
+-- coordinates directly) -- both independently agree with the values below, which is why these
+-- are hardcoded here too rather than relying on a Blizzard helper that may or may not exist on a
+-- given client. The atlas is a 256x256 sheet of 67x67 cells: Tank top-left, Healer top-right,
+-- Damager bottom-right (Guide, bottom-left, has no PixlLootCouncil use).
+local ROLE_TCOORDS = {
+	TANK = { 0, 67 / 256, 67 / 256, 134 / 256 },
+	HEALER = { 67 / 256, 134 / 256, 0, 67 / 256 },
+	DAMAGER = { 67 / 256, 134 / 256, 67 / 256, 134 / 256 },
+}
+
 -- Same setter/creator split as createClassIcon, for the same pooled-widget reason.
 function Primitives.setRoleIcon(icon, role)
-	local left, right, top, bottom = role and GetTexCoordsForRole(role)
-	if left then
-		icon:SetTexCoord(left, right, top, bottom)
+	local coords = role and ROLE_TCOORDS[role]
+	if coords then
+		icon:SetTexCoord(unpack(coords))
 		icon:Show()
 	else
 		icon:Hide()
