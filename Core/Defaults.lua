@@ -16,9 +16,11 @@ PLC.Defaults = {
 		},
 
 		responses = {
-			{ key = "NEED",  text = "Need",  color = { r = 0.10, g = 0.90, b = 0.20 }, order = 1 },
-			{ key = "GREED", text = "Greed", color = { r = 0.90, g = 0.90, b = 0.10 }, order = 2 },
-			{ key = "PASS",  text = "Pass",  color = { r = 0.60, g = 0.60, b = 0.60 }, order = 3 },
+			{ key = "BIS",     text = "BiS",     color = { r = 0.15, g = 0.85, b = 0.35 }, order = 1 },
+			{ key = "UPGRADE", text = "Upgrade", color = { r = 0.35, g = 0.65, b = 0.95 }, order = 2 },
+			{ key = "PVP",     text = "PvP",     color = { r = 0.75, g = 0.40, b = 0.90 }, order = 3 },
+			{ key = "OS",      text = "OS",      color = { r = 0.90, g = 0.55, b = 0.20 }, order = 4 },
+			{ key = "PASS",    text = "Pass",    color = { r = 0.60, g = 0.60, b = 0.60 }, order = 5 },
 		},
 
 		lootThreshold = 3, -- Blizzard item quality enum: 3 = Rare

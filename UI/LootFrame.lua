@@ -135,68 +135,48 @@ local function ensureFrame()
 			end,
 		},
 		{
-			-- Countdown text + an actual depleting progress bar beneath it (RCLootCouncil-style,
-			-- per the screenshot comparison) instead of just shrinking text. Built the same way
-			-- UI/Widgets/Slider.lua's track already is: a flat "scroll"-colored background behind
-			-- an accent-colored fill, just non-interactive and shrinking on its own instead of
-			-- draggable.
-			width = 70,
-			isWidget = true,
-			create = function(row)
-				local holder = CreateFrame("Frame", nil, row)
-				holder:SetSize(70, 28)
-
-				holder.text = Primitives.createText(holder, "", 11)
-				holder.text:SetPoint("TOP", 0, 0)
-
-				holder.barBg = Primitives.createTexture(holder, "BACKGROUND", "scroll")
-				holder.barBg:SetPoint("BOTTOMLEFT", 2, 2)
-				holder.barBg:SetPoint("BOTTOMRIGHT", -2, 2)
-				holder.barBg:SetHeight(5)
-
-				holder.bar = CreateFrame("StatusBar", nil, holder)
-				holder.bar:SetAllPoints(holder.barBg)
-				holder.bar:SetMinMaxValues(0, 1)
-				holder.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-
-				return holder
-			end,
-			update = function(holder, rowData)
+			-- Just the number now -- the row's own depleting background (set up below via
+			-- SetRowTimerProvider) is the "bar", so this column no longer needs to carry one
+			-- itself. Narrower than the old text+bar column; the freed width goes to the
+			-- 5-button response row to its right.
+			width = 40,
+			justify = "CENTER",
+			render = function(rowData)
 				if not rowData.deadlineAt then
-					holder.text:SetText("-")
-					holder.bar:SetValue(0)
-					return
+					return "-"
 				end
-
 				local remaining = math.max(0, rowData.deadlineAt - time())
-				local total = math.max(1, PLC.Session.responseTimeoutSeconds)
-				holder.bar:SetValue(math.min(1, remaining / total))
-
 				local secs = math.ceil(remaining)
 				local colorName = secs <= 10 and "warning" or "text"
 				local r, g, b = Primitives.color(colorName)
-				holder.text:SetText(secs .. "s")
-				holder.text:SetTextColor(r, g, b)
-				local br, bg, bb = Primitives.color(secs <= 10 and "warning" or "accent")
-				holder.bar:GetStatusBarTexture():SetVertexColor(br, bg, bb)
+				return secs .. "s", r, g, b
 			end,
 		},
 		{
-			width = 300,
+			width = 330,
 			isWidget = true,
 			create = function(row)
 				local container = CreateFrame("Frame", nil, row)
-				container:SetSize(300, 28)
+				container:SetSize(330, 28)
 				container.buttons = {}
 				local x = 0
 				for i, resp in ipairs(PLC.db.profile.responses) do
-					local button = ButtonWidget.createButton(container, resp.text, 50)
+					local button = ButtonWidget.createButton(container, resp.text, 46)
 					button:SetPoint("LEFT", x, 0)
-					x = x + 54
+					x = x + 50
 					container.buttons[resp.key] = button
 				end
+
+				-- Thin vertical divider so the note box reads as its own grouped element
+				-- instead of floating in space right after the buttons (same pattern as
+				-- UI/SessionFrame.lua's sidebar/detail-pane divider).
+				container.divider = Primitives.createTexture(container, "ARTWORK", "borderDim")
+				container.divider:SetPoint("TOP", x + 6, -2)
+				container.divider:SetPoint("BOTTOM", x + 6, 2)
+				container.divider:SetWidth(1)
+
 				container.noteBox = Primitives.createEditBox(container, 110, 22, L["LOOTFRAME_NOTE_PLACEHOLDER"])
-				container.noteBox:SetPoint("LEFT", x + 10, 0)
+				container.noteBox:SetPoint("LEFT", x + 16, 0)
 				return container
 			end,
 			-- Only resets the note box when this row-pool slot gets rebound to a DIFFERENT item
@@ -219,6 +199,20 @@ local function ensureFrame()
 			end,
 		},
 	})
+
+	-- Whole-row depleting background instead of the old column-local bar -- same math as the
+	-- countdown text column above, just relocated (see UI/Widgets/DataTable.lua).
+	dataTable:SetRowTimerProvider(function(rowData)
+		if not rowData.deadlineAt then
+			return nil
+		end
+		local remaining = math.max(0, rowData.deadlineAt - time())
+		local total = math.max(1, PLC.Session.responseTimeoutSeconds)
+		local fraction = remaining / total
+		local colorName = math.ceil(remaining) <= 10 and "warning" or "accent"
+		local r, g, b = Primitives.color(colorName)
+		return fraction, r, g, b, 0.14
+	end)
 
 	frame:Hide()
 	return frame

@@ -66,6 +66,17 @@ to it, not below a row list anymore.
   pre-awarded, a dimmer border for awarded, warning-red for expired) — this is the "visibly
   flagged" status the icons carry instead of inline text, since there's no room for that at
   sidebar width.
+- Per-item deadline visual (new this round): each icon's own row now shows a faint depleting
+  background behind the icon (full width at broadcast, shrinking to nothing as
+  `profile.responseTimeoutSeconds` runs out, same accent→warning-red flip under 10s as the main
+  response window) — confirm it's independent per item (seed two items a few seconds apart and
+  watch their backgrounds empty at different rates/times, not in lockstep), that it keeps
+  counting down live while the window is open (no click/refresh needed — a new 1-second ticker
+  drives it), that it disappears once that item is awarded or pre-awarded, and that hovering the
+  icon while still pending shows a new tooltip line ("Time left: Ns") that also counts down live;
+  that line should be absent once awarded. Confirm adding a new item mid-review (via `/plc
+  additem` or a live loot while Session is active) still works exactly as before — this round
+  deliberately did **not** touch per-item deadlines or lock out adding items during a session.
 - With `Session.state` still `"inactive"` (haven't clicked Start yet), confirm the Remove button
   above the grid is visible for the selected item; click it, confirm the item's icon disappears
   from the sidebar and `PLC.Session.items` is actually empty.
@@ -86,18 +97,28 @@ to it, not below a row list anymore.
   instruction.
 - Response column states (needs a second client or `/plc testdata` on one with yourself as the
   only "candidate" — see 2.7 for the full presence-timeout version): confirm it reads an actual
-  response (Need/Greed/etc.) once voted, "Waiting for response..." for a roster member who has
+  response (BiS/Upgrade/etc.) once voted, "Waiting for response..." for a roster member who has
   the addon but hasn't voted, or "No addon detected" for one who's never checked in at all.
 
-### 1.6 Candidate response window (progress bar added this round)
+### 1.6 Candidate response window (whole-row timer background + new response set this round)
 - `UI/LootFrame.lua` pops up for you as a candidate once a review session starts (`Session:Start`
-  broadcasts the backlog), showing one row per item: an icon, response buttons built from your
-  configured responses (Need/Greed/Pass by default), and a note field next to them. `/plc
+  broadcasts the backlog), showing one row per item: an icon, a compact countdown number, 5
+  response buttons (BiS/Upgrade/PvP/OS/Pass by default — replacing the old Need/Greed/Pass set),
+  and a note field next to them, separated from the buttons by a thin vertical divider. `/plc
   lootframe` reopens it manually.
-- The countdown is now a text number *and* an actual depleting progress bar beneath it (not just
-  shrinking text) — confirm the bar visibly empties in step with the number over
-  `profile.responseTimeoutSeconds`, and that both the text and the bar's fill color turn
-  warning-red together once under 10 seconds remain.
+- The old per-item column with its own small progress bar is gone — the countdown is now a
+  depleting **background across the whole row** (full-row tint at broadcast, shrinking
+  right-to-left to nothing as `profile.responseTimeoutSeconds` runs out), with the standalone
+  number column kept for precision. Confirm the row background visibly empties in step with the
+  number, and both the number's text color and the background tint flip from accent to
+  warning-red together once under 10 seconds remain. Confirm it's still per-row/per-item — add a
+  second item a few seconds after the first (mid-review item additions still work, see 1.5) and
+  confirm its row counts down independently, not tied to the first item's or any shared clock.
+- Confirm all 5 response buttons fit on one row without clipping or overlapping the divider/note
+  field, and that clicking any of them (BiS/Upgrade/PvP/OS/Pass) sends that response correctly.
+- Confirm the note field shows "Optional Note..." as placeholder text (gray, cleared on real
+  input) and reads as visually grouped with its own divider separating it from the buttons,
+  instead of floating right after them.
 - Type something in an item's note field, then click a response button: the whole row disappears
   immediately (not a "you voted" label) — other items in the list are unaffected.
 - Leave an item unanswered and watch it run out: once `profile.responseTimeoutSeconds` passes

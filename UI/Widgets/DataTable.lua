@@ -61,6 +61,13 @@ local function getRow(self, index)
 	row.selectionBg:SetAllPoints()
 	row.selectionBg:Hide()
 
+	-- Optional per-row depleting background (a response deadline counting down, UI/LootFrame.lua
+	-- and UI/SessionFrame.lua) -- opt-in via SetRowTimerProvider below. Plain CreateTexture, not
+	-- Primitives.createTexture: its color/width change continuously with live data, not the
+	-- user's theme choice, so it shouldn't be in Theme's static re-tint registry.
+	row.timerBg = row:CreateTexture(nil, "BACKGROUND")
+	row.timerBg:Hide()
+
 	row:EnableMouse(true)
 	row:SetScript("OnMouseUp", function()
 		if self.onRowClick and row.dataIndex then
@@ -173,6 +180,15 @@ function Table:SetSelectedIndex(dataIndex)
 	self:Refresh()
 end
 
+-- Opt-in per-row depleting background. fn(rowData) returns fraction, r, g, b, a (fraction in
+-- 0-1, shrinking the background from full row width down to nothing as it approaches 0) to show
+-- it for that row, or nothing at all to hide it -- mirrors how a text column's render() already
+-- returns text, r, g, b. Re-evaluated on every render, including the per-second ticker rebuilds
+-- UI/LootFrame.lua and UI/SessionFrame.lua already run, so it updates live for free.
+function Table:SetRowTimerProvider(fn)
+	self.rowTimerProvider = fn
+end
+
 -- Targeted single-row update -- touches only this row's cells, not a full table rebuild. This is
 -- the path a live candidate response takes (see docs/SPECIFICATION.md §4.4 stage-4 test).
 function Table:RefreshRow(dataIndex)
@@ -185,6 +201,22 @@ function Table:RefreshRow(dataIndex)
 end
 
 function Table:RenderRow(row, rowData)
+	if self.rowTimerProvider then
+		local fraction, r, g, b, a = self.rowTimerProvider(rowData)
+		if fraction then
+			row.timerBg:ClearAllPoints()
+			row.timerBg:SetPoint("TOPLEFT")
+			row.timerBg:SetPoint("BOTTOMLEFT")
+			row.timerBg:SetWidth(math.max(0, row:GetWidth() * math.min(1, math.max(0, fraction))))
+			row.timerBg:SetColorTexture(r or 1, g or 1, b or 1, a or 0.15)
+			row.timerBg:Show()
+		else
+			row.timerBg:Hide()
+		end
+	else
+		row.timerBg:Hide()
+	end
+
 	for colIndex, col in ipairs(self.columns) do
 		local cell = row.cells[colIndex]
 		if cell then

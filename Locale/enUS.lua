@@ -75,10 +75,11 @@ L["SESSIONFRAME_AWARDED_TO"] = "Awarded: %s"
 L["SESSIONFRAME_PREAWARDED_TO"] = "Pre-awarded: %s"
 L["SESSIONFRAME_PENDING"] = "Pending"
 L["SESSIONFRAME_EXPIRED"] = "Expired"
+L["SESSIONFRAME_TIME_LEFT"] = "Time left: %ds"
 L["SESSIONFRAME_NO_ITEMS"] = "No items yet -- loot something above the quality threshold."
 
 L["LOOTFRAME_TITLE"] = "Loot Response"
-L["LOOTFRAME_NOTE_PLACEHOLDER"] = "note (optional)"
+L["LOOTFRAME_NOTE_PLACEHOLDER"] = "Optional Note..."
 
 L["OPTIONS_TITLE"] = "PixlLootCouncil Options"
 L["OPTIONS_SECTION_RAID"] = "RAID TOOLS"

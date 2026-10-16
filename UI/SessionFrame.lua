@@ -34,6 +34,41 @@ local endButton
 local awardAllButton
 local selectedIdx -- which session item's response grid is currently shown in the detail area
 local refresh -- forward-declared: onRemoveClick (defined before it) calls it
+local tickerHandle
+
+-- Mirrors UI/LootFrame.lua's ticker -- this window has no per-second updates driving it
+-- otherwise (unlike LootFrame, nothing re-renders it on a timer), so without this the sidebar's
+-- depleting background and the tooltip's remaining-time line would only ever update on the next
+-- item/award/click event, not while someone's just watching the clock run down.
+local function startTicker()
+	if tickerHandle then
+		return
+	end
+	tickerHandle = PLC:ScheduleRepeatingTimer(function()
+		if dataTable then
+			dataTable:Refresh()
+		end
+	end, 1)
+end
+
+local function stopTicker()
+	if tickerHandle then
+		PLC:CancelTimer(tickerHandle)
+		tickerHandle = nil
+	end
+end
+
+-- Only worth ticking while there's an unawarded item still actively counting down -- an
+-- all-awarded or all-expired session has nothing left that changes second to second.
+local function hasLiveCountdown(rows)
+	local now = time()
+	for _, row in ipairs(rows) do
+		if not row.awarded and row.deadlineAt and now < row.deadlineAt then
+			return true
+		end
+	end
+	return false
+end
 
 -- Single icon-only column -- status is shown via the icon's border color (no room for inline
 -- text at sidebar width) plus a tooltip naming the item and its status on hover. Priority
@@ -67,6 +102,9 @@ local ICON_COLUMNS = {
 				if holder.tooltipStatus then
 					GameTooltip:AddLine(holder.tooltipStatus, 1, 1, 1)
 				end
+				if holder.tooltipRemaining then
+					GameTooltip:AddLine(holder.tooltipRemaining, 0.6, 0.6, 0.6)
+				end
 				GameTooltip:Show()
 			end)
 			row:SetScript("OnLeave", function()
@@ -80,6 +118,7 @@ local ICON_COLUMNS = {
 			holder.tooltipName = rowData.link or "?"
 
 			local borderColor
+			holder.tooltipRemaining = nil
 			if rowData.awarded then
 				local entry = PLC.Roster:Get(rowData.awarded)
 				holder.tooltipStatus = string.format(L["SESSIONFRAME_AWARDED_TO"], (entry and entry.name) or "?")
@@ -94,6 +133,14 @@ local ICON_COLUMNS = {
 			else
 				holder.tooltipStatus = L["SESSIONFRAME_PENDING"]
 				borderColor = "border"
+			end
+
+			-- Not just an "expired" check -- awarded/pre-awarded items keep their own deadline
+			-- in the background too (CollectDetectedItems/AddManualItem never clear it just
+			-- because a decision was staged), so this only adds the line while it's still
+			-- actually counting down for someone to respond to.
+			if not rowData.awarded and rowData.deadlineAt and time() < rowData.deadlineAt then
+				holder.tooltipRemaining = string.format(L["SESSIONFRAME_TIME_LEFT"], math.ceil(rowData.deadlineAt - time()))
 			end
 			Primitives.setBorderColor(holder.border, borderColor)
 		end,
@@ -196,6 +243,12 @@ function refresh()
 	showDetailFor(selectedIdx)
 
 	updateButtons()
+
+	if hasLiveCountdown(rows) then
+		startTicker()
+	else
+		stopTicker()
+	end
 end
 
 local function onStartClick()
@@ -233,6 +286,12 @@ local function ensureFrame()
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilSessionFrame")
 	Primitives.makeResizable(frame, 520, 360, 900, 800)
+	-- Covers every way the window can close -- the header's own close button, Escape (via
+	-- UISpecialFrames), or a future caller just calling frame:Hide() directly -- without needing
+	-- to duplicate stopTicker() at each of those call sites.
+	frame:SetScript("OnHide", function()
+		stopTicker()
+	end)
 
 	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
 	frame.bg:SetAllPoints()
@@ -296,6 +355,24 @@ local function ensureFrame()
 	dataTable:SetColumns(ICON_COLUMNS)
 	dataTable:SetRowClickHandler(function(rowData)
 		showDetailFor(rowData.idx)
+	end)
+
+	-- Same per-item depleting background as UI/LootFrame.lua, now visible on this window too
+	-- (it previously had no time-remaining visual on the sidebar at all). Nothing to show once
+	-- an item is awarded (decision made) or its deadline has already passed (the border color
+	-- above already flags "warning" for that).
+	dataTable:SetRowTimerProvider(function(rowData)
+		if rowData.awarded or not rowData.deadlineAt then
+			return nil
+		end
+		local remaining = rowData.deadlineAt - time()
+		if remaining <= 0 then
+			return nil
+		end
+		local total = math.max(1, PLC.Session.responseTimeoutSeconds)
+		local colorName = remaining <= 10 and "warning" or "accent"
+		local r, g, b = Primitives.color(colorName)
+		return remaining / total, r, g, b, 0.18
 	end)
 
 	local divider = Primitives.createTexture(content, "ARTWORK", "borderDim")
