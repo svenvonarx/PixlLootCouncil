@@ -51,5 +51,11 @@ function Announce:AnnounceAward(entry)
 	if not channel then
 		return
 	end
-	SendChatMessage(string.format(L["ANNOUNCE_AWARD"], entry.link, entry.winnerName), channel)
+	-- Disenchant deliberately omits the winner name -- the Enchanter isn't "the winner" the way a
+	-- regular award's recipient is, just the designated hand it passes through.
+	if entry.reason == "disenchant" then
+		SendChatMessage(string.format(L["ANNOUNCE_DISENCHANT"], entry.link), channel)
+	else
+		SendChatMessage(string.format(L["ANNOUNCE_AWARD"], entry.link, entry.winnerName), channel)
+	end
 end

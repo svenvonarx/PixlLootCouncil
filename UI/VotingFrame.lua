@@ -15,8 +15,10 @@ local Theme = PLC.UI.Theme
 -- bags (Data/Session.lua:CollectDetectedItems self-loots everything at collection time), so
 -- there's never a live loot slot left for Award to transfer through directly -- Award here means
 -- "record who should get it, the holder trades it to them manually" (Session:AwardBaggedItem).
--- Pre-Award stages a choice (Session:SetPreAward) without committing, for Session:
--- AwardAllPreAwarded to commit in bulk later.
+-- Nothing in this panel ever commits directly anymore: both the per-candidate Award button and
+-- the header's Disenchant button only ever stage a pick (Session:SetPreAward), then auto-advance
+-- to the next item (SessionFrame:AdvanceToNextItem) -- Session:AwardAllPreAwarded is the one and
+-- only commit path, pressed once from UI/SessionFrame.lua after reviewing a whole batch.
 local VotingFrame = {}
 PLC.UI.VotingFrame = VotingFrame
 
@@ -28,10 +30,9 @@ local PanelMeta = { __index = Panel }
 -- ambiguous to someone unfamiliar with the icon shapes.
 local ROLE_ABBR = { TANK = "Tank", HEALER = "Healer", DAMAGER = "Damage Dealer" }
 
--- The gap between the Award and Pre-Award buttons -- also used as the row-height formula's own
--- vertical slack (see DataTable.Create below), so the horizontal gap between those two buttons
--- and the vertical gap between two rows' buttons are the same, not two different numbers that
--- happen to look mismatched next to each other.
+-- Trailing space after the Award column's own button width, also reused as the row-height
+-- formula's own vertical slack (see DataTable.Create below), so the column's own right-edge gap
+-- and the vertical gap between two rows' buttons are the same single number.
 local BUTTON_GAP = 6
 
 local function classColor(class)
@@ -172,7 +173,11 @@ function Panel:buildRows()
 			response = r and r.response,
 			note = r and r.note,
 			present = PLC.Presence:IsPresent(guid),
-			staged = item ~= nil and item.preAwardGuid == guid,
+			-- Excludes a disenchant stage even when this candidate happens to BE the current
+			-- Enchanter -- they didn't win it as a candidate, so their own Award button shouldn't
+			-- read "Staged" just because the item is staged for disenchant (see Panel:Disenchant's
+			-- own header-level "Staged" swap instead).
+			staged = item ~= nil and item.preAwardGuid == guid and item.preAwardReason ~= "disenchant",
 		}
 
 		local slotIDs = equipLoc and slotsForCandidate(guid, equipLoc)
@@ -216,18 +221,42 @@ function Panel:updateHeader()
 	self.header:SetText(string.format(L["VOTINGFRAME_VOTE_COUNT"], responded, total))
 end
 
+-- Stages, never commits (see the file-header comment) -- then auto-advances the sidebar off this
+-- item, same as Disenchant below, so reviewing a whole batch is just "click a choice" repeated.
 function Panel:Award(guid)
 	if not self.currentIdx then
 		return
 	end
-	PLC.Session:AwardBaggedItem(self.currentIdx, guid)
+	PLC.Session:SetPreAward(self.currentIdx, guid, "award")
+	PLC.UI.SessionFrame:AdvanceToNextItem()
 end
 
-function Panel:PreAward(guid)
+-- Stages to the current Enchanter (Session:GetEnchanterGuid() -- the explicit pick, or the
+-- alphabetically-first roster member as a default) rather than to whichever row's button was
+-- clicked -- this is why it's a header-level control, not a per-candidate one.
+function Panel:Disenchant()
 	if not self.currentIdx then
 		return
 	end
-	PLC.Session:SetPreAward(self.currentIdx, guid)
+	PLC.Session:SetPreAward(self.currentIdx, PLC.Session:GetEnchanterGuid(), "disenchant")
+	PLC.UI.SessionFrame:AdvanceToNextItem()
+end
+
+-- Same "Staged" label/color swap the Award column's buttons use, just for the one header-level
+-- Disenchant control -- item.preAwardReason == "disenchant" is the one state that matters here,
+-- regardless of which candidate (if any) the Enchanter happens to also be.
+function Panel:updateDisenchantButton()
+	local item = self.currentIdx and PLC.Session.items[self.currentIdx]
+	local staged = item ~= nil and item.preAwardReason == "disenchant"
+	if staged then
+		self.disenchantButton.label:SetText(L["VOTINGFRAME_STAGED"])
+		local r, g, b = Primitives.color("accent")
+		self.disenchantButton.label:SetTextColor(r, g, b)
+	else
+		self.disenchantButton.label:SetText(L["VOTINGFRAME_DISENCHANT"])
+		local r, g, b = Primitives.color("text")
+		self.disenchantButton.label:SetTextColor(r, g, b)
+	end
 end
 
 function Panel:ShowItem(idx)
@@ -235,6 +264,7 @@ function Panel:ShowItem(idx)
 	self.rowsData = self:buildRows()
 	self.dataTable:SetRows(self.rowsData)
 	self:updateHeader()
+	self:updateDisenchantButton()
 end
 
 -- Session:notifyVotingFrame's target (forwarded via VotingFrame:OnItemUpdated below). guid
@@ -249,6 +279,7 @@ function Panel:OnItemUpdated(idx, guid)
 		self.rowsData = self:buildRows()
 		self.dataTable:SetRows(self.rowsData)
 		self:updateHeader()
+		self:updateDisenchantButton()
 		return
 	end
 	local rowIndex = findRowIndexByGuid(self.rowsData, guid)
@@ -256,6 +287,7 @@ function Panel:OnItemUpdated(idx, guid)
 		self.rowsData = self:buildRows()
 		self.dataTable:SetRows(self.rowsData)
 		self:updateHeader()
+		self:updateDisenchantButton()
 		return
 	end
 	local responses = PLC.Session.responses[idx]
@@ -305,33 +337,64 @@ local function gearColumn(suffix)
 	}
 end
 
--- Builds the "N of M voted" header + candidate/role/response/Award/Pre-Award grid into `parent`
--- and returns the panel object. Only one is ever actually live at a time in practice (the one
--- UI/SessionFrame.lua mounts), but nothing here assumes that -- VotingFrame.activePanel (set
--- below) is just "whichever panel Session's forward-hooks should talk to."
+-- Builds the "N of M voted" header (with its header-level Disenchant control) + candidate/role/
+-- response/Award grid into `parent` and returns the panel object. Only one is ever actually live
+-- at a time in practice (the one UI/SessionFrame.lua mounts), but nothing here assumes that --
+-- VotingFrame.activePanel (set below) is just "whichever panel Session's forward-hooks should
+-- talk to."
 function VotingFrame.CreatePanel(parent)
-	local header = Primitives.createText(parent, "", 11, "dim")
-	header:SetPoint("TOPLEFT")
-	header:SetPoint("TOPRIGHT")
+	-- A row frame, not just the header text directly against `parent` -- the Disenchant button
+	-- needs to sit at this same top-of-panel level (item-scoped, like the vote count, not
+	-- per-candidate) rather than inside the per-row grid below.
+	local headerRow = CreateFrame("Frame", nil, parent)
+	headerRow:SetPoint("TOPLEFT")
+	headerRow:SetPoint("TOPRIGHT")
+	headerRow:SetHeight(Theme.LAYOUT.buttonHeight)
+
+	local disenchantButton = ButtonWidget.createButton(headerRow, L["VOTINGFRAME_DISENCHANT"], 90)
+	disenchantButton:SetPoint("TOPRIGHT")
+
+	local header = Primitives.createText(headerRow, "", 11, "dim")
+	header:SetPoint("LEFT")
+	header:SetPoint("TOP")
+	header:SetPoint("RIGHT", disenchantButton, "LEFT", -8, 0)
 
 	local tableContainer = CreateFrame("Frame", nil, parent)
-	tableContainer:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -6)
+	tableContainer:SetPoint("TOPLEFT", headerRow, "BOTTOMLEFT", 0, -6)
 	tableContainer:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT")
 
 	-- No scroll:SetAllPoints() here -- UI/Widgets/ScrollFrame.lua anchors it to `tableContainer`
 	-- itself now, reserving its own room for the scrollbar inside that.
 	-- Same buttonHeight+BUTTON_GAP formula UI/LootFrame.lua's own row height already uses, not a
 	-- separate ad-hoc number -- the resulting vertical slack (split evenly above/below the button
-	-- via its "LEFT"-anchor centering) is what makes the gap between two rows' buttons match
-	-- BUTTON_GAP, the same gap the Award/Pre-Award buttons use within a row, below.
+	-- via its "LEFT"-anchor centering) is what makes the gap between two rows' own Award buttons
+	-- match BUTTON_GAP, the same number used as the Award column's own trailing space, below.
 	local dataTable = DataTable.Create(tableContainer, Theme.LAYOUT.buttonHeight + BUTTON_GAP)
 
 	local self = setmetatable({
 		header = header,
+		disenchantButton = disenchantButton,
 		dataTable = dataTable,
 		currentIdx = nil,
 		rowsData = {},
 	}, PanelMeta)
+
+	disenchantButton:SetScript("OnClick", function()
+		self:Disenchant()
+	end)
+	-- HookScript, not SetScript -- createButton already wired its own OnEnter/OnLeave for the
+	-- hover background swap; hooking adds this tooltip on top instead of replacing that.
+	disenchantButton:HookScript("OnEnter", function(btn)
+		local guid = PLC.Session:GetEnchanterGuid()
+		local entry = guid and PLC.Roster:Get(guid)
+		local name = entry and PLC.Roster:ShortName(entry.name) or "?"
+		GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+		GameTooltip:SetText(string.format(L["VOTINGFRAME_DISENCHANT_TARGET"], name))
+		GameTooltip:Show()
+	end)
+	disenchantButton:HookScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
 
 	dataTable:SetColumns({
 		{
@@ -452,39 +515,29 @@ function VotingFrame.CreatePanel(parent)
 		gearColumn("1"),
 		gearColumn("2"),
 		{
-			-- Column width is the button's own width plus BUTTON_GAP, explicitly -- not a
-			-- separately-chosen round number that happened to leave roughly that much trailing
-			-- space, which is what made this gap and the row-height gap drift apart before.
+			-- Non-binding -- last column, see UI/Widgets/DataTable.lua:Layout. Width is the
+			-- button's own width plus BUTTON_GAP, explicitly -- not a separately-chosen round
+			-- number that happened to leave roughly that much trailing space, which is what made
+			-- this gap and the row-height gap drift apart before.
 			width = 54 + BUTTON_GAP,
 			isWidget = true,
 			create = function(row)
 				return ButtonWidget.createButton(row, L["VOTINGFRAME_AWARD"], 54)
 			end,
 			update = function(button, rowData)
-				button:SetScript("OnClick", function()
-					self:Award(rowData.guid)
-				end)
-			end,
-		},
-		{
-			-- Non-binding -- last column, see UI/Widgets/DataTable.lua:Layout.
-			width = 64,
-			isWidget = true,
-			create = function(row)
-				return ButtonWidget.createButton(row, L["VOTINGFRAME_PREAWARD"], 64)
-			end,
-			update = function(button, rowData)
+				-- "Staged" swap (previously the separate Pre-Award button's own state) now lives
+				-- directly on this one button -- there's nothing left for a second column to do.
 				if rowData.staged then
 					button.label:SetText(L["VOTINGFRAME_STAGED"])
 					local r, g, b = Primitives.color("accent")
 					button.label:SetTextColor(r, g, b)
 				else
-					button.label:SetText(L["VOTINGFRAME_PREAWARD"])
+					button.label:SetText(L["VOTINGFRAME_AWARD"])
 					local r, g, b = Primitives.color("text")
 					button.label:SetTextColor(r, g, b)
 				end
 				button:SetScript("OnClick", function()
-					self:PreAward(rowData.guid)
+					self:Award(rowData.guid)
 				end)
 			end,
 		},

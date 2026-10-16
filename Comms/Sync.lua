@@ -11,7 +11,7 @@ local function channel()
 	return PLC.Loot.Announce:GetChannel()
 end
 
-function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds)
+function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, enchanterGuid)
 	local ch = channel()
 	if not ch then
 		return
@@ -21,6 +21,7 @@ function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds)
 		owner = owner,
 		items = items,
 		responseTimeoutSeconds = responseTimeoutSeconds,
+		enchanterGuid = enchanterGuid,
 	}, ch)
 end
 
@@ -40,12 +41,12 @@ function Sync:SendResponse(sessionId, idx, guid, response, note)
 	Protocol:Send("response", { sessionId = sessionId, idx = idx, guid = guid, response = response, note = note }, ch)
 end
 
-function Sync:SendAward(sessionId, idx, winnerGuid)
+function Sync:SendAward(sessionId, idx, winnerGuid, reason)
 	local ch = channel()
 	if not ch then
 		return
 	end
-	Protocol:Send("award", { sessionId = sessionId, idx = idx, winnerGuid = winnerGuid }, ch)
+	Protocol:Send("award", { sessionId = sessionId, idx = idx, winnerGuid = winnerGuid, reason = reason }, ch)
 end
 
 function Sync:SendHeartbeat(sessionId)
@@ -106,6 +107,25 @@ function Sync:SendGear(guid, slots)
 	Protocol:Send("gear", { guid = guid, slots = slots }, ch)
 end
 
+-- Same trigger points/reasoning as SendGear above -- see Data/Professions.lua.
+function Sync:SendProfessions(guid, known)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("profession", { guid = guid, known = known }, ch)
+end
+
+-- Session-scoped (carries sessionId, unlike presence/gear/profession) since the Enchanter is a
+-- per-session-lifecycle pick, not standing account data -- see Data/Session.lua:SetEnchanter.
+function Sync:SendSetEnchanter(sessionId, guid)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("set_enchanter", { sessionId = sessionId, guid = guid }, ch)
+end
+
 Protocol:RegisterHandler("session_start", function(data) PLC.Session:OnSessionStartReceived(data) end)
 Protocol:RegisterHandler("item_add", function(data) PLC.Session:OnItemAddReceived(data) end)
 Protocol:RegisterHandler("response", function(data) PLC.Session:OnResponseReceived(data) end)
@@ -117,3 +137,5 @@ Protocol:RegisterHandler("session_sync_request", function(data, sender) PLC.Sess
 Protocol:RegisterHandler("session_sync_data", function(data) PLC.Session:OnSyncDataReceived(data) end)
 Protocol:RegisterHandler("presence", function(data) PLC.Presence:OnPresenceReceived(data) end)
 Protocol:RegisterHandler("gear", function(data) PLC.Gear:OnGearReceived(data) end)
+Protocol:RegisterHandler("profession", function(data) PLC.Professions:OnProfessionReceived(data) end)
+Protocol:RegisterHandler("set_enchanter", function(data) PLC.Session:OnEnchanterReceived(data) end)

@@ -35,6 +35,7 @@ L["CANGIVE_NOT_IN_GROUP"] = "player is not in your group"
 
 L["ANNOUNCE_SESSION_START"] = "[PixlLootCouncil] Loot session started with %d item(s) -- check your Loot Response window!"
 L["ANNOUNCE_AWARD"] = "[PixlLootCouncil] %s awarded to %s"
+L["ANNOUNCE_DISENCHANT"] = "[PixlLootCouncil] %s sent to disenchant"
 
 L["COMMS_UNKNOWN_VERSION"] = "Ignored a message using protocol version %s (newer than this client understands)."
 
@@ -55,10 +56,12 @@ L["SESSION_ADDITEM_SUCCESS"] = "Added %s to the session."
 L["SESSION_ALREADY_AWARDED"] = "That item has already been awarded."
 L["SESSION_AWARD_UNKNOWN_WINNER"] = "Could not find that player in the roster."
 L["SESSION_AWARD_TRADE_INSTRUCTION"] = "%s awarded to %s -- trade it to them!"
+L["SESSION_DISENCHANT_INSTRUCTION"] = "%s sent to %s for disenchant!"
 L["SESSION_AWARD_ALL_RESULT"] = "Awarded %d pre-awarded item(s)."
 
 L["VOTINGFRAME_AWARD"] = "Award"
-L["VOTINGFRAME_PREAWARD"] = "Pre-Award"
+L["VOTINGFRAME_DISENCHANT"] = "Disenchant"
+L["VOTINGFRAME_DISENCHANT_TARGET"] = "Will go to: %s"
 L["VOTINGFRAME_STAGED"] = "Staged"
 L["VOTINGFRAME_WAITING"] = "Waiting for response..."
 L["VOTINGFRAME_NO_ADDON"] = "No addon detected"
@@ -70,10 +73,13 @@ L["SESSIONFRAME_END"] = "End Session"
 L["SESSIONFRAME_AWARDALL"] = "Award All"
 L["SESSIONFRAME_REMOVE"] = "Remove"
 L["SESSIONFRAME_AWARDED_TO"] = "Awarded: %s"
-L["SESSIONFRAME_PREAWARDED_TO"] = "Pre-awarded: %s"
+L["SESSIONFRAME_PREAWARDED_TO"] = "Staged: %s"
+L["SESSIONFRAME_DISENCHANTED"] = "Disenchanted"
+L["SESSIONFRAME_STAGED_DISENCHANT"] = "Staged: Disenchant (%s)"
 L["SESSIONFRAME_PENDING"] = "Pending"
 L["SESSIONFRAME_EXPIRED"] = "Expired"
 L["SESSIONFRAME_TIME_LEFT"] = "Time left: %ds"
+L["SESSIONFRAME_ENCHANTER_LABEL"] = "Enchanter:"
 -- Not window-prefixed -- shared by both UI/SessionFrame.lua's and UI/LootFrame.lua's header,
 -- since whoever's holding the session matters just as much to a candidate deciding how to
 -- respond as it does to the holder's own window.

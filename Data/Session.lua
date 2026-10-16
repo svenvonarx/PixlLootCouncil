@@ -21,8 +21,13 @@ PLC.Session = Session
 Session.state = "inactive"
 Session.sessionId = nil
 Session.owner = nil -- { guid, name }
+-- Who disenchanted items are staged to -- nil means "use Session:GetEnchanterGuid()'s computed
+-- default (alphabetically-first roster member)" rather than no one. Treated like `owner`, not
+-- like per-item scratch state: never reset by Start()/End(), since a raid's designated enchanter
+-- is realistically the same person across the whole night's many review passes.
+Session.enchanterGuid = nil
 -- [idx] = { idx, lootSlot, itemString, boss, quality, deadlineAt, link, icon, bagged, awarded,
---           preAwardGuid }
+--           awardReason, preAwardGuid, preAwardReason }
 Session.items = {}
 Session.responses = {} -- [idx][guid] = { response, note }
 Session.lastHolderSeenAt = nil
@@ -37,6 +42,51 @@ function Session:IsHolder()
 	return self.state == "active" and self.owner ~= nil and self.owner.guid == UnitGUID("player")
 end
 
+-- The explicit pick if there is one, otherwise the alphabetically-first roster member -- computed
+-- fresh on every call (not cached alongside it) so the default naturally tracks roster changes
+-- right up until someone actually picks, per the user's "always preselect the first in the list
+-- alphabetically if not manually set" request. Never returns nil if the roster has anyone in it
+-- at all (including just the player themself, solo).
+function Session:GetEnchanterGuid()
+	if self.enchanterGuid then
+		return self.enchanterGuid
+	end
+	local bestGuid, bestName
+	for guid, entry in PLC.Roster:IterateGroup() do
+		local name = PLC.Roster:ShortName(entry.name)
+		if not bestName or name < bestName then
+			bestGuid, bestName = guid, name
+		end
+	end
+	return bestGuid
+end
+
+-- Holder-only, like every other session-identity write (Start/End/AwardBaggedItem). Unlike
+-- preAwardGuid, this is never cleared by Start()/End() -- see the field comment on
+-- Session.enchanterGuid above.
+function Session:SetEnchanter(guid)
+	if not self:IsHolder() then
+		return
+	end
+	self.enchanterGuid = guid
+	persist()
+	PLC.Comms.Sync:SendSetEnchanter(self.sessionId, guid)
+	-- No notifyVotingFrame call -- unlike an item update, this isn't tied to any specific item
+	-- idx (notifyVotingFrame(idx, guid)'s idx must match the panel's currently-shown item exactly
+	-- or it's a no-op, see UI/VotingFrame.lua:Panel:OnItemUpdated). UI/VotingFrame.lua's
+	-- Disenchant button instead reads Session:GetEnchanterGuid() fresh at hover time for its
+	-- tooltip, so there's nothing here that needs pushing.
+	self:notifySessionFrame()
+end
+
+function Session:OnEnchanterReceived(data)
+	if not data.sessionId or data.sessionId ~= self.sessionId then
+		return
+	end
+	self.enchanterGuid = data.guid
+	self:notifySessionFrame()
+end
+
 -- Writes (or clears) db.char.activeSession based on current truth every time it's called, rather
 -- than a one-way "only the holder ever writes" gate -- two separate things now need their local
 -- state to survive a reload: the formal review-pass holder (IsHolder(), as before) AND a
@@ -49,6 +99,7 @@ local function persist()
 		PLC.db.char.activeSession = {
 			sessionId = Session.sessionId,
 			owner = Session.owner,
+			enchanterGuid = Session.enchanterGuid,
 			items = Session.items,
 			responses = Session.responses,
 			lastHolderSeenAt = Session.lastHolderSeenAt,
@@ -285,21 +336,24 @@ function Session:Start()
 	self.lastHolderSeenAt = time()
 	self.responseTimeoutSeconds = PLC.db.profile.responseTimeoutSeconds
 	startHeartbeat()
-	-- The holder is almost always also a candidate -- announce their own equipped gear the same
-	-- as every other candidate does (see Data/Gear.lua), not a special case.
+	-- The holder is almost always also a candidate -- announce their own equipped gear and
+	-- professions the same as every other candidate does (see Data/Gear.lua, Data/Professions.lua),
+	-- not a special case.
 	PLC.Gear:BroadcastOwn()
+	PLC.Professions:BroadcastOwn()
 
 	-- Whatever's already been silently collected becomes this review pass's starting batch.
 	-- Each item's response deadline is stamped NOW, not back when it was bagged -- otherwise an
 	-- item collected hours ago would show an already-expired countdown the instant anyone
-	-- actually sees it. preAwardGuid is cleared too -- it's this review pass's own scratch
-	-- state (Session:SetPreAward), and a pick staged but never committed before the previous
-	-- End() must not silently show as "Staged" again the moment a new review starts.
+	-- actually sees it. preAwardGuid/preAwardReason are cleared too -- they're this review pass's
+	-- own scratch state (Session:SetPreAward), and a pick staged but never committed before the
+	-- previous End() must not silently show as "Staged" again the moment a new review starts.
 	local toSend = {}
 	for idx, item in pairs(self.items) do
 		if not item.awarded then
 			item.deadlineAt = time() + self.responseTimeoutSeconds
 			item.preAwardGuid = nil
+			item.preAwardReason = nil
 			toSend[idx] = item
 		end
 	end
@@ -318,7 +372,7 @@ end
 function Session:broadcastNewItems(newItems)
 	if not self.sentFirstBatch then
 		self.sentFirstBatch = true
-		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(newItems), self.responseTimeoutSeconds)
+		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(newItems), self.responseTimeoutSeconds, self.enchanterGuid)
 		PLC.Loot.Announce:AnnounceSessionStart(newItems)
 	else
 		PLC.Comms.Sync:SendItemAdd(self.sessionId, stripForTransmit(newItems))
@@ -371,12 +425,18 @@ function Session:AddManualItem(itemIdOrLink)
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_ADDITEM_SUCCESS"], link))
 end
 
--- Records a final award decision for an already-bagged item -- by review time everything is
+-- Records a FINAL award decision for an already-bagged item -- by review time everything is
 -- bagged under this workflow, so there's no live loot slot left to call GiveMasterLoot against.
 -- "Award" here means "decide + tell the holder who to trade it to," not "transfer it directly"
 -- (no trade-window automation yet -- see docs/SPECIFICATION.md's Phase 2 notes). Holder-only:
 -- only the person physically holding the item's bags should be able to commit this.
-function Session:AwardBaggedItem(idx, winnerGuid)
+--
+-- The only caller is AwardAllPreAwarded below -- there's no more direct, one-click-and-it's-final
+-- path from the UI (see UI/VotingFrame.lua): every row's Award/Disenchant button only ever calls
+-- SetPreAward (stage), never this. `reason` is "award" (trade to winnerGuid) or "disenchant"
+-- (winnerGuid is the designated Enchanter, Session:GetEnchanterGuid() -- still a real roster GUID,
+-- still goes through the exact same trade-instruction/Announce path, just with different wording).
+function Session:AwardBaggedItem(idx, winnerGuid, reason)
 	if not self:IsHolder() then
 		print(L["CHAT_PREFIX"] .. L["SESSION_NOT_HOLDER"])
 		return false
@@ -395,16 +455,23 @@ function Session:AwardBaggedItem(idx, winnerGuid)
 		return false
 	end
 
+	reason = reason or "award"
 	item.awarded = winnerGuid
+	item.awardReason = reason
 	item.preAwardGuid = nil
+	item.preAwardReason = nil
 	persist()
-	PLC.Comms.Sync:SendAward(self.sessionId, item.idx, winnerGuid)
-	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_AWARD_TRADE_INSTRUCTION"], item.link or "?", winnerEntry.name))
+	PLC.Comms.Sync:SendAward(self.sessionId, item.idx, winnerGuid, reason)
+	if reason == "disenchant" then
+		print(L["CHAT_PREFIX"] .. string.format(L["SESSION_DISENCHANT_INSTRUCTION"], item.link or "?", winnerEntry.name))
+	else
+		print(L["CHAT_PREFIX"] .. string.format(L["SESSION_AWARD_TRADE_INSTRUCTION"], item.link or "?", winnerEntry.name))
+	end
 	-- The "announce awards in chat" option (profile.announce.award) -- this is now the only
 	-- place that can ever fire it; Loot/Award.lua's OnLootSlotCleared skips it entirely for
 	-- "collect" reason self-loots (see the comment there).
 	if PLC.Loot.Announce and PLC.Loot.Announce.AnnounceAward then
-		PLC.Loot.Announce:AnnounceAward({ link = item.link, winnerName = winnerEntry.name })
+		PLC.Loot.Announce:AnnounceAward({ link = item.link, winnerName = winnerEntry.name, reason = reason })
 	end
 	self:notifyVotingFrame(item.idx)
 	self:notifySessionFrame()
@@ -412,9 +479,12 @@ function Session:AwardBaggedItem(idx, winnerGuid)
 end
 
 -- Holder-local staging only -- never broadcast, never visible to anyone but the holder's own
--- client. The ML's own private "who I'm planning to pick" scratch space before committing, one
--- at a time (AwardBaggedItem) or in bulk (AwardAllPreAwarded below).
-function Session:SetPreAward(idx, winnerGuid)
+-- client. This is now THE way every decision gets made (see UI/VotingFrame.lua's Award/Disenchant
+-- buttons) -- the ML's "who I'm planning to pick" scratch space, committed only in bulk via
+-- AwardAllPreAwarded below. Calling this again (a different candidate, or the other reason) just
+-- overwrites the previous pick -- that's the whole "you can still go back and award it to someone
+-- else" behavior, already free from this always having been overwrite-not-append.
+function Session:SetPreAward(idx, winnerGuid, reason)
 	if not self:IsHolder() then
 		return
 	end
@@ -423,6 +493,7 @@ function Session:SetPreAward(idx, winnerGuid)
 		return
 	end
 	item.preAwardGuid = winnerGuid
+	item.preAwardReason = reason or "award"
 	persist()
 	self:notifyVotingFrame(idx)
 	self:notifySessionFrame()
@@ -455,7 +526,7 @@ function Session:AwardAllPreAwarded()
 	local count = 0
 	for idx, item in pairs(self.items) do
 		if item.preAwardGuid and not item.awarded then
-			if self:AwardBaggedItem(idx, item.preAwardGuid) then
+			if self:AwardBaggedItem(idx, item.preAwardGuid, item.preAwardReason) then
 				count = count + 1
 			end
 		end
@@ -469,6 +540,7 @@ function Session:OnSessionStartReceived(data)
 	end
 	self.sessionId = data.sessionId
 	self.owner = data.owner
+	self.enchanterGuid = data.enchanterGuid
 	self.state = "active"
 	self.items = {}
 	self.responses = {}
@@ -478,8 +550,10 @@ function Session:OnSessionStartReceived(data)
 	self.responseTimeoutSeconds = data.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
 	applyReceivedItems(data.items)
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_STARTED_BY"], data.owner and data.owner.name or "?"))
-	-- Announces OUR gear now that we know a review pass actually started -- see Data/Gear.lua.
+	-- Announces OUR gear and professions now that we know a review pass actually started -- see
+	-- Data/Gear.lua, Data/Professions.lua.
 	PLC.Gear:BroadcastOwn()
+	PLC.Professions:BroadcastOwn()
 	self:notifyLootFrame()
 	self:notifySessionFrame()
 end
@@ -550,6 +624,9 @@ function Session:OnAwardReceived(data)
 	local item = self.items[data.idx]
 	if item then
 		item.awarded = data.winnerGuid
+		item.awardReason = data.reason or "award"
+		item.preAwardGuid = nil
+		item.preAwardReason = nil
 	end
 	self:notifyVotingFrame(data.idx)
 	self:notifySessionFrame()
@@ -573,15 +650,16 @@ function Session:End()
 	self.state = "ended"
 
 	-- Prune already-awarded items -- not-yet-awarded ones carry forward to the next Start()
-	-- instead of this review pass's leftovers vanishing. preAwardGuid is this review pass's own
-	-- scratch state (Session:SetPreAward) -- clear it here too, not just in Start(), so a pick
-	-- staged but never committed doesn't keep showing as "Staged" even during the inactive gap
-	-- before the next review starts.
+	-- instead of this review pass's leftovers vanishing. preAwardGuid/preAwardReason are this
+	-- review pass's own scratch state (Session:SetPreAward) -- clear them here too, not just in
+	-- Start(), so a pick staged but never committed doesn't keep showing as "Staged" even during
+	-- the inactive gap before the next review starts.
 	for idx, item in pairs(self.items) do
 		if item.awarded then
 			self.items[idx] = nil
 		else
 			item.preAwardGuid = nil
+			item.preAwardReason = nil
 		end
 	end
 	self.isCollector = next(self.items) ~= nil
@@ -645,6 +723,7 @@ function Session:OnSyncRequestReceived(data, sender)
 	PLC.Comms.Sync:SendSyncData({
 		sessionId = self.sessionId,
 		owner = self.owner,
+		enchanterGuid = self.enchanterGuid,
 		items = stripForTransmit(self.items),
 		responses = self.responses,
 		lastHolderSeenAt = self.lastHolderSeenAt,
@@ -658,6 +737,7 @@ function Session:OnSyncDataReceived(data)
 	end
 	self.sessionId = data.sessionId
 	self.owner = data.owner
+	self.enchanterGuid = data.enchanterGuid
 	self.state = "active"
 	self.items = {}
 	self.responseTimeoutSeconds = data.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
@@ -666,9 +746,10 @@ function Session:OnSyncDataReceived(data)
 	self.lastHolderSeenAt = data.lastHolderSeenAt or time()
 	print(L["CHAT_PREFIX"] .. L["SESSION_SYNCED"])
 	-- A late joiner catching up never got the session-start broadcast that would otherwise have
-	-- triggered this -- announce our gear now so we're not a permanent gap in the group's gear
-	-- data for this session (see Data/Gear.lua).
+	-- triggered this -- announce our gear and professions now so we're not a permanent gap in the
+	-- group's data for this session (see Data/Gear.lua, Data/Professions.lua).
 	PLC.Gear:BroadcastOwn()
+	PLC.Professions:BroadcastOwn()
 end
 
 local function restoreFromSaved()
@@ -678,6 +759,7 @@ local function restoreFromSaved()
 	end
 	Session.sessionId = saved.sessionId
 	Session.owner = saved.owner
+	Session.enchanterGuid = saved.enchanterGuid
 	Session.items = saved.items or {}
 	Session.responses = saved.responses or {}
 	Session.lastHolderSeenAt = saved.lastHolderSeenAt or time()

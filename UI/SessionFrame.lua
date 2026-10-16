@@ -3,14 +3,17 @@ local ADDON_NAME, PLC = ...
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local Primitives = PLC.UI.Widgets.Primitives
 local ButtonWidget = PLC.UI.Widgets.Button
+local DropdownWidget = PLC.UI.Widgets.Dropdown
 local DataTable = PLC.UI.Widgets.DataTable
 local Theme = PLC.UI.Theme
 
 -- The single ML-facing window (header+content, no PanelLayout sidebar-nav -- spec §4.3, this is
 -- a different kind of sidebar, see below): master-detail, RCLootCouncil-style -- a narrow
 -- left-hand strip of item icons (status shown via border color + a tooltip, no room for inline
--- text at this width), click one to load its full candidate/response/Award/Pre-Award grid
--- (UI/VotingFrame.lua, embedded, not its own window) into the content area on the right.
+-- text at this width), click one to load its full candidate/response/Award grid
+-- (UI/VotingFrame.lua, embedded, not its own window) into the content area on the right. A
+-- session-wide Enchanter picker (who disenchanted items get staged to) sits in its own toolbar
+-- row between the header and this master-detail area -- see ensureFrame's enchanterRow.
 --
 -- Items accumulate in Data/Session.lua's PLC.Session.items from the moment they're silently
 -- self-looted (Session:CollectDetectedItems), long before any review pass -- the icon list
@@ -22,6 +25,8 @@ PLC.UI.SessionFrame = SessionFrame
 
 local frame
 local header
+local enchanterRow
+local enchanterDropdown
 local content
 local itemListContainer
 local dataTable
@@ -202,7 +207,9 @@ local function iconColumn(suffix)
 			local link = rowData["link" .. suffix]
 			local icon = rowData["icon" .. suffix]
 			local awarded = rowData["awarded" .. suffix]
+			local awardReason = rowData["awardReason" .. suffix]
 			local preAwardGuid = rowData["preAwardGuid" .. suffix]
+			local preAwardReason = rowData["preAwardReason" .. suffix]
 			local deadlineAt = rowData["deadlineAt" .. suffix]
 
 			holder.texture:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -212,17 +219,27 @@ local function iconColumn(suffix)
 			local borderColor
 			holder.tooltipRemaining = nil
 			if awarded then
-				local entry = PLC.Roster:Get(awarded)
-				holder.tooltipStatus = string.format(L["SESSIONFRAME_AWARDED_TO"], PLC.Roster:ShortName(entry and entry.name) or "?")
+				if awardReason == "disenchant" then
+					holder.tooltipStatus = L["SESSIONFRAME_DISENCHANTED"]
+				else
+					local entry = PLC.Roster:Get(awarded)
+					holder.tooltipStatus = string.format(L["SESSIONFRAME_AWARDED_TO"], PLC.Roster:ShortName(entry and entry.name) or "?")
+				end
 				-- Green, not the dim gray this used to be -- that was nearly indistinguishable
 				-- from a plain pending icon, so clicking Award looked like it did nothing (the
 				-- auto-advance to the next pending item made it worse, since the view moves away
 				-- immediately). Distinct from the accent/orange "Staged" pre-award color on
-				-- purpose -- Awarded is final, Pre-Award isn't.
+				-- purpose -- Awarded is final, staged isn't. Disenchant isn't a third visual
+				-- state, just different tooltip wording on these same two border colors.
 				borderColor = "success"
 			elseif preAwardGuid then
-				local entry = PLC.Roster:Get(preAwardGuid)
-				holder.tooltipStatus = string.format(L["SESSIONFRAME_PREAWARDED_TO"], PLC.Roster:ShortName(entry and entry.name) or "?")
+				if preAwardReason == "disenchant" then
+					local entry = PLC.Roster:Get(preAwardGuid)
+					holder.tooltipStatus = string.format(L["SESSIONFRAME_STAGED_DISENCHANT"], PLC.Roster:ShortName(entry and entry.name) or "?")
+				else
+					local entry = PLC.Roster:Get(preAwardGuid)
+					holder.tooltipStatus = string.format(L["SESSIONFRAME_PREAWARDED_TO"], PLC.Roster:ShortName(entry and entry.name) or "?")
+				end
 				borderColor = "accent"
 			elseif deadlineAt and time() > deadlineAt then
 				holder.tooltipStatus = L["SESSIONFRAME_EXPIRED"]
@@ -257,7 +274,9 @@ local function flatItemRows()
 			link = item.link,
 			icon = item.icon,
 			awarded = item.awarded,
+			awardReason = item.awardReason,
 			preAwardGuid = item.preAwardGuid,
+			preAwardReason = item.preAwardReason,
 			deadlineAt = item.deadlineAt,
 		})
 	end
@@ -274,11 +293,15 @@ local function pairItemRows(flat)
 		local a, b = flat[i], flat[i + 1]
 		local row = {
 			idx1 = a.idx, link1 = a.link, icon1 = a.icon,
-			awarded1 = a.awarded, preAwardGuid1 = a.preAwardGuid, deadlineAt1 = a.deadlineAt,
+			awarded1 = a.awarded, awardReason1 = a.awardReason,
+			preAwardGuid1 = a.preAwardGuid, preAwardReason1 = a.preAwardReason,
+			deadlineAt1 = a.deadlineAt,
 		}
 		if b then
 			row.idx2, row.link2, row.icon2 = b.idx, b.link, b.icon
-			row.awarded2, row.preAwardGuid2, row.deadlineAt2 = b.awarded, b.preAwardGuid, b.deadlineAt
+			row.awarded2, row.awardReason2 = b.awarded, b.awardReason
+			row.preAwardGuid2, row.preAwardReason2 = b.preAwardGuid, b.preAwardReason
+			row.deadlineAt2 = b.deadlineAt
 		end
 		table.insert(rows, row)
 	end
@@ -351,6 +374,49 @@ local function updateHeaderOwner()
 	end
 end
 
+-- Rebuilds the Enchanter dropdown's display text + entry list -- called from refresh() so it
+-- stays live across roster changes, profession syncs, and holder picks alike. Entries are sorted
+-- alphabetically by short name (PLC.Roster:ShortName), `checked` (not `selected` -- see
+-- UI/Widgets/PopupMenu.lua's Render, which only ever reads `checked` for its checkmark) matches
+-- Session:GetEnchanterGuid()'s current pick (explicit or the computed alphabetical default), and
+-- anyone with synced Enchanting (Data/Professions.lua) is colored green so an informed pick is
+-- easy without hard-filtering the list -- someone might deliberately pick an alt/mule not in the
+-- synced data yet.
+local function updateEnchanterDropdown()
+	if not enchanterDropdown then
+		return
+	end
+	local list = {}
+	for guid, entry in PLC.Roster:IterateGroup() do
+		table.insert(list, { guid = guid, name = PLC.Roster:ShortName(entry.name) })
+	end
+	table.sort(list, function(a, b) return a.name < b.name end)
+
+	local currentGuid = PLC.Session:GetEnchanterGuid()
+	local displayText = "?"
+	local entries = {}
+	for _, candidate in ipairs(list) do
+		local checked = candidate.guid == currentGuid
+		if checked then
+			displayText = candidate.name
+		end
+		local color
+		if PLC.Professions:HasProfession(candidate.guid, PLC.Professions.ENCHANTING_SKILL_LINE) then
+			local r, g, b = Primitives.color("success")
+			color = { r = r, g = g, b = b }
+		end
+		table.insert(entries, {
+			text = candidate.name,
+			checked = checked,
+			color = color,
+			onClick = function()
+				PLC.Session:SetEnchanter(candidate.guid)
+			end,
+		})
+	end
+	DropdownWidget.setEntries(enchanterDropdown, displayText, entries)
+end
+
 -- Rebuilds the icon list, keeps/advances the selection, and updates the bottom button row --
 -- called whenever the frame is (re)shown, after Start()/End()/Award All/Remove, and from
 -- Session's notifySessionFrame forward-hook whenever the item set or an award/pre-award changes
@@ -376,11 +442,42 @@ function refresh()
 
 	updateButtons()
 	updateHeaderOwner()
+	updateEnchanterDropdown()
 
 	if hasLiveCountdown(flat) then
 		startTicker()
 	else
 		stopTicker()
+	end
+end
+
+-- Exposed for UI/VotingFrame.lua's Award/Disenchant buttons -- both only ever stage a pick
+-- (Session:SetPreAward), never commit directly, then call this to move the sidebar on to the
+-- next item automatically. Walks the same flat, index-sorted list refresh() builds; a staged-but-
+-- not-yet-final item is still a valid stop (that's the whole point of the stage-everything flow)
+-- -- only a truly finished (awarded) item is skipped. No-ops at the end of the list (stays put
+-- rather than wrapping or clearing the selection) -- the holder presses Award All from there.
+function SessionFrame:AdvanceToNextItem()
+	if not dataTable then
+		return
+	end
+	local flat = flatItemRows()
+	local currentPos
+	for i, row in ipairs(flat) do
+		if row.idx == selectedIdx then
+			currentPos = i
+			break
+		end
+	end
+	if not currentPos then
+		return
+	end
+	for i = currentPos + 1, #flat do
+		if not flat[i].awarded then
+			selectedIdx = flat[i].idx
+			refresh()
+			return
+		end
 	end
 end
 
@@ -410,7 +507,9 @@ local function ensureFrame()
 	-- the narrowest the grid actually fits without clipping (see makeResizable below), so that's
 	-- the one width that's ever actually useful. Height stays freely resizable -- a taller window
 	-- genuinely shows more item icons in the sidebar.
-	frame:SetSize(630, 500)
+	-- +30 over the pre-Enchanter-row baseline, to compensate for the new toolbar row below the
+	-- header without shrinking the visible item list.
+	frame:SetSize(630, 530)
 	frame:SetPoint("CENTER", 0, 50)
 	-- Deliberately stays at "DIALOG" -- the middle of the three main windows: UI/OptionsFrame.lua
 	-- (built on UI/Widgets/PanelLayout.lua) sits one tier below at "HIGH", UI/LootFrame.lua sits
@@ -425,7 +524,7 @@ local function ensureFrame()
 	tinsert(UISpecialFrames, "PixlLootCouncilSessionFrame")
 	-- Width min and max are the same value (630) -- fixes the width (see the comment on
 	-- SetSize above) while leaving height genuinely resizable between 360 and 800.
-	Primitives.makeResizable(frame, 630, 360, 630, 800)
+	Primitives.makeResizable(frame, 630, 390, 630, 830)
 	-- Covers every way the window can close -- the header's own close button, Escape (via
 	-- UISpecialFrames), or a future caller just calling frame:Hide() directly -- without needing
 	-- to duplicate stopTicker() at each of those call sites.
@@ -478,6 +577,23 @@ local function ensureFrame()
 
 	Primitives.createSeparator(frame, -Theme.LAYOUT.headerHeight)
 
+	-- New toolbar row for the Enchanter picker, between the header and the icon-sidebar+detail
+	-- content area -- not inside `content` itself, since it's a session-wide setting rather than
+	-- part of the per-item master-detail layout below it.
+	enchanterRow = CreateFrame("Frame", nil, frame)
+	enchanterRow:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -8)
+	enchanterRow:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", -10, -8)
+	enchanterRow:SetHeight(Theme.LAYOUT.fieldHeight)
+
+	enchanterRow.label = Primitives.createText(enchanterRow, L["SESSIONFRAME_ENCHANTER_LABEL"], 12, "white")
+	enchanterRow.label:SetPoint("LEFT")
+
+	-- Resized down from Dropdown.createDropdownButton's 260px default -- this window is only
+	-- 630px wide and the icon sidebar/detail grid below already use nearly all of that.
+	enchanterDropdown = DropdownWidget.createDropdownButton(enchanterRow)
+	enchanterDropdown:SetSize(180, Theme.LAYOUT.fieldHeight)
+	enchanterDropdown:SetPoint("LEFT", enchanterRow.label, "RIGHT", 8, 0)
+
 	startButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_START"], 160)
 	startButton:SetPoint("BOTTOM", 0, 12)
 	startButton:SetScript("OnClick", onStartClick)
@@ -495,7 +611,7 @@ local function ensureFrame()
 	-- clipped everything past ~half the window's real width). Left inset trimmed down from the
 	-- detail area's -- the icon sidebar reads better flush-ish against the window's edge.
 	content = CreateFrame("Frame", nil, frame)
-	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 6, -10)
+	content:SetPoint("TOPLEFT", enchanterRow, "BOTTOMLEFT", -4, -10)
 	content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 50)
 
 	itemListContainer = CreateFrame("Frame", nil, content)

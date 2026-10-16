@@ -382,31 +382,53 @@ All three with the holder actually holding an active session with at least one i
 - Candidate side: click a response button, confirm the whole row vanishes immediately — a
   *different* item in the same session keeps its own live row, unaffected.
 
-### 2.5 Bagged-item award flow + pre-award + Award All (reworked for the bagged-item workflow)
-There is no live loot slot by the time anyone's reviewing — Award now means "record the decision
-and tell the holder who to trade it to," not "transfer it directly" (no trade automation yet,
-per the user's explicit choice — see the plan).
-- Council member clicks Award on a real (already-bagged) item's row. Confirm: the item's status
-  flips to "Awarded: PlayerName" on every client via the `award` comm (no full resync needed),
-  and the holder's client alone prints the `... awarded to ... -- trade it to them!` instruction
-  and posts the chat announcement (if `profile.announce.award` is on) — the candidate's client
-  does neither.
-- Attempt to Award the same item again (from either client): confirm it refuses cleanly
-  (`SESSION_ALREADY_AWARDED`) rather than double-committing or erroring.
-- Pre-award + Award All: Pre-Award two different items to two different candidates (confirm
-  "Staged" shows locally on the holder's client only — the candidate clients should see no
-  change at all, since pre-award is never broadcast), then click Award All. Confirm both commit
-  in one pass, each with its own trade-instruction print and its own `award` comm, and that a
-  third, un-staged item is left untouched (still "Pending").
-- The actual item transfer is manual now (holder trades it in-game) — confirm the addon does
-  *not* attempt to open a trade window or otherwise touch the trade UI; that's explicitly out of
-  scope for this round.
-- **Pre-award doesn't survive a review pass (fixed this round):** Pre-Award an item, then End
-  Session *without* committing it (no Award All, no individual Award click) — confirm the item
-  carries forward to the next Start() as expected (it's not awarded, so it should), but its
-  "Staged" state does **not** — the button should read "Pre-Award" again and the top-list status
-  should show "Pending", not a leftover "Staged"/"Pre-awarded: X" from the review pass that never
-  actually committed it.
+### 2.5 Bagged-item award flow: stage-everything + Award All as the one commit point
+(Reworked again this round — there is no more instant-final Award path at all. Every row's
+Award button, and the panel header's Disenchant button, only ever *stage* a pick
+(`Session:SetPreAward`); nothing is broadcast, printed, or announced until the holder presses
+**Award All**. There is no live loot slot by the time anyone's reviewing either way — a committed
+Award still just means "record the decision and tell the holder who to trade it to," not
+"transfer it directly.")
+- Click Award on a candidate's row for a real (already-bagged) item. Confirm: no wire traffic, no
+  chat print, no announcement — the button itself flips to "Staged" on the holder's client only,
+  and the candidate clients see no change at all (staging is holder-local, never broadcast). The
+  sidebar auto-advances to the next not-yet-finished item immediately.
+- Re-click Award on a *different* candidate's row for the same item (navigate back to it first,
+  or before it auto-advanced away — either way SetPreAward just overwrites the previous pick):
+  confirm the first candidate's button reverts to plain "Award" and the second candidate's button
+  now reads "Staged" — only one candidate is ever staged per item.
+- Click Disenchant (the header control, next to "N out of M voted") on a different item: confirm
+  it stages to the current Enchanter (see 2.8) without needing any candidate row clicked, the
+  header button itself flips to "Staged", and the sidebar auto-advances the same way Award does.
+- Auto-advance should skip only truly finished (awarded) items, not staged-but-uncommitted ones —
+  stage two items in a row and confirm the second stage lands on the very next item, not one
+  further down the list.
+- Auto-advance should no-op (stay on the last item, not wrap or clear the selection) when staging
+  the last item in the list.
+- Press **Award All** once several items are staged (a mix of regular Award picks and at least
+  one Disenchant): confirm every staged item commits in one pass, each over its own `award` comm
+  with the right `reason`, and that:
+  - A regular award prints `... awarded to ... -- trade it to them!` and (if
+    `profile.announce.award` is on) announces with the winner's name.
+  - A disenchant commit prints the disenchant instruction line instead, and announces with the
+    item link only — **no winner name** — even though a real roster GUID (the Enchanter) is
+    recorded underneath.
+  - Both print/announce from the holder's client only; the candidate's client does neither.
+  - An item that was never staged is left untouched (still "Pending").
+- Attempt to Award All again, or stage-and-commit the same item twice: confirm the already-
+  awarded item is simply skipped (not double-committed, not an error).
+- The actual item transfer is still manual (holder trades it in-game, or hands it off for
+  disenchanting) — confirm the addon does *not* attempt to open a trade window or otherwise touch
+  the trade UI.
+- A staged-but-never-committed pick (no Award All) does **not** survive End Session: confirm the
+  item carries forward to the next Start() (it's not awarded, so it should), but its "Staged"
+  state does not — the button should read "Award"/"Disenchant" again and the sidebar tooltip
+  should show "Pending", not a leftover "Staged: ..." from the review pass that never actually
+  committed it.
+- Sidebar icon tooltip wording matches the reason: a committed disenchant reads "Disenchanted"
+  (not "Awarded: PlayerName"), and a staged disenchant reads "Staged: Disenchant (EnchanterName)"
+  (not "Staged: EnchanterName") — border colors stay the same success/accent as a regular
+  award/stage, only the tooltip text branches.
 
 ### 2.6 Chat announcements, exactly once (Stage 6, reworked after first playtest)
 - With a real session and award happening, confirm the session-start summary line (one line
@@ -436,3 +458,24 @@ per the user's explicit choice — see the plan).
   silence has actually passed — not instantly on disconnect.
 - A third, genuinely addon-less raid member (if you have one to test with) should read "No addon
   detected" the entire time, never flipping to "Waiting for response...".
+
+### 2.8 Enchanter picker + profession sync (new this round, `Data/Professions.lua`)
+- With no Enchanter manually picked yet, open the session window and confirm the dropdown shows
+  the alphabetically-first roster member by short name (not full "Name-Realm"), computed live —
+  adding/removing a raid member before picking should change the default shown.
+- Pick a different roster member from the dropdown (holder's client): confirm it persists across
+  `/reload` (saved like `owner`, not reset by Start()/End()) and across several Start/End cycles
+  in the same raid night — it should *not* revert to the alphabetical default just because a new
+  review pass started.
+- Confirm the pick syncs to other clients via the `set_enchanter` comm: the other client's own
+  dropdown should reflect the holder's choice without needing a manual resync.
+- A non-holder client picking from the dropdown should be a silent no-op (`Session:SetEnchanter`
+  is holder-only) — confirm nothing changes on any client when a candidate clicks an entry.
+- Profession sync (solo-unverifiable beyond "no Lua error" — needs a second client actually
+  trained in a primary profession): at session start (or a late joiner's sync), confirm the
+  Enchanter dropdown's entries are colored green for any candidate with Enchanting trained
+  (`Data/Professions.lua:ENCHANTING_SKILL_LINE`), and left the default text color for everyone
+  else, including someone with a *different* primary profession (e.g. Tailoring) — this should
+  never show green just because *some* profession is known.
+- A character with no primary profession at all should show in the list (never hard-filtered
+  out) with no green highlight — the dropdown lets you pick anyone, informed or not.

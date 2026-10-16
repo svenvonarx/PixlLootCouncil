@@ -18,6 +18,7 @@ Data\Roster.lua
 Data\CouncilRules.lua
 Data\Presence.lua
 Data\Gear.lua
+Data\Professions.lua
 Data\Session.lua
 
 Comms\Protocol.lua
