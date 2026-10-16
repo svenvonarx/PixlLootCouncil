@@ -1,0 +1,15 @@
+# BigWigs packager config (https://github.com/BigWigsMods/packager).
+# Libraries are embedded in Libs/, so no externals are needed.
+package-as: PixlLootCouncil
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - .claude
+  - .github
+  - docs
+  - README.md
+  - "*.bak"
+  - "*.tmp"

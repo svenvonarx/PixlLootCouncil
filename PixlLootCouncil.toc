@@ -2,7 +2,9 @@
 ## Title: PixlLootCouncil
 ## Notes: Master-looter-driven, council-voted loot distribution for TBC Anniversary Classic
 ## Author: Pixl
-## Version: 0.1.0
+## Version: @project-version@
+## X-License: GPL-3.0-or-later
+## X-Website: https://github.com/svenvonarx/PixlLootCouncil
 ## SavedVariables: PixlLootCouncilDB, PixlLootCouncilLootDB
 ## DefaultState: enabled
 

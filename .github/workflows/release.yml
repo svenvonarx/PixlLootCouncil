@@ -1,0 +1,27 @@
+# Builds the addon zip and uploads it to CurseForge (and a GitHub release) whenever a version tag
+# is pushed, e.g. `git tag v0.1.0-beta && git push origin v0.1.0-beta`.
+# Tags containing "alpha" or "beta" are uploaded as alpha/beta files; plain tags (v1.0.0) as
+# releases. Needs the repository secret CF_API_KEY (see docs/RELEASING.md).
+name: Package and release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub release
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Check out (full history, for the changelog and version)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package and upload
+        uses: BigWigsMods/packager@v2
