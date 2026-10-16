@@ -20,30 +20,36 @@ local TableMeta = { __index = Table }
 
 local DEFAULT_ROW_HEIGHT = 24
 
+-- Scrolls by row index (ScrollFrame.createRowScroll), not by pixels over a #rows-tall child
+-- frame -- the pixel version stopped scrolling past ~23000px, cutting long tables (the loot
+-- history) off partway. Rows are pooled and anchored to the clipped viewport itself.
 function DataTable.Create(parent, rowHeight)
-	local scroll = ScrollFrame.createScrollFrame(parent)
-
-	local content = CreateFrame("Frame", nil, scroll)
-	content:SetSize(1, 1)
-	scroll:SetScrollChild(content)
-
 	local self = setmetatable({
-		scroll = scroll,
-		content = content,
 		rowHeight = rowHeight or DEFAULT_ROW_HEIGHT,
 		columns = {},
 		rows = {}, -- pool of row frames, index 1..currently-visible
 		data = {}, -- full current dataset (array)
 	}, TableMeta)
 
+	local scroll = ScrollFrame.createRowScroll(parent, function()
+		self:Refresh()
+	end)
+	self.scroll = scroll
+	self.content = scroll
+
 	scroll:SetScript("OnSizeChanged", function()
 		self:Layout()
 	end)
-	scroll:SetScript("OnVerticalScroll", function()
-		self:Refresh()
-	end)
 
 	return self
+end
+
+-- Rows that fit completely; the last partially visible row is drawn but doesn't count, so
+-- scrolling to the end always brings the final row fully into view.
+function Table:updateScrollRange()
+	local height = self.scroll:GetHeight() or 0
+	local fullRows = math.max(1, math.floor(height / self.rowHeight))
+	self.scroll:SetMaxOffset(#self.data - fullRows)
 end
 
 local function getRow(self, index)
@@ -147,7 +153,7 @@ function Table:Layout()
 		self.rows[index]:Hide()
 	end
 
-	self.content:SetSize(width, math.max(1, #self.data * self.rowHeight))
+	self:updateScrollRange()
 	self:Refresh()
 end
 
@@ -155,12 +161,12 @@ end
 -- (items added/removed/reordered/scrolled), not for a single value changing on an existing row.
 function Table:SetRows(data)
 	self.data = data
-	self.content:SetSize(self.content:GetWidth(), math.max(1, #data * self.rowHeight))
+	self:updateScrollRange()
 	self:Refresh()
 end
 
 function Table:Refresh()
-	local offset = math.floor((self.scroll:GetVerticalScroll() or 0) / self.rowHeight)
+	local offset = self.scroll:GetOffset()
 	for index, row in ipairs(self.rows) do
 		local dataIndex = offset + index
 		local rowData = self.data[dataIndex]

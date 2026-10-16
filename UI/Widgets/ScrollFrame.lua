@@ -87,3 +87,79 @@ function ScrollFrame.createScrollFrame(parent)
 
 	return scroll
 end
+
+local WHEEL_ROWS = 2
+
+-- Row-indexed scrolling for UI/Widgets/DataTable.lua: same look and reserved scrollbar strip as
+-- createScrollFrame, but the position is a row offset instead of a pixel offset into one tall
+-- scroll child. A pixel-based child of #rows * rowHeight stops scrolling somewhere past ~23000px
+-- (the loot history window cut off around row 1050 of 3200 imported RC entries), so a table that
+-- can hold thousands of rows can't be built that way. Returns a clipped viewport frame with:
+--   viewport:SetMaxOffset(n)  -- highest valid first-row offset (0 = nothing to scroll)
+--   viewport:GetOffset()      -- current first-row offset
+--   viewport:SetOffset(n)     -- clamped; fires onScroll(offset) when it changes
+function ScrollFrame.createRowScroll(parent, onScroll)
+	local viewport = CreateFrame("Frame", nil, parent)
+	viewport:SetPoint("TOPLEFT")
+	viewport:SetPoint("BOTTOMRIGHT", -RESERVED_WIDTH, 0)
+	viewport:SetClipsChildren(true)
+	viewport:EnableMouseWheel(true)
+
+	local bar = CreateFrame("Slider", nil, parent)
+	bar:SetPoint("TOPLEFT", viewport, "TOPRIGHT", BAR_GAP, 0)
+	bar:SetPoint("BOTTOMLEFT", viewport, "BOTTOMRIGHT", BAR_GAP, 0)
+	bar:SetWidth(BAR_WIDTH)
+	bar:SetOrientation("VERTICAL")
+	bar:SetMinMaxValues(0, 0)
+	bar:SetValueStep(1)
+	if bar.SetObeyStepOnDrag then
+		bar:SetObeyStepOnDrag(true)
+	end
+	bar:Hide()
+
+	local track = Primitives.createTexture(bar, "BACKGROUND", "borderDim")
+	track:SetAllPoints()
+
+	local thumb = Primitives.createTexture(bar, "ARTWORK", "accent", 0.65)
+	thumb:SetSize(BAR_WIDTH, 36)
+	bar:SetThumbTexture(thumb)
+
+	local offset, maxOffset = 0, 0
+
+	function viewport:GetOffset()
+		return offset
+	end
+
+	function viewport:SetOffset(value)
+		value = math.max(0, math.min(maxOffset, math.floor((value or 0) + 0.5)))
+		if bar:GetValue() ~= value then
+			bar:SetValue(value)
+		end
+		if value ~= offset then
+			offset = value
+			if onScroll then
+				onScroll(offset)
+			end
+		end
+	end
+
+	function viewport:SetMaxOffset(value)
+		maxOffset = math.max(0, value or 0)
+		bar:SetMinMaxValues(0, maxOffset)
+		bar:SetShown(maxOffset > 0)
+		if offset > maxOffset then
+			self:SetOffset(maxOffset)
+		else
+			bar:SetValue(offset)
+		end
+	end
+
+	bar:SetScript("OnValueChanged", function(_, value)
+		viewport:SetOffset(value)
+	end)
+	viewport:SetScript("OnMouseWheel", function(self, delta)
+		self:SetOffset(offset - delta * WHEEL_ROWS)
+	end)
+
+	return viewport
+end
