@@ -7,6 +7,7 @@
 ## X-Website: https://github.com/svenvonarx/PixlLootCouncil
 ## SavedVariables: PixlLootCouncilDB, PixlLootCouncilLootDB
 ## DefaultState: enabled
+## X-Curse-Project-ID: 1749091
 
 embeds.xml
 Locale\Locales.xml
