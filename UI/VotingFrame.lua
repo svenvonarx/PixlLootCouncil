@@ -4,6 +4,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local Primitives = PLC.UI.Widgets.Primitives
 local ButtonWidget = PLC.UI.Widgets.Button
 local DataTable = PLC.UI.Widgets.DataTable
+local Theme = PLC.UI.Theme
 
 -- Embeddable response-grid panel, NOT its own top-level window -- UI/SessionFrame.lua mounts
 -- this directly into its own content area as the "same window, all the answers" merged layout
@@ -22,7 +23,16 @@ PLC.UI.VotingFrame = VotingFrame
 local Panel = {}
 local PanelMeta = { __index = Panel }
 
-local ROLE_ABBR = { TANK = "Tank", HEALER = "Heal", DAMAGER = "DPS" }
+-- Full words for the role icon's hover tooltip now, not an inline text column -- the icon
+-- (Primitives.createRoleIcon) carries the at-a-glance meaning, this is just there so it's never
+-- ambiguous to someone unfamiliar with the icon shapes.
+local ROLE_ABBR = { TANK = "Tank", HEALER = "Healer", DAMAGER = "Damage Dealer" }
+
+-- The gap between the Award and Pre-Award buttons -- also used as the row-height formula's own
+-- vertical slack (see DataTable.Create below), so the horizontal gap between those two buttons
+-- and the vertical gap between two rows' buttons are the same, not two different numbers that
+-- happen to look mismatched next to each other.
+local BUTTON_GAP = 6
 
 local function classColor(class)
 	local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
@@ -310,8 +320,11 @@ function VotingFrame.CreatePanel(parent)
 
 	-- No scroll:SetAllPoints() here -- UI/Widgets/ScrollFrame.lua anchors it to `tableContainer`
 	-- itself now, reserving its own room for the scrollbar inside that.
-	local dataTable = DataTable.Create(tableContainer, 32) -- taller than the 24px default: the
-	-- Award buttons are 28px tall and would otherwise vertically overflow/clip against the next row
+	-- Same buttonHeight+BUTTON_GAP formula UI/LootFrame.lua's own row height already uses, not a
+	-- separate ad-hoc number -- the resulting vertical slack (split evenly above/below the button
+	-- via its "LEFT"-anchor centering) is what makes the gap between two rows' buttons match
+	-- BUTTON_GAP, the same gap the Award/Pre-Award buttons use within a row, below.
+	local dataTable = DataTable.Create(tableContainer, Theme.LAYOUT.buttonHeight + BUTTON_GAP)
 
 	local self = setmetatable({
 		header = header,
@@ -322,30 +335,44 @@ function VotingFrame.CreatePanel(parent)
 
 	dataTable:SetColumns({
 		{
-			-- Widget, not plain text -- hosting the class icon needs an actual Frame.
-			width = 165,
+			-- Role icon, then class icon, then name -- replaces what used to be a separate
+			-- "DPS"/"Tank"/"Heal" text column entirely (role is now an icon here instead), which
+			-- is most of where this column's own width comes back down from: WoW character names
+			-- cap at 12 characters, so there's no reason to budget more name space than that
+			-- actually needs, on top of removing the old column outright.
+			width = 130,
 			isWidget = true,
 			create = function(row)
 				local holder = CreateFrame("Frame", nil, row)
-				holder:SetSize(165, 20)
+				holder:SetSize(130, 20)
+				holder.roleIcon = Primitives.createRoleIcon(holder, nil)
+				holder.roleIcon:SetSize(14, 14)
+				holder.roleIcon:SetPoint("LEFT")
+				holder.roleIcon:EnableMouse(true)
+				holder.roleIcon:SetScript("OnEnter", function(self)
+					if holder.roleText then
+						GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+						GameTooltip:SetText(holder.roleText)
+						GameTooltip:Show()
+					end
+				end)
+				holder.roleIcon:SetScript("OnLeave", function()
+					GameTooltip:Hide()
+				end)
 				holder.classIcon = Primitives.createClassIcon(holder, nil)
 				holder.classIcon:SetSize(16, 16)
-				holder.classIcon:SetPoint("LEFT")
+				holder.classIcon:SetPoint("LEFT", holder.roleIcon, "RIGHT", 3, 0)
 				holder.text = Primitives.createText(holder, "", 11)
 				holder.text:SetPoint("LEFT", holder.classIcon, "RIGHT", 4, 0)
 				return holder
 			end,
 			update = function(holder, rowData)
+				Primitives.setRoleIcon(holder.roleIcon, rowData.role)
+				holder.roleText = ROLE_ABBR[rowData.role]
 				Primitives.setClassIcon(holder.classIcon, rowData.class)
 				local r, g, b = classColor(rowData.class)
 				holder.text:SetText(rowData.shortName)
 				holder.text:SetTextColor(r, g, b)
-			end,
-		},
-		{
-			width = 50,
-			render = function(row)
-				return ROLE_ABBR[row.role] or "-"
 			end,
 		},
 		{
@@ -425,7 +452,10 @@ function VotingFrame.CreatePanel(parent)
 		gearColumn("1"),
 		gearColumn("2"),
 		{
-			width = 60,
+			-- Column width is the button's own width plus BUTTON_GAP, explicitly -- not a
+			-- separately-chosen round number that happened to leave roughly that much trailing
+			-- space, which is what made this gap and the row-height gap drift apart before.
+			width = 54 + BUTTON_GAP,
 			isWidget = true,
 			create = function(row)
 				return ButtonWidget.createButton(row, L["VOTINGFRAME_AWARD"], 54)
@@ -437,7 +467,8 @@ function VotingFrame.CreatePanel(parent)
 			end,
 		},
 		{
-			width = 70,
+			-- Non-binding -- last column, see UI/Widgets/DataTable.lua:Layout.
+			width = 64,
 			isWidget = true,
 			create = function(row)
 				return ButtonWidget.createButton(row, L["VOTINGFRAME_PREAWARD"], 64)

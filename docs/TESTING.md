@@ -132,10 +132,14 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   tooltip lines on sidebar icons, and the "Session started by" header label (both this window's
   and, see 1.6, `UI/LootFrame.lua`'s own copy of it). This is display-only — comms/sync and
   Roster lookups still use the full "Name-Realm" internally, unaffected.
-- **Class icon, note icon, iLvl/Diff, equipped-gear comparison (new this round):** the window
-  defaults wider now (850, min 750) specifically to fit these. Confirm each candidate row shows a
-  small class icon to the left of their name, color-matching `RAID_CLASS_COLORS`. Give one
-  candidate a note (type something in `UI/LootFrame.lua`'s note field before responding): confirm
+- **Role icon, class icon, note icon, iLvl/Diff, equipped-gear comparison:** the window defaults
+  wider now (700, min 630) to fit these without clipping. Confirm each candidate row shows, left
+  to right: a small role icon (Tank/Healer/DPS, hover it for a text tooltip naming the role —
+  this replaced the old separate "DPS"/"Tank"/"Heal" text column entirely), a class icon
+  color/shape-matching `RAID_CLASS_COLORS`, then the name — all three packed into one compact
+  column sized for a WoW name's actual 12-character cap, not a guessed-wide one; a long name
+  shouldn't look cramped or truncated against the icons next to it. Give one candidate a note
+  (type something in `UI/LootFrame.lua`'s note field before responding): confirm
   a small "page" glyph appears next to their response text, and that hovering the response cell
   still shows the note text in a tooltip exactly as before — the glyph is purely a visibility aid,
   not a new interaction. Test gear sync: have both clients click Start Session (or join an
@@ -149,6 +153,11 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   `Data/Gear.lua`'s `notifyVotingFrame` should re-render the grid the moment each `gear` message
   arrives. Switch to a different item in the sidebar and back: confirm the numbers update to
   match that item's own slot, not the previous item's.
+- **Button/row spacing consistency:** with at least 2 candidates visible, confirm the horizontal
+  gap between the Award and Pre-Award buttons looks the same size as the vertical gap between one
+  row's buttons and the next row's — both are the same 6px value now (`BUTTON_GAP` in
+  `UI/VotingFrame.lua`), rather than two unrelated numbers that happened to look mismatched next
+  to each other.
 - **One-handed weapon/offhand gear comparison (per-candidate, not per-item):** seed a one-handed
   weapon or offhand item (`/plc additem <itemID>`). For a candidate currently dual-wielding (or
   with a shield/offhand item equipped), confirm both gear-icon columns show something — their

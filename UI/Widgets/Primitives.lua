@@ -103,6 +103,29 @@ function Primitives.createClassIcon(parent, classToken)
 	return icon
 end
 
+-- The standard Blizzard role-icon atlas (Tank/Healer/Damager, matching the group finder tool and
+-- raid frame role icons) -- GetTexCoordsForRole is a long-standing Blizzard global that returns
+-- {left, right, top, bottom} for "Interface\LFGFrame\UI-LFG-ICON-ROLES" given one of the same
+-- "TANK"/"HEALER"/"DAMAGER" strings Data/Roster.lua already stores (from
+-- UnitGroupRolesAssigned). No new art asset, and no hardcoded texture-coordinate guessing.
+-- Same setter/creator split as createClassIcon, for the same pooled-widget reason.
+function Primitives.setRoleIcon(icon, role)
+	local left, right, top, bottom = role and GetTexCoordsForRole(role)
+	if left then
+		icon:SetTexCoord(left, right, top, bottom)
+		icon:Show()
+	else
+		icon:Hide()
+	end
+end
+
+function Primitives.createRoleIcon(parent, role)
+	local icon = parent:CreateTexture(nil, "ARTWORK")
+	icon:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-ROLES")
+	Primitives.setRoleIcon(icon, role)
+	return icon
+end
+
 -- A small "page with lines" glyph marking "this row has a note attached" -- built from the same
 -- flat vector-primitive technique as the header close button's rotated-hairline "X"
 -- (UI/Widgets/Primitives.lua's createCloseButton) and the resize grip's dot-triangle

@@ -405,10 +405,12 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilSessionFrame", UIParent)
-	-- Wider than before -- the embedded UI/VotingFrame.lua candidate grid grew a class icon, a
-	-- note icon, iLvl/Diff, and two equipped-gear icons, bringing its column total from ~480px to
-	-- ~630px; the detail area needs roughly 93px of its own overhead on top of that.
-	frame:SetSize(850, 500)
+	-- Narrower than the previous round -- the embedded UI/VotingFrame.lua candidate grid's Role
+	-- column (text, 50px) became a role icon folded into the Name column instead, and that
+	-- column itself shrank from 165 to 130 (icons now budget for a 12-character WoW name, not a
+	-- guessed-wide one) -- column total drops from ~630px to ~520px; the detail area still needs
+	-- roughly 93px of its own overhead on top of that.
+	frame:SetSize(700, 500)
 	frame:SetPoint("CENTER", 0, 50)
 	-- Deliberately stays at "DIALOG" -- the middle of the three main windows: UI/OptionsFrame.lua
 	-- (built on UI/Widgets/PanelLayout.lua) sits one tier below at "HIGH", UI/LootFrame.lua sits
@@ -421,9 +423,10 @@ local function ensureFrame()
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilSessionFrame")
-	-- Min width bumped from 520 -- below ~750 the candidate grid's new columns (gear icons, ilvl,
-	-- diff) start clipping, since DataTable columns are fixed-width with no reflow.
-	Primitives.makeResizable(frame, 750, 360, 900, 800)
+	-- Min width eased back down from 750 now that the grid itself is narrower (~520px, see
+	-- above) -- below ~630 its columns (gear icons, ilvl, diff) start clipping, since DataTable
+	-- columns are fixed-width with no reflow.
+	Primitives.makeResizable(frame, 630, 360, 900, 800)
 	-- Covers every way the window can close -- the header's own close button, Escape (via
 	-- UISpecialFrames), or a future caller just calling frame:Hide() directly -- without needing
 	-- to duplicate stopTicker() at each of those call sites.
