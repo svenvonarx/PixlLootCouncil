@@ -68,11 +68,26 @@ function Panel:buildRows()
 			role = entry.role,
 			response = r and r.response,
 			note = r and r.note,
+			present = PLC.Presence:IsPresent(guid),
 			staged = item ~= nil and item.preAwardGuid == guid,
 		})
 	end
 	table.sort(rows, function(a, b) return a.name < b.name end)
 	return rows
+end
+
+-- "N out of M have voted" (RCLootCouncil-style header, from the screenshot comparison) -- M is
+-- everyone shown in the table (addon or not), N is actual recorded responses, regardless of
+-- presence.
+function Panel:updateHeader()
+	local responded, total = 0, 0
+	for _, row in ipairs(self.rowsData) do
+		total = total + 1
+		if row.response then
+			responded = responded + 1
+		end
+	end
+	self.header:SetText(string.format(L["VOTINGFRAME_VOTE_COUNT"], responded, total))
 end
 
 function Panel:Award(guid)
@@ -93,6 +108,7 @@ function Panel:ShowItem(idx)
 	self.currentIdx = idx
 	self.rowsData = self:buildRows()
 	self.dataTable:SetRows(self.rowsData)
+	self:updateHeader()
 end
 
 -- Session:notifyVotingFrame's target (forwarded via VotingFrame:OnItemUpdated below). guid
@@ -106,12 +122,14 @@ function Panel:OnItemUpdated(idx, guid)
 	if not guid then
 		self.rowsData = self:buildRows()
 		self.dataTable:SetRows(self.rowsData)
+		self:updateHeader()
 		return
 	end
 	local rowIndex = findRowIndexByGuid(self.rowsData, guid)
 	if not rowIndex then
 		self.rowsData = self:buildRows()
 		self.dataTable:SetRows(self.rowsData)
+		self:updateHeader()
 		return
 	end
 	local responses = PLC.Session.responses[idx]
@@ -119,18 +137,28 @@ function Panel:OnItemUpdated(idx, guid)
 	self.rowsData[rowIndex].response = r and r.response
 	self.rowsData[rowIndex].note = r and r.note
 	self.dataTable:RefreshRow(rowIndex)
+	self:updateHeader()
 end
 
--- Builds the candidate/role/response/Award/Pre-Award grid into `parent` and returns the panel
--- object. Only one is ever actually live at a time in practice (the one UI/SessionFrame.lua
--- mounts), but nothing here assumes that -- VotingFrame.activePanel (set below) is just
--- "whichever panel Session's forward-hooks should talk to."
+-- Builds the "N of M voted" header + candidate/role/response/Award/Pre-Award grid into `parent`
+-- and returns the panel object. Only one is ever actually live at a time in practice (the one
+-- UI/SessionFrame.lua mounts), but nothing here assumes that -- VotingFrame.activePanel (set
+-- below) is just "whichever panel Session's forward-hooks should talk to."
 function VotingFrame.CreatePanel(parent)
-	local dataTable = DataTable.Create(parent, 32) -- taller than the 24px default: the Award
-	-- buttons are 28px tall and would otherwise vertically overflow/clip against the next row
+	local header = Primitives.createText(parent, "", 11, "dim")
+	header:SetPoint("TOPLEFT")
+	header:SetPoint("TOPRIGHT")
+
+	local tableContainer = CreateFrame("Frame", nil, parent)
+	tableContainer:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -6)
+	tableContainer:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT")
+
+	local dataTable = DataTable.Create(tableContainer, 32) -- taller than the 24px default: the
+	-- Award buttons are 28px tall and would otherwise vertically overflow/clip against the next row
 	dataTable.scroll:SetAllPoints()
 
 	local self = setmetatable({
+		header = header,
 		dataTable = dataTable,
 		currentIdx = nil,
 		rowsData = {},
@@ -151,11 +179,14 @@ function VotingFrame.CreatePanel(parent)
 			end,
 		},
 		{
-			width = 90,
+			-- Three real states: already voted > present (addon confirmed, no vote yet) > not
+			-- detected at all (see Data/Presence.lua) -- not just a bare "-" for every
+			-- not-yet-voted case.
+			width = 150,
 			isWidget = true,
 			create = function(row)
 				local holder = CreateFrame("Frame", nil, row)
-				holder:SetSize(90, 20)
+				holder:SetSize(150, 20)
 				holder:EnableMouse(true)
 				holder.text = Primitives.createText(holder, "", 11)
 				holder.text:SetAllPoints()
@@ -176,9 +207,13 @@ function VotingFrame.CreatePanel(parent)
 				if resp then
 					holder.text:SetText(resp.text)
 					holder.text:SetTextColor(resp.color.r, resp.color.g, resp.color.b)
+				elseif rowData.present then
+					holder.text:SetText(L["VOTINGFRAME_WAITING"])
+					local r, g, b = Primitives.color("dim")
+					holder.text:SetTextColor(r, g, b)
 				else
-					holder.text:SetText("-")
-					local r, g, b = Primitives.color("text")
+					holder.text:SetText(L["VOTINGFRAME_NO_ADDON"])
+					local r, g, b = Primitives.color("warning")
 					holder.text:SetTextColor(r, g, b)
 				end
 				holder.note = rowData.note

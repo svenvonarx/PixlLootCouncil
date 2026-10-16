@@ -86,6 +86,16 @@ function Sync:SendSyncData(snapshot, targetName)
 	Protocol:Send("session_sync_data", snapshot, "WHISPER", targetName)
 end
 
+-- Not session-scoped (no sessionId) -- every client broadcasts this periodically regardless of
+-- whether any loot session is running, see Data/Presence.lua.
+function Sync:SendPresence(guid)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("presence", { guid = guid }, ch)
+end
+
 Protocol:RegisterHandler("session_start", function(data) PLC.Session:OnSessionStartReceived(data) end)
 Protocol:RegisterHandler("item_add", function(data) PLC.Session:OnItemAddReceived(data) end)
 Protocol:RegisterHandler("response", function(data) PLC.Session:OnResponseReceived(data) end)
@@ -95,3 +105,4 @@ Protocol:RegisterHandler("session_end", function(data) PLC.Session:OnSessionEndR
 Protocol:RegisterHandler("session_force_end", function(data) PLC.Session:OnForceEndReceived(data) end)
 Protocol:RegisterHandler("session_sync_request", function(data, sender) PLC.Session:OnSyncRequestReceived(data, sender) end)
 Protocol:RegisterHandler("session_sync_data", function(data) PLC.Session:OnSyncDataReceived(data) end)
+Protocol:RegisterHandler("presence", function(data) PLC.Presence:OnPresenceReceived(data) end)

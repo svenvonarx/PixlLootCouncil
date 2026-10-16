@@ -16,6 +16,7 @@ Core\Events.lua
 
 Data\Roster.lua
 Data\CouncilRules.lua
+Data\Presence.lua
 Data\Session.lua
 
 Comms\Protocol.lua

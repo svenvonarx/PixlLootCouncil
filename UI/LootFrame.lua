@@ -61,7 +61,7 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
-	frame:SetSize(560, 260)
+	frame:SetSize(600, 260)
 	frame:SetPoint("CENTER", 0, -80)
 	frame:SetFrameStrata("DIALOG")
 	frame:SetMovable(true)
@@ -127,16 +127,50 @@ local function ensureFrame()
 			end,
 		},
 		{
-			width = 44,
-			render = function(row)
-				if not row.deadlineAt then
-					return "-"
+			-- Countdown text + an actual depleting progress bar beneath it (RCLootCouncil-style,
+			-- per the screenshot comparison) instead of just shrinking text. Built the same way
+			-- UI/Widgets/Slider.lua's track already is: a flat "scroll"-colored background behind
+			-- an accent-colored fill, just non-interactive and shrinking on its own instead of
+			-- draggable.
+			width = 70,
+			isWidget = true,
+			create = function(row)
+				local holder = CreateFrame("Frame", nil, row)
+				holder:SetSize(70, 28)
+
+				holder.text = Primitives.createText(holder, "", 11)
+				holder.text:SetPoint("TOP", 0, 0)
+
+				holder.barBg = Primitives.createTexture(holder, "BACKGROUND", "scroll")
+				holder.barBg:SetPoint("BOTTOMLEFT", 2, 2)
+				holder.barBg:SetPoint("BOTTOMRIGHT", -2, 2)
+				holder.barBg:SetHeight(5)
+
+				holder.bar = CreateFrame("StatusBar", nil, holder)
+				holder.bar:SetAllPoints(holder.barBg)
+				holder.bar:SetMinMaxValues(0, 1)
+				holder.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+
+				return holder
+			end,
+			update = function(holder, rowData)
+				if not rowData.deadlineAt then
+					holder.text:SetText("-")
+					holder.bar:SetValue(0)
+					return
 				end
-				local remaining = math.max(0, math.ceil(row.deadlineAt - time()))
-				if remaining <= 10 then
-					return remaining .. "s", Primitives.color("warning")
-				end
-				return remaining .. "s"
+
+				local remaining = math.max(0, rowData.deadlineAt - time())
+				local total = math.max(1, PLC.Session.responseTimeoutSeconds)
+				holder.bar:SetValue(math.min(1, remaining / total))
+
+				local secs = math.ceil(remaining)
+				local colorName = secs <= 10 and "warning" or "text"
+				local r, g, b = Primitives.color(colorName)
+				holder.text:SetText(secs .. "s")
+				holder.text:SetTextColor(r, g, b)
+				local br, bg, bb = Primitives.color(secs <= 10 and "warning" or "accent")
+				holder.bar:GetStatusBarTexture():SetVertexColor(br, bg, bb)
 			end,
 		},
 		{

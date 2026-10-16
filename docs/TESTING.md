@@ -40,48 +40,61 @@ corpse's loot window" flow.
 - Nothing to click solo here — `Comms/Protocol.lua`'s envelope/version-gate logic and the full
   command round-trip can only be exercised with a second client (Part 2.1).
 
-### 1.5 Session window: unified list + embedded response grid (Stages 4-5, reworked twice now)
-`UI/SessionFrame.lua` is one unified list driven directly by `PLC.Session.items` (no more
-separate "curate the live loot window" vs "active session" views — items are already bagged by
-the time anyone could react to them, see 1.3). `UI/VotingFrame.lua` is an embedded panel inside
-it, not its own popup (click an item's row in the top list, its response grid renders below it
-in the same window).
+### 1.5 Session window: icon sidebar + embedded response grid (reworked again, RCLootCouncil-style)
+`UI/SessionFrame.lua` is a narrow left-hand icon sidebar (one icon per item, driven directly by
+`PLC.Session.items` — items are already bagged by the time anyone could react to them, see 1.3)
+plus a content area on the right. `UI/VotingFrame.lua` is an embedded panel in that content area,
+not its own popup — click an icon, its full candidate/response/Award/Pre-Award grid loads next
+to it, not below a row list anymore.
 - `/plc sessionframe` any time opens it — there's no more automatic popup on loot (that was pure
   spam across a multi-hour raid; see 1.3's rework note).
 - `/plc testdata` adds one real test item (Hearthstone, itemID 6948 — always cached, so it
   resolves instantly with a real name/icon/link, not placeholder text) via the same
   `Session:AddManualItem` path `/plc additem` uses, and opens the window.
-- Confirm the top item list shows an icon + item name + a Pending/Pre-awarded/Awarded/Expired
-  status column, auto-selects the item (row highlighted), and the candidate/role/response/
-  Award/Pre-Award grid renders below it.
-- With `Session.state` still `"inactive"` (haven't clicked Start yet), confirm a Remove button
-  shows on the row; click it, confirm the item disappears from the list and `PLC.Session.items`
-  is actually empty.
-- Click "Start Session": confirm Remove disappears from every row (no wire command exists to
-  retract an already-broadcast item), End Session and Award All buttons appear, and (with a
-  second client, or `/plc additem` on the same one) that items keep showing up live if looted
-  while reviewing is still in progress.
-- Resize the window / `/plc additem` a few more things if you want to confirm scrolling and row
-  recycling don't leak frames (watch `/framestack` row count across repeated adds — it should
-  stay bounded, not grow unbounded).
-- Click Award on a candidate in the response grid: confirm the item's status flips to
-  "Awarded: PlayerName", a `[PixlLootCouncil] <item> awarded to <player> -- trade it to them!`
-  line prints (this workflow doesn't auto-trade — see 2.5), and selection auto-advances to the
-  next pending item.
+- Confirm the sidebar shows the item's icon with a hairline border, auto-selects it, and the
+  content area on the right shows the item's name + a Remove button above the "N out of M have
+  voted" line + the candidate/role/response/Award/Pre-Award grid.
+- Hover the icon: confirm a tooltip shows the item name and its current status
+  (Pending/Pre-awarded: X/Awarded: X/Expired). Seed a second test item (`/plc additem <itemID>`)
+  and confirm its icon's border color differs once you pre-award or award it (accent for
+  pre-awarded, a dimmer border for awarded, warning-red for expired) — this is the "visibly
+  flagged" status the icons carry instead of inline text, since there's no room for that at
+  sidebar width.
+- With `Session.state` still `"inactive"` (haven't clicked Start yet), confirm the Remove button
+  above the grid is visible for the selected item; click it, confirm the item's icon disappears
+  from the sidebar and `PLC.Session.items` is actually empty.
+- Click "Start Session": confirm Remove disappears (no wire command exists to retract an
+  already-broadcast item), End Session and Award All buttons appear, and (with a second client,
+  or `/plc additem` on the same one) that new icons keep showing up live if looted while
+  reviewing is still in progress.
+- Seed several test items and confirm the sidebar scrolls without leaking frames (watch
+  `/framestack` row count across repeated adds — it should stay bounded, not grow unbounded).
+- Click Award on a candidate in the response grid: confirm the item's icon border flips to the
+  "awarded" color, a `[PixlLootCouncil] <item> awarded to <player> -- trade it to them!` line
+  prints (this workflow doesn't auto-trade — see 2.5), and selection auto-advances to the next
+  pending icon.
 - Click Pre-Award instead on a different item/candidate: confirm that candidate's button reads
-  "Staged" (accent-colored) and the item's top-list status shows "Pre-awarded: PlayerName" —
-  *without* printing anything or changing the item's real Awarded state yet. Click Award All:
-  confirm every pre-awarded (not-yet-awarded) item commits in one pass, each printing its own
-  trade instruction.
+  "Staged" (accent-colored) and the item's icon border turns accent-colored — *without* printing
+  anything or changing the item's real Awarded state yet. Click Award All: confirm every
+  pre-awarded (not-yet-awarded) item commits in one pass, each printing its own trade
+  instruction.
+- Response column states (needs a second client or `/plc testdata` on one with yourself as the
+  only "candidate" — see 2.7 for the full presence-timeout version): confirm it reads an actual
+  response (Need/Greed/etc.) once voted, "Waiting for response..." for a roster member who has
+  the addon but hasn't voted, or "No addon detected" for one who's never checked in at all.
 
-### 1.6 Candidate response window (Stage 5, unchanged by the bagged-item rework)
+### 1.6 Candidate response window (progress bar added this round)
 - `UI/LootFrame.lua` pops up for you as a candidate once a review session starts (`Session:Start`
-  broadcasts the backlog), showing one row per item: an icon, a remaining-time countdown,
-  response buttons built from your configured responses (Need/Greed/Pass by default), and a note
-  field next to them. `/plc lootframe` reopens it manually.
+  broadcasts the backlog), showing one row per item: an icon, response buttons built from your
+  configured responses (Need/Greed/Pass by default), and a note field next to them. `/plc
+  lootframe` reopens it manually.
+- The countdown is now a text number *and* an actual depleting progress bar beneath it (not just
+  shrinking text) — confirm the bar visibly empties in step with the number over
+  `profile.responseTimeoutSeconds`, and that both the text and the bar's fill color turn
+  warning-red together once under 10 seconds remain.
 - Type something in an item's note field, then click a response button: the whole row disappears
   immediately (not a "you voted" label) — other items in the list are unaffected.
-- Leave an item unanswered and watch the countdown: once `profile.responseTimeoutSeconds` passes
+- Leave an item unanswered and watch it run out: once `profile.responseTimeoutSeconds` passes
   (stamped fresh the moment `Start()` broadcasts, not however long ago the item was actually
   bagged), that row disappears on its own (checked every second while the window is open) — and
   if that was the only pending item, the whole window auto-hides.
@@ -121,12 +134,13 @@ This is the first point nothing above can substitute for — comms only exist be
 clients.
 
 ### 2.1 Comms round-trip + version gate (Stage 3)
-- With both clients grouped and the addon loaded on both, trigger each of the 9 commands in turn
+- With both clients grouped and the addon loaded on both, trigger each of the 10 commands in turn
   (`session_start`/`item_add` via looting, `response` via Loot Frame clicks, `award` via the
   embedded response grid's Award button, `session_heartbeat` automatically every
   `sessionHeartbeatSeconds`, `session_end` via End Session, `session_force_end`/
-  `session_sync_request`/`session_sync_data` via the debug commands below) and confirm each one
-  is received and applied correctly on the other side.
+  `session_sync_request`/`session_sync_data` via the debug commands below, `presence`
+  automatically every 2 minutes per client) and confirm each one is received and applied
+  correctly on the other side.
 - **Version-gate test:** this requires temporarily hardcoding a decoy envelope with
   `v = Comms.Protocol.PROTOCOL_VERSION + 1` on one client (e.g. a throwaway `/run` call into
   `PLC.Comms.Protocol:Send`) and confirming the other client silently ignores it — one
@@ -212,3 +226,16 @@ per the user's explicit choice — see the plan).
 - Confirm the item link in the award chat message is clickable/shows a tooltip (standard WoW
   chat-link behavior — no extra code needed as long as a raw item link string was passed to
   `SendChatMessage`, which it is).
+
+### 2.7 Addon-presence detection (new this round, `Data/Presence.lua`)
+- Reload one client, wait a few seconds (the first broadcast is delayed ~2s on purpose), then
+  open the session window on the other client with a test item selected: confirm the just-reloaded
+  player's response cell reads "Waiting for response..." quickly, not "No addon detected" —
+  presence shouldn't take anywhere near the full 5-minute timeout to show up for someone who's
+  actually there.
+- Fully disconnect (not `/reload`) one client. On the other, confirm that player's row keeps
+  reading "Waiting for response..." for a while (tolerating a couple of missed 120s re-broadcasts
+  on purpose) and only flips to "No addon detected" once `PRESENCE_TIMEOUT` (5 minutes) of
+  silence has actually passed — not instantly on disconnect.
+- A third, genuinely addon-less raid member (if you have one to test with) should read "No addon
+  detected" the entire time, never flipping to "Waiting for response...".

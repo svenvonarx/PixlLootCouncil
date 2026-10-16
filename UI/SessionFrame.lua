@@ -6,13 +6,17 @@ local ButtonWidget = PLC.UI.Widgets.Button
 local DataTable = PLC.UI.Widgets.DataTable
 local Theme = PLC.UI.Theme
 
--- The single ML-facing window (header+content, no sidebar -- spec §4.3): master-detail, one
--- unified list. Items accumulate in Data/Session.lua's PLC.Session.items from the moment they're
--- silently self-looted (Session:CollectDetectedItems), long before any review pass -- this list
+-- The single ML-facing window (header+content, no PanelLayout sidebar-nav -- spec §4.3, this is
+-- a different kind of sidebar, see below): master-detail, RCLootCouncil-style -- a narrow
+-- left-hand strip of item icons (status shown via border color + a tooltip, no room for inline
+-- text at this width), click one to load its full candidate/response/Award/Pre-Award grid
+-- (UI/VotingFrame.lua, embedded, not its own window) into the content area on the right.
+--
+-- Items accumulate in Data/Session.lua's PLC.Session.items from the moment they're silently
+-- self-looted (Session:CollectDetectedItems), long before any review pass -- the icon list
 -- always reflects that directly, not a separate pre-Start() "curation of the live loot window"
 -- step (that step doesn't exist anymore under the bagged-item workflow: by the time anyone could
--- react to an item it's already bagged). Click a row to select it; its full candidate/response/
--- Award/Pre-Award grid (UI/VotingFrame.lua, embedded, not its own window) renders below.
+-- react to an item it's already bagged).
 local SessionFrame = {}
 PLC.UI.SessionFrame = SessionFrame
 
@@ -20,75 +24,67 @@ local frame
 local content
 local itemListContainer
 local dataTable
-local detailLabel
+local detailArea
+local detailItemLabel
+local detailRemoveButton
 local detailContainer
 local votingPanel
 local startButton
 local endButton
 local awardAllButton
-local selectedIdx -- which session item's response grid is currently shown below the list
+local selectedIdx -- which session item's response grid is currently shown in the detail area
+local refresh -- forward-declared: onRemoveClick (defined before it) calls it
 
-local ITEM_COLUMNS = {
+-- Single icon-only column -- status is shown via the icon's border color (no room for inline
+-- text at sidebar width) plus a tooltip naming the item and its status on hover. Priority
+-- Awarded > Pre-awarded > Expired > Pending -- the "visibly flagged" overview status (see
+-- docs/SPECIFICATION.md's bagged-item workflow notes).
+local ICON_COLUMNS = {
 	{
-		width = 28,
+		width = 48,
 		isWidget = true,
 		create = function(row)
 			local holder = CreateFrame("Frame", nil, row)
-			holder:SetSize(24, 24)
+			holder:SetSize(40, 40)
+			holder:EnableMouse(true)
 			holder.texture = holder:CreateTexture(nil, "ARTWORK")
-			holder.texture:SetAllPoints()
+			holder.texture:SetPoint("TOPLEFT", 2, -2)
+			holder.texture:SetPoint("BOTTOMRIGHT", -2, 2)
+			holder.border = Primitives.createBorder(holder)
+			holder:SetScript("OnEnter", function(self)
+				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+				GameTooltip:SetText(self.tooltipName or "?")
+				if self.tooltipStatus then
+					GameTooltip:AddLine(self.tooltipStatus, 1, 1, 1)
+				end
+				GameTooltip:Show()
+			end)
+			holder:SetScript("OnLeave", function()
+				GameTooltip:Hide()
+			end)
 			return holder
 		end,
 		update = function(holder, rowData)
 			holder.texture:SetTexture(rowData.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-		end,
-	},
-	{
-		width = 170,
-		render = function(row)
-			return row.link or "?"
-		end,
-	},
-	{
-		-- Priority Awarded > Pre-awarded > Expired > Pending -- the "visibly flagged" overview
-		-- status (see docs/SPECIFICATION.md's bagged-item workflow notes).
-		width = 140,
-		render = function(row)
-			if row.awarded then
-				local entry = PLC.Roster:Get(row.awarded)
-				return string.format(L["SESSIONFRAME_AWARDED_TO"], (entry and entry.name) or "?")
-			end
-			if row.preAwardGuid then
-				local entry = PLC.Roster:Get(row.preAwardGuid)
-				return string.format(L["SESSIONFRAME_PREAWARDED_TO"], (entry and entry.name) or "?"), Primitives.color("accent")
-			end
-			if row.deadlineAt and time() > row.deadlineAt then
-				return L["SESSIONFRAME_EXPIRED"], Primitives.color("warning")
-			end
-			return L["SESSIONFRAME_PENDING"]
-		end,
-	},
-	{
-		-- Only shown pre-Start()/post-End() for a not-yet-awarded item -- there's no wire command
-		-- to retract an item once it's been broadcast, so removal has to stop being offered the
-		-- moment that becomes possible (Session:RemoveItem enforces the same rule independently).
-		width = 50,
-		isWidget = true,
-		create = function(row)
-			return ButtonWidget.createButton(row, L["SESSIONFRAME_REMOVE"], 44)
-		end,
-		update = function(button, rowData)
-			if PLC.Session.state ~= "active" and not rowData.awarded then
-				button:Show()
-				button:SetScript("OnClick", function()
-					if selectedIdx == rowData.idx then
-						selectedIdx = nil
-					end
-					PLC.Session:RemoveItem(rowData.idx)
-				end)
+			holder.tooltipName = rowData.link or "?"
+
+			local borderColor
+			if rowData.awarded then
+				local entry = PLC.Roster:Get(rowData.awarded)
+				holder.tooltipStatus = string.format(L["SESSIONFRAME_AWARDED_TO"], (entry and entry.name) or "?")
+				borderColor = "borderDim"
+			elseif rowData.preAwardGuid then
+				local entry = PLC.Roster:Get(rowData.preAwardGuid)
+				holder.tooltipStatus = string.format(L["SESSIONFRAME_PREAWARDED_TO"], (entry and entry.name) or "?")
+				borderColor = "accent"
+			elseif rowData.deadlineAt and time() > rowData.deadlineAt then
+				holder.tooltipStatus = L["SESSIONFRAME_EXPIRED"]
+				borderColor = "warning"
 			else
-				button:Hide()
+				holder.tooltipStatus = L["SESSIONFRAME_PENDING"]
+				borderColor = "border"
 			end
+			Primitives.setBorderColor(holder.border, borderColor)
 		end,
 	},
 }
@@ -118,14 +114,30 @@ local function firstPendingIdx(rows)
 	return nil
 end
 
+-- Session:RemoveItem already triggers notifySessionFrame -> OnSessionUpdated -> refresh() on
+-- success, but stays silent on its (defensive, shouldn't-happen-given-the-button's-own-visibility-
+-- rule) no-op paths -- the explicit refresh() call after this keeps selectedIdx consistent with
+-- reality either way, not just in the success case.
+local function onRemoveClick()
+	if not selectedIdx then
+		return
+	end
+	PLC.Session:RemoveItem(selectedIdx)
+	selectedIdx = nil
+	refresh()
+end
+
 local function showDetailFor(idx)
 	selectedIdx = idx
-	if selectedIdx then
-		detailLabel:Show()
+	local item = idx and PLC.Session.items[idx]
+	if item then
+		detailItemLabel:SetText(item.link or "?")
+		detailRemoveButton:SetShown(PLC.Session.state ~= "active" and not item.awarded)
 		detailContainer:Show()
-		votingPanel:ShowItem(selectedIdx)
+		votingPanel:ShowItem(idx)
 	else
-		detailLabel:Hide()
+		detailItemLabel:SetText(L["SESSIONFRAME_NO_ITEMS"])
+		detailRemoveButton:Hide()
 		detailContainer:Hide()
 	end
 end
@@ -142,11 +154,12 @@ local function updateButtons()
 	end
 end
 
--- Rebuilds the list, keeps/advances the selection, and updates the bottom button row -- called
--- whenever the frame is (re)shown, after Start()/End()/Award All, and from Session's
--- notifySessionFrame forward-hook whenever the item set or an award/pre-award changes while this
--- window is open.
-local function refresh()
+-- Rebuilds the icon list, keeps/advances the selection, and updates the bottom button row --
+-- called whenever the frame is (re)shown, after Start()/End()/Award All/Remove, and from
+-- Session's notifySessionFrame forward-hook whenever the item set or an award/pre-award changes
+-- while this window is open. Assigns to the forward-declared local above (not `local function`
+-- again here) since onRemoveClick, defined earlier in the file, already calls it.
+function refresh()
 	if not dataTable then
 		return
 	end
@@ -195,8 +208,8 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilSessionFrame", UIParent)
-	frame:SetSize(520, 480)
-	frame:SetPoint("CENTER", 0, 60)
+	frame:SetSize(640, 500)
+	frame:SetPoint("CENTER", 0, 50)
 	frame:SetFrameStrata("DIALOG")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
@@ -253,22 +266,45 @@ local function ensureFrame()
 
 	itemListContainer = CreateFrame("Frame", nil, content)
 	itemListContainer:SetPoint("TOPLEFT", content, "TOPLEFT")
-	itemListContainer:SetPoint("TOPRIGHT", content, "TOPRIGHT")
-	itemListContainer:SetHeight(160)
+	itemListContainer:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT")
+	itemListContainer:SetWidth(70)
 
-	dataTable = DataTable.Create(itemListContainer)
-	dataTable.scroll:SetAllPoints()
-	dataTable:SetColumns(ITEM_COLUMNS)
+	dataTable = DataTable.Create(itemListContainer, 48)
+	-- Leaves room on the right for the scrollbar (createScrollFrame anchors it just past the
+	-- scroll frame's own right edge) instead of letting it crowd right up against the divider.
+	dataTable.scroll:SetPoint("TOPLEFT")
+	dataTable.scroll:SetPoint("BOTTOMRIGHT", -14, 0)
+	dataTable:SetColumns(ICON_COLUMNS)
 	dataTable:SetRowClickHandler(function(rowData)
 		showDetailFor(rowData.idx)
 	end)
 
-	detailLabel = Primitives.createText(content, L["VOTINGFRAME_TITLE"], 12, "dim")
-	detailLabel:SetPoint("TOPLEFT", itemListContainer, "BOTTOMLEFT", 0, -8)
+	local divider = Primitives.createTexture(content, "ARTWORK", "borderDim")
+	divider:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT")
+	divider:SetPoint("BOTTOMLEFT", itemListContainer, "BOTTOMRIGHT")
+	divider:SetWidth(1)
 
-	detailContainer = CreateFrame("Frame", nil, content)
-	detailContainer:SetPoint("TOPLEFT", detailLabel, "BOTTOMLEFT", 0, -4)
-	detailContainer:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
+	detailArea = CreateFrame("Frame", nil, content)
+	detailArea:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT", 11, 0)
+	detailArea:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
+
+	detailItemLabel = Primitives.createText(detailArea, "", 13, "white")
+	detailItemLabel:SetPoint("TOPLEFT")
+	detailItemLabel:SetPoint("RIGHT", detailArea, "RIGHT", -80, 0)
+	detailItemLabel:SetJustifyH("LEFT")
+
+	-- Only ever meaningful pre-Start()/post-End() for a not-yet-awarded item -- there's no wire
+	-- command to retract an item once it's been broadcast (Session:RemoveItem enforces the same
+	-- rule independently); showDetailFor keeps this hidden the rest of the time.
+	detailRemoveButton = ButtonWidget.createButton(detailArea, L["SESSIONFRAME_REMOVE"], 70)
+	detailRemoveButton:SetPoint("TOPRIGHT")
+	detailRemoveButton:SetScript("OnClick", onRemoveClick)
+
+	Primitives.createSeparator(detailArea, -28)
+
+	detailContainer = CreateFrame("Frame", nil, detailArea)
+	detailContainer:SetPoint("TOPLEFT", 0, -36)
+	detailContainer:SetPoint("BOTTOMRIGHT")
 
 	votingPanel = PLC.UI.VotingFrame.CreatePanel(detailContainer)
 
