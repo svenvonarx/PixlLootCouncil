@@ -15,6 +15,7 @@ local LootFrame = {}
 PLC.UI.LootFrame = LootFrame
 
 local frame
+local header
 local dataTable
 local tickerHandle
 
@@ -62,6 +63,21 @@ local function stopTicker()
 	end
 end
 
+-- Shows who's holding the current review pass directly in this window's title bar too (not just
+-- UI/SessionFrame.lua's) -- a candidate deciding how to respond benefits from knowing who's
+-- actually running the session just as much as the holder does.
+local function updateHeaderOwner()
+	if not header then
+		return
+	end
+	if PLC.Session.state == "active" and PLC.Session.owner then
+		header.ownerLabel:SetText(string.format(L["STARTED_BY_LABEL"], PLC.Roster:ShortName(PLC.Session.owner.name) or "?"))
+		header.ownerLabel:Show()
+	else
+		header.ownerLabel:Hide()
+	end
+end
+
 local function ensureFrame()
 	if frame then
 		return frame
@@ -91,7 +107,7 @@ local function ensureFrame()
 	frame.bg:SetAllPoints()
 	frame.border = Primitives.createBorder(frame)
 
-	local header = CreateFrame("Frame", nil, frame)
+	header = CreateFrame("Frame", nil, frame)
 	header:SetHeight(Theme.LAYOUT.headerHeight)
 	header:SetPoint("TOPLEFT")
 	header:SetPoint("TOPRIGHT")
@@ -103,6 +119,10 @@ local function ensureFrame()
 
 	header.title = Primitives.createText(header, L["LOOTFRAME_TITLE"], 14, "title")
 	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, 0)
+
+	header.ownerLabel = Primitives.createText(header, "", 11, "dim")
+	header.ownerLabel:SetPoint("LEFT", header.title, "RIGHT", 10, 0)
+	header.ownerLabel:Hide()
 
 	header.close = Primitives.createCloseButton(header, 20)
 	header.close:SetPoint("RIGHT", -6, 0)
@@ -284,6 +304,7 @@ function LootFrame:Refresh()
 
 	local f = ensureFrame()
 	dataTable:SetRows(rows)
+	updateHeaderOwner()
 	f:Show()
 	startTicker()
 end

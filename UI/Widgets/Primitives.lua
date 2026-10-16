@@ -22,6 +22,13 @@ end
 -- Frame (a FontString/Texture region has no SetScript -- wrap it in a Frame first if the visual
 -- element itself can't host this directly, see UI/SessionFrame.lua's detail item label).
 --
+-- Anchored TOPLEFT-to-TOPLEFT by default (pass an explicit `anchor` -- one of the "ANCHOR_*"
+-- strings SetOwner takes -- to override) rather than Blizzard's own default "ANCHOR_RIGHT":
+-- that positions relative to the hovered frame's own right edge, which sits somewhere different
+-- for a 24px icon than for a 170px-wide name label, so the tooltip jumped to a different offset
+-- depending on which one of the two you were hovering. Anchoring to the shared TOPLEFT corner
+-- instead lands the tooltip in the same relative spot regardless of the hovered frame's width.
+--
 -- Reads `frame.itemLink` fresh on every hover rather than taking the link as a parameter here,
 -- since the main use case is a pooled/recycled row-cell widget (UI/Widgets/DataTable.lua) that
 -- gets rebound to a different item on every render -- the caller just updates
@@ -31,7 +38,10 @@ function Primitives.attachItemTooltip(frame, anchor)
 	frame:EnableMouse(true)
 	frame:SetScript("OnEnter", function(self)
 		if self.itemLink then
-			GameTooltip:SetOwner(self, anchor or "ANCHOR_RIGHT")
+			GameTooltip:SetOwner(self, anchor or "ANCHOR_NONE")
+			if not anchor then
+				GameTooltip:SetPoint("TOPLEFT", self, "TOPLEFT")
+			end
 			GameTooltip:SetHyperlink(self.itemLink)
 			GameTooltip:Show()
 		end

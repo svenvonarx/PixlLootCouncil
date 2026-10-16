@@ -60,10 +60,13 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
 - Confirm the sidebar shows the item's icon with a hairline border, auto-selects it, and the
   content area on the right shows the item's name + a Remove button above the "N out of M have
   voted" line + the candidate/role/response/Award/Pre-Award grid.
-- Hover the item name text at the top of the detail area (new this round): confirm the game's
-  normal item tooltip appears, same as hovering the item link anywhere else. Switch to a
-  different item (click another icon, or End/Start a session) and confirm the tooltip now shows
-  for the newly-selected item, not the old one.
+- Hover the item name text at the top of the detail area: confirm the game's normal item tooltip
+  appears, same as hovering the item link anywhere else. Switch to a different item (click
+  another icon, or End/Start a session) and confirm the tooltip now shows for the newly-selected
+  item, not the old one. Tooltip position (fixed this round): confirm the tooltip's own top-left
+  corner lines up with the top-left of the text you're hovering — it previously anchored off the
+  hovered frame's *right* edge, which put it in a visibly different spot than hovering a narrow
+  sidebar icon would (see 1.6's tooltip check — same underlying fix, shared code).
 - Two-column layout, flush and tight (refined this round): with only one item total, confirm it
   renders as a single icon (no empty second slot look). Seed a second item (`/plc additem
   <itemID>`) and confirm the two icons sit side by side on the same row, flush against the left
@@ -101,10 +104,10 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   from the sidebar and `PLC.Session.items` is actually empty.
 - Click "Start Session": confirm Remove disappears (no wire command exists to retract an
   already-broadcast item), End Session and Award All buttons appear, the window's title bar now
-  shows "Started by <name>" (holder's own character name, no realm suffix — see the realm-display
-  note below), and (with a second client, or `/plc additem` on the same one) that new icons keep
-  showing up live if looted while reviewing is still in progress. End the session and confirm
-  "Started by" disappears again.
+  shows "Session started by <name>" (holder's own character name, no realm suffix — see the
+  realm-display note below), and (with a second client, or `/plc additem` on the same one) that
+  new icons keep showing up live if looted while reviewing is still in progress. End the session
+  and confirm the "Session started by" label disappears again.
 - Seed several test items and confirm the sidebar scrolls without leaking frames (watch
   `/framestack` row count across repeated adds — it should stay bounded, not grow unbounded).
 - Click Award on a candidate in the response grid: confirm the item's icon border flips to a
@@ -123,11 +126,12 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   only "candidate" — see 2.7 for the full presence-timeout version): confirm it reads an actual
   response (BiS/Upgrade/etc.) once voted, "Waiting for response..." for a roster member who has
   the addon but hasn't voted, or "No addon detected" for one who's never checked in at all.
-- **No realm in the candidate grid (new this round):** with a second client/character (so there's
-  a real "Name-Realm" roster entry, not just your own unqualified name), confirm the candidate
-  grid shows just the character name, no "-Realm" suffix — same for the "Awarded to"/"Pre-awarded
-  to" tooltip lines on sidebar icons, and the new "Started by" header label. This is display-only
-  — comms/sync and Roster lookups still use the full "Name-Realm" internally, unaffected.
+- **No realm in the candidate grid:** with a second client/character (so there's a real
+  "Name-Realm" roster entry, not just your own unqualified name), confirm the candidate grid
+  shows just the character name, no "-Realm" suffix — same for the "Awarded to"/"Pre-awarded to"
+  tooltip lines on sidebar icons, and the "Session started by" header label (both this window's
+  and, see 1.6, `UI/LootFrame.lua`'s own copy of it). This is display-only — comms/sync and
+  Roster lookups still use the full "Name-Realm" internally, unaffected.
 
 ### 1.6 Candidate response window (whole-row timer background + new response set this round)
 - `UI/LootFrame.lua` pops up for you as a candidate once a review session starts (`Session:Start`
@@ -183,10 +187,16 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   silently replacing the scrollbar widget's one that kept the thumb in sync, since
   `SetScript` replaces rather than stacks — fixed by hooking the underlying method instead of the
   script event, so the two no longer compete for the same slot).
-- Item tooltips on hover (new this round): hover the icon in a row — confirm the game's normal
-  item tooltip appears (name, stats, everything, the same as hovering it anywhere else), not just
-  a name label. Hover the item name/link text next to it — same tooltip. Move off either and the
-  tooltip disappears.
+- Item tooltips on hover: hover the icon in a row — confirm the game's normal item tooltip
+  appears (name, stats, everything, the same as hovering it anywhere else), not just a name
+  label. Hover the item name/link text next to it — same tooltip. Move off either and the
+  tooltip disappears. Confirm the tooltip's own top-left corner lines up with the top-left of
+  whichever you hovered, icon or text — both should land in the same relative spot rather than
+  the text's (much wider) tooltip appearing in a visibly different place than the icon's.
+- This window's title bar also shows "Session started by <name>" while a session is active (new
+  this round, same label `UI/SessionFrame.lua` already shows, no realm suffix) — so a candidate
+  deciding how to respond can see who's actually running the session, not just the holder. Hidden
+  when there's no active session.
 - Type something in an item's note field, then click a response button: the whole row disappears
   immediately (not a "you voted" label) — other items in the list are unaffected.
 - Leave an item unanswered and watch it run out: once `profile.responseTimeoutSeconds` passes

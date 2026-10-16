@@ -74,7 +74,10 @@ L["SESSIONFRAME_PREAWARDED_TO"] = "Pre-awarded: %s"
 L["SESSIONFRAME_PENDING"] = "Pending"
 L["SESSIONFRAME_EXPIRED"] = "Expired"
 L["SESSIONFRAME_TIME_LEFT"] = "Time left: %ds"
-L["SESSIONFRAME_STARTED_BY"] = "Started by %s"
+-- Not window-prefixed -- shared by both UI/SessionFrame.lua's and UI/LootFrame.lua's header,
+-- since whoever's holding the session matters just as much to a candidate deciding how to
+-- respond as it does to the holder's own window.
+L["STARTED_BY_LABEL"] = "Session started by %s"
 L["SESSIONFRAME_NO_ITEMS"] = "No items yet -- loot something above the quality threshold."
 
 L["LOOTFRAME_TITLE"] = "Loot Response"
