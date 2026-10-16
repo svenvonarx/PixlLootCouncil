@@ -242,6 +242,12 @@ per the user's explicit choice — see the plan).
 - The actual item transfer is manual now (holder trades it in-game) — confirm the addon does
   *not* attempt to open a trade window or otherwise touch the trade UI; that's explicitly out of
   scope for this round.
+- **Pre-award doesn't survive a review pass (fixed this round):** Pre-Award an item, then End
+  Session *without* committing it (no Award All, no individual Award click) — confirm the item
+  carries forward to the next Start() as expected (it's not awarded, so it should), but its
+  "Staged" state does **not** — the button should read "Pre-Award" again and the top-list status
+  should show "Pending", not a leftover "Staged"/"Pre-awarded: X" from the review pass that never
+  actually committed it.
 
 ### 2.6 Chat announcements, exactly once (Stage 6, reworked after first playtest)
 - With a real session and award happening, confirm the session-start summary line (one line

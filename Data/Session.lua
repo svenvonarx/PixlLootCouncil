@@ -289,11 +289,14 @@ function Session:Start()
 	-- Whatever's already been silently collected becomes this review pass's starting batch.
 	-- Each item's response deadline is stamped NOW, not back when it was bagged -- otherwise an
 	-- item collected hours ago would show an already-expired countdown the instant anyone
-	-- actually sees it.
+	-- actually sees it. preAwardGuid is cleared too -- it's this review pass's own scratch
+	-- state (Session:SetPreAward), and a pick staged but never committed before the previous
+	-- End() must not silently show as "Staged" again the moment a new review starts.
 	local toSend = {}
 	for idx, item in pairs(self.items) do
 		if not item.awarded then
 			item.deadlineAt = time() + self.responseTimeoutSeconds
+			item.preAwardGuid = nil
 			toSend[idx] = item
 		end
 	end
@@ -565,14 +568,20 @@ function Session:End()
 	self.state = "ended"
 
 	-- Prune already-awarded items -- not-yet-awarded ones carry forward to the next Start()
-	-- instead of this review pass's leftovers vanishing.
+	-- instead of this review pass's leftovers vanishing. preAwardGuid is this review pass's own
+	-- scratch state (Session:SetPreAward) -- clear it here too, not just in Start(), so a pick
+	-- staged but never committed doesn't keep showing as "Staged" even during the inactive gap
+	-- before the next review starts.
 	for idx, item in pairs(self.items) do
 		if item.awarded then
 			self.items[idx] = nil
+		else
+			item.preAwardGuid = nil
 		end
 	end
 	self.isCollector = next(self.items) ~= nil
 	persist()
+	self:notifySessionFrame()
 
 	print(L["CHAT_PREFIX"] .. L["SESSION_ENDED"])
 end
