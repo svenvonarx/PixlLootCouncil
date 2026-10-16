@@ -405,12 +405,12 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilSessionFrame", UIParent)
-	-- Narrower than the previous round -- the embedded UI/VotingFrame.lua candidate grid's Role
-	-- column (text, 50px) became a role icon folded into the Name column instead, and that
-	-- column itself shrank from 165 to 130 (icons now budget for a 12-character WoW name, not a
-	-- guessed-wide one) -- column total drops from ~630px to ~520px; the detail area still needs
-	-- roughly 93px of its own overhead on top of that.
-	frame:SetSize(700, 500)
+	-- Width fixed at 630 -- the embedded UI/VotingFrame.lua grid's columns are fixed-width with
+	-- no reflow, so a wider window never did anything but add blank space on the right; 630 is
+	-- the narrowest the grid actually fits without clipping (see makeResizable below), so that's
+	-- the one width that's ever actually useful. Height stays freely resizable -- a taller window
+	-- genuinely shows more item icons in the sidebar.
+	frame:SetSize(630, 500)
 	frame:SetPoint("CENTER", 0, 50)
 	-- Deliberately stays at "DIALOG" -- the middle of the three main windows: UI/OptionsFrame.lua
 	-- (built on UI/Widgets/PanelLayout.lua) sits one tier below at "HIGH", UI/LootFrame.lua sits
@@ -423,10 +423,9 @@ local function ensureFrame()
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilSessionFrame")
-	-- Min width eased back down from 750 now that the grid itself is narrower (~520px, see
-	-- above) -- below ~630 its columns (gear icons, ilvl, diff) start clipping, since DataTable
-	-- columns are fixed-width with no reflow.
-	Primitives.makeResizable(frame, 630, 360, 900, 800)
+	-- Width min and max are the same value (630) -- fixes the width (see the comment on
+	-- SetSize above) while leaving height genuinely resizable between 360 and 800.
+	Primitives.makeResizable(frame, 630, 360, 630, 800)
 	-- Covers every way the window can close -- the header's own close button, Escape (via
 	-- UISpecialFrames), or a future caller just calling frame:Hide() directly -- without needing
 	-- to duplicate stopTicker() at each of those call sites.

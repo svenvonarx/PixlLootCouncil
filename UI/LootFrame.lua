@@ -84,11 +84,12 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
-	-- Wider default than before -- the response row's buttons+note are both fixed-size now (see
-	-- the response column below), together wider than the old dynamically-shrinking note field,
-	-- so the window needs more starting width to show a full row without the note box spilling
-	-- past the right edge (nothing in this row layout clips to the window's own bounds).
-	frame:SetSize(780, 260)
+	-- Width fixed at 700 -- this row's columns (including the fixed-size response buttons+note,
+	-- see below) are fixed-width with no reflow, so a wider window never did anything but add
+	-- blank space on the right; 700 is the narrowest that actually fits everything without
+	-- clipping (see makeResizable below), so that's the one width that's ever useful. Height
+	-- stays freely resizable -- a taller window genuinely shows more pending items at once.
+	frame:SetSize(700, 260)
 	frame:SetPoint("CENTER", 0, -80)
 	-- Top of the three main windows on purpose -- one tier above UI/SessionFrame.lua's "DIALOG"
 	-- (itself one tier above UI/OptionsFrame.lua's "HIGH") -- responding to loot always needs to
@@ -101,7 +102,9 @@ local function ensureFrame()
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilLootFrame")
-	Primitives.makeResizable(frame, 700, 180, 1000, 600)
+	-- Width min and max are the same value (700) -- fixes the width (see the comment on
+	-- SetSize above) while leaving height genuinely resizable between 180 and 600.
+	Primitives.makeResizable(frame, 700, 180, 700, 600)
 
 	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
 	frame.bg:SetAllPoints()

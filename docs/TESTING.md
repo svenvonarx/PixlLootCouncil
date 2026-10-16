@@ -132,9 +132,10 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   tooltip lines on sidebar icons, and the "Session started by" header label (both this window's
   and, see 1.6, `UI/LootFrame.lua`'s own copy of it). This is display-only — comms/sync and
   Roster lookups still use the full "Name-Realm" internally, unaffected.
-- **Role icon, class icon, note icon, iLvl/Diff, equipped-gear comparison:** the window defaults
-  wider now (700, min 630) to fit these without clipping. Confirm each candidate row shows, left
-  to right: a small role icon (Tank/Healer/DPS, hover it for a text tooltip naming the role —
+- **Role icon, class icon, note icon, iLvl/Diff, equipped-gear comparison:** the window's (now
+  fixed, see 1.6's resize note) width fits all of these without clipping. Confirm each candidate
+  row shows, left to right: a small role icon (Tank/Healer/DPS, hover it for a text tooltip
+  naming the role —
   this replaced the old separate "DPS"/"Tank"/"Heal" text column entirely), a class icon
   color/shape-matching `RAID_CLASS_COLORS`, then the name — all three packed into one compact
   column sized for a WoW name's actual 12-character cap, not a guessed-wide one; a long name
@@ -193,14 +194,13 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   same fixed width — short labels like "OS" should hug their text with modest padding, while
   "Upgrade" is visibly wider to fit its longer label, and none of them look cramped or overly
   padded next to each other.
-- Note field — fixed size, capped length (corrected this round): confirm the note box is **the
-  same height as the response buttons** next to it and **the same width as the full button row**
-  — a fixed size that does not change when you resize the window (an in-between round made it
-  dynamically resize per-window-width instead, which this round reverted — the window itself
-  defaults wider now specifically so this fixed-size row fits without spilling past the right
-  edge; if you shrink the window a lot, the note box may extend past the edge, which is expected
-  with a fixed-size row). Confirm it shows "Optional Note..." as placeholder text (gray, cleared
-  on real input). Type a long note (60+ characters): confirm the text wraps onto a second line
+- Note field — fixed size, capped length: confirm the note box is **the same height as the
+  response buttons** next to it and **the same width as the full button row** — a fixed size
+  that doesn't change when you resize the window (an in-between round made it dynamically resize
+  per-window-width instead, which was reverted — the window's width is fixed now anyway, see
+  1.6's resize note, so this no longer even comes up in practice). Confirm it shows "Optional
+  Note..." as placeholder text (gray, cleared on real input). Type a long note (60+ characters):
+  confirm the text wraps onto a second line
   and then **stops accepting more characters** once it's about full — it should NOT keep growing
   downward past the box's bottom border or past 2 lines; if you do manage to get a 3rd line's
   worth of text in, that's a bug (the box clips its own content as a backstop, but the character
@@ -246,15 +246,17 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   this one (top), regardless of which was clicked or opened most recently (three separate
   frame-strata tiers now: "HIGH"/"DIALOG"/"FULLSCREEN_DIALOG" — this was the actual overlap bug,
   Options and Session used to share the same "DIALOG" tier with undefined relative order).
-- Both windows are now drag-resizable from a small corner grip, bottom-right (brightens to accent
-  on hover) — confirm dragging it resizes the window within sensible bounds (it can't shrink
-  below a usable minimum), and that a taller `UI/SessionFrame.lua` actually shows more item icons
-  at once (the icon list is a real scrolling table, so it picks up the extra height) — widening
-  either window just adds blank space on the right, since column widths are still fixed for now.
-  Grip glyph (changed this round): confirm it now shows as a small triangular cluster of 6 dots
-  (3 along the very corner, 2 one step in, 1 furthest — the same shape most other apps' resize
-  handles use) instead of a single plain square, and that the whole cluster still brightens to
-  accent together on hover.
+- Both windows are drag-resizable from a small corner grip, bottom-right (brightens to accent on
+  hover) — but **width is now fixed** (changed this round: `UI/LootFrame.lua` locked at 700,
+  `UI/SessionFrame.lua` at 630 — each window's own former minimum width, the narrowest that still
+  fits its columns without clipping). Confirm dragging the grip diagonally changes the window's
+  *height* but the *width* never moves at all, no matter how far sideways you drag — this is
+  deliberate: both windows' columns are fixed-width with no reflow, so letting the width change
+  never did anything but add or clip blank space on the right. Confirm height still resizes
+  freely within its usual bounds, and that a taller `UI/SessionFrame.lua` still shows more item
+  icons at once (the icon list is a real scrolling table, so it picks up the extra height).
+  Grip glyph: confirm it still shows as a small triangular cluster of 6 dots (3 along the very
+  corner, 2 one step in, 1 furthest) and brightens to accent together on hover.
 - Every window's header (this one, Session, Options) now shows the brand logo to the left of the
   title, accent-tinted — confirm it re-tints live along with everything else when you change the
   accent color in Options → Appearance.
