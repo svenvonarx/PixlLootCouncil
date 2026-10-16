@@ -108,9 +108,19 @@ function Theme:ApplyFromAccent(r, g, b)
 	self:Refresh()
 end
 
+-- For widgets whose colors depend on state (e.g. a selected tab): fn() runs after every recolor.
+local refreshCallbacks = {}
+
+function Theme:OnRefresh(fn)
+	table.insert(refreshCallbacks, fn)
+end
+
 function Theme:Refresh()
 	for region, entry in pairs(tracked) do
 		paint(region, entry)
+	end
+	for _, fn in ipairs(refreshCallbacks) do
+		fn()
 	end
 end
 

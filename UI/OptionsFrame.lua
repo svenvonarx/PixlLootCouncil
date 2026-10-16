@@ -124,23 +124,17 @@ end
 local function buildCouncilPage(page)
 	local council = PLC.db.profile.council
 
-	local intro = Primitives.createText(page, L["OPTIONS_COUNCIL_INTRO"], 11, "dim")
-	intro:SetPoint("TOPLEFT")
-	intro:SetPoint("RIGHT", page, "RIGHT")
-	intro:SetJustifyH("LEFT")
-	intro:SetWordWrap(true)
-
 	local raidAssist = CheckboxWidget.createCheckbox(page, L["OPTIONS_COUNCIL_RAIDASSIST"], function(checked)
 		council.raidAssist = checked
 		councilChanged()
 	end)
-	raidAssist:SetPoint("TOPLEFT", 0, -52)
+	raidAssist:SetPoint("TOPLEFT", 0, 0)
 	raidAssist:SetChecked(council.raidAssist)
 
 	-- Guild ranks: one checkbox per rank, two columns, rebuilt whenever the page is shown (rank
 	-- names load lazily, and can change).
 	local ranksLabel = Primitives.createText(page, L["OPTIONS_COUNCIL_GUILD_RANKS"], 13, "white")
-	ranksLabel:SetPoint("TOPLEFT", 0, -90)
+	ranksLabel:SetPoint("TOPLEFT", 0, -38)
 	local noGuild = Primitives.createText(page, L["OPTIONS_COUNCIL_NO_GUILD"], 11, "dim")
 	noGuild:SetPoint("TOPLEFT", ranksLabel, "BOTTOMLEFT", 0, -8)
 
@@ -158,7 +152,7 @@ local function buildCouncilPage(page)
 	end
 
 	-- Manual names.
-	local namesTop = -90 - 18 - 8 - math.ceil(MAX_RANKS / 2) * 24 - 12
+	local namesTop = -38 - 18 - 8 - math.ceil(MAX_RANKS / 2) * 24 - 12
 	local namesLabel = Primitives.createText(page, L["OPTIONS_COUNCIL_NAMES"], 13, "white")
 	namesLabel:SetPoint("TOPLEFT", 0, namesTop)
 
@@ -248,6 +242,8 @@ local function buildCouncilPage(page)
 	refreshNames()
 end
 
+local DEFAULT_ACCENT = { r = 0.91, g = 0.64, b = 0.24 }
+
 local function buildAppearancePage(page)
 	local profile = PLC.db.profile
 
@@ -257,31 +253,60 @@ local function buildAppearancePage(page)
 	local swatch = CreateFrame("Button", nil, page)
 	swatch:SetSize(28, 28)
 	swatch:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -10)
-	-- Not Primitives.createTexture -- same reason as the response swatches above: this color is
-	-- the live-edited accent value itself, not a named theme token to re-skin from COLORS.
+	-- A plain texture, not a themed fill: it shows the chosen accent value itself.
 	swatch.tex = swatch:CreateTexture(nil, "ARTWORK")
-	swatch.tex:SetAllPoints()
-	swatch.tex:SetColorTexture(profile.accent.r, profile.accent.g, profile.accent.b)
+	swatch.tex:SetPoint("TOPLEFT", 1, -1)
+	swatch.tex:SetPoint("BOTTOMRIGHT", -1, 1)
 	swatch.border = Primitives.createBorder(swatch)
 
+	-- Saves the accent to the profile and recolors the whole UI.
+	local function setAccent(r, g, b)
+		profile.accent = { r = r, g = g, b = b }
+		swatch.tex:SetColorTexture(r, g, b)
+		Theme:ApplyFromAccent(r, g, b)
+	end
+	swatch.tex:SetColorTexture(profile.accent.r, profile.accent.g, profile.accent.b)
+
+	local hint = Primitives.createText(page, L["OPTIONS_ACCENT_HINT"], 11, "dim")
+	hint:SetPoint("LEFT", swatch, "RIGHT", 12, 0)
+
+	-- The game's color picker. Current clients set it up through SetupColorPickerAndShow (the old
+	-- ColorPickerFrame.func fields are ignored there, so picks never reached the addon); older ones
+	-- still use the fields. Live preview while picking, restored on Cancel.
 	swatch:SetScript("OnClick", function()
-		local accent = profile.accent
-		local function apply()
-			local r, g, b = ColorPickerFrame:GetColorRGB()
-			accent.r, accent.g, accent.b = r, g, b
-			Theme:ApplyFromAccent(r, g, b)
-			swatch.tex:SetColorTexture(r, g, b)
+		local before = { r = profile.accent.r, g = profile.accent.g, b = profile.accent.b }
+		local function onPick()
+			setAccent(ColorPickerFrame:GetColorRGB())
 		end
-		ColorPickerFrame.func = apply
-		ColorPickerFrame.cancelFunc = function()
-			Theme:ApplyFromAccent(accent.r, accent.g, accent.b)
-			swatch.tex:SetColorTexture(accent.r, accent.g, accent.b)
+		local function onCancel()
+			setAccent(before.r, before.g, before.b)
 		end
-		ColorPickerFrame.hasOpacity = false
-		if ColorPickerFrame.SetColorRGB then
-			ColorPickerFrame:SetColorRGB(accent.r, accent.g, accent.b)
+		if ColorPickerFrame.SetupColorPickerAndShow then
+			ColorPickerFrame:SetupColorPickerAndShow({
+				r = before.r, g = before.g, b = before.b,
+				hasOpacity = false,
+				swatchFunc = onPick,
+				cancelFunc = onCancel,
+			})
+		else
+			ColorPickerFrame.hasOpacity = false
+			ColorPickerFrame.func = onPick
+			ColorPickerFrame.cancelFunc = onCancel
+			ColorPickerFrame:SetColorRGB(before.r, before.g, before.b)
+			ShowUIPanel(ColorPickerFrame)
 		end
-		ShowUIPanel(ColorPickerFrame)
+	end)
+	swatch:SetScript("OnEnter", function(self)
+		Primitives.setBorderColor(self.border, "accent", 0.85)
+	end)
+	swatch:SetScript("OnLeave", function(self)
+		Primitives.setBorderColor(self.border, "border")
+	end)
+
+	local reset = ButtonWidget.createButton(page, L["OPTIONS_ACCENT_RESET"], 130)
+	reset:SetPoint("TOPLEFT", swatch, "BOTTOMLEFT", 0, -14)
+	reset:SetScript("OnClick", function()
+		setAccent(DEFAULT_ACCENT.r, DEFAULT_ACCENT.g, DEFAULT_ACCENT.b)
 	end)
 end
 
@@ -293,17 +318,21 @@ local function ensurePanel()
 	panel = PanelLayout.Create({
 		name = "PixlLootCouncilOptionsFrame",
 		width = 560,
-		height = 520, -- General stacks 4 checkboxes + 4 sliders; give it room
+		height = 590, -- General stacks 4 checkboxes + 4 sliders under the page header
 		title = L["OPTIONS_TITLE"],
 	})
 
-	panel:AddSidebarHeader(L["OPTIONS_SECTION_RAID"])
-	buildGeneralPage(panel:AddTab("general", L["OPTIONS_TAB_GENERAL"]))
-	buildResponsesPage(panel:AddTab("responses", L["OPTIONS_TAB_RESPONSES"]))
-	buildCouncilPage(panel:AddTab("council", L["OPTIONS_TAB_COUNCIL"]))
+	panel:AddSidebarHeader(L["OPTIONS_SECTION_COUNCIL"])
+	buildGeneralPage(panel:AddTab("general", L["OPTIONS_TAB_GENERAL"],
+		{ icon = "nav_general.png", description = L["OPTIONS_DESC_GENERAL"] }))
+	buildResponsesPage(panel:AddTab("responses", L["OPTIONS_TAB_RESPONSES"],
+		{ icon = "nav_responses.png", description = L["OPTIONS_DESC_RESPONSES"] }))
+	buildCouncilPage(panel:AddTab("council", L["OPTIONS_TAB_COUNCIL"],
+		{ icon = "nav_council.png", description = L["OPTIONS_COUNCIL_INTRO"] }))
 
 	panel:AddSidebarHeader(L["OPTIONS_SECTION_SETTINGS"])
-	buildAppearancePage(panel:AddTab("appearance", L["OPTIONS_TAB_APPEARANCE"]))
+	buildAppearancePage(panel:AddTab("appearance", L["OPTIONS_TAB_APPEARANCE"],
+		{ icon = "nav_appearance.png", description = L["OPTIONS_DESC_APPEARANCE"] }))
 
 	return panel
 end
