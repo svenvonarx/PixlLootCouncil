@@ -132,6 +132,27 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   tooltip lines on sidebar icons, and the "Session started by" header label (both this window's
   and, see 1.6, `UI/LootFrame.lua`'s own copy of it). This is display-only — comms/sync and
   Roster lookups still use the full "Name-Realm" internally, unaffected.
+- **Class icon, note icon, iLvl/Diff, equipped-gear comparison (new this round):** the window
+  defaults wider now (850, min 750) specifically to fit these. Confirm each candidate row shows a
+  small class icon to the left of their name, color-matching `RAID_CLASS_COLORS`. Give one
+  candidate a note (type something in `UI/LootFrame.lua`'s note field before responding): confirm
+  a small "page" glyph appears next to their response text, and that hovering the response cell
+  still shows the note text in a tooltip exactly as before — the glyph is purely a visibility aid,
+  not a new interaction. Test gear sync: have both clients click Start Session (or join an
+  already-active one), then confirm each candidate's row shows: an iLvl number and a colored Diff
+  (green/+, red/-, white/0) for the slot the current item would fill, plus 1 or 2 small gear icons
+  (2 for a ring/trinket/weapon test item — e.g. seed one via `/plc additem <a ring's itemID>` —
+  1 for anything else) each showing that candidate's actually-equipped item, hoverable for its
+  real tooltip. Before any gear sync has arrived for a candidate (e.g. right as a session starts,
+  before the broadcast lands), confirm iLvl/Diff show "-" and the gear icons are simply absent,
+  then confirm they fill in live within a second or two without needing to click anything —
+  `Data/Gear.lua`'s `notifyVotingFrame` should re-render the grid the moment each `gear` message
+  arrives. Switch to a different item in the sidebar and back: confirm the numbers update to
+  match that item's own slot, not the previous item's.
+- **Late-joiner gear sync:** with a session already active, join the group (or `/reload`) on the
+  second client, then trigger a resync (`/plc session sync` or just wait for the automatic one on
+  join) — confirm that client's own gear eventually shows up in the OTHER client's candidate grid
+  too, not just clients who were present at the original Start().
 
 ### 1.6 Candidate response window (whole-row timer background + new response set this round)
 - `UI/LootFrame.lua` pops up for you as a candidate once a review session starts (`Session:Start`

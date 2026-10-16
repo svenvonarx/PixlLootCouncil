@@ -96,6 +96,16 @@ function Sync:SendPresence(guid)
 	Protocol:Send("presence", { guid = guid }, ch)
 end
 
+-- Not session-scoped either, but unlike presence it's only ever sent at specific moments (a
+-- session starting, a late joiner catching up), never periodically -- see Data/Gear.lua.
+function Sync:SendGear(guid, slots)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("gear", { guid = guid, slots = slots }, ch)
+end
+
 Protocol:RegisterHandler("session_start", function(data) PLC.Session:OnSessionStartReceived(data) end)
 Protocol:RegisterHandler("item_add", function(data) PLC.Session:OnItemAddReceived(data) end)
 Protocol:RegisterHandler("response", function(data) PLC.Session:OnResponseReceived(data) end)
@@ -106,3 +116,4 @@ Protocol:RegisterHandler("session_force_end", function(data) PLC.Session:OnForce
 Protocol:RegisterHandler("session_sync_request", function(data, sender) PLC.Session:OnSyncRequestReceived(data, sender) end)
 Protocol:RegisterHandler("session_sync_data", function(data) PLC.Session:OnSyncDataReceived(data) end)
 Protocol:RegisterHandler("presence", function(data) PLC.Presence:OnPresenceReceived(data) end)
+Protocol:RegisterHandler("gear", function(data) PLC.Gear:OnGearReceived(data) end)

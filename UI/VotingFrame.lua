@@ -52,6 +52,49 @@ local function findRowIndexByGuid(rowsData, guid)
 	end
 end
 
+-- Which inventory slot(s) a loot item's own equipLoc competes against for the gear-comparison
+-- columns -- two slots for rings/trinkets/one-and-two-hand weapons (either could be the one that
+-- actually gets replaced), one for everything else. Items with no entry here (non-equippable
+-- loot) simply show nothing in those columns -- not an error case, just not applicable.
+local EQUIP_SLOTS = {
+	INVTYPE_HEAD = { 1 },
+	INVTYPE_NECK = { 2 },
+	INVTYPE_SHOULDER = { 3 },
+	INVTYPE_CHEST = { 5 },
+	INVTYPE_ROBE = { 5 },
+	INVTYPE_WAIST = { 6 },
+	INVTYPE_LEGS = { 7 },
+	INVTYPE_FEET = { 8 },
+	INVTYPE_WRIST = { 9 },
+	INVTYPE_HAND = { 10 },
+	INVTYPE_FINGER = { 11, 12 },
+	INVTYPE_TRINKET = { 13, 14 },
+	INVTYPE_CLOAK = { 15 },
+	INVTYPE_WEAPON = { 16, 17 },
+	INVTYPE_2HWEAPON = { 16, 17 },
+	INVTYPE_WEAPONMAINHAND = { 16 },
+	INVTYPE_WEAPONOFFHAND = { 17 },
+	INVTYPE_SHIELD = { 17 },
+	INVTYPE_HOLDABLE = { 17 },
+	INVTYPE_RANGED = { 18 },
+	INVTYPE_RANGEDRIGHT = { 18 },
+	INVTYPE_THROWN = { 18 },
+	INVTYPE_RELIC = { 18 },
+}
+
+-- nil, nil, nil (not yet synced, or not yet resolved client-side) is a normal, expected result
+-- here, not an error -- see Data/Gear.lua.
+local function resolveEquippedSlot(guid, slotID)
+	if not slotID then
+		return nil, nil, nil
+	end
+	local itemID = PLC.Gear:GetEquipped(guid, slotID)
+	if not itemID then
+		return nil, nil, nil
+	end
+	return PLC.Gear:ResolveItem(itemID)
+end
+
 function Panel:buildRows()
 	local rows = {}
 	if not self.currentIdx then
@@ -59,9 +102,23 @@ function Panel:buildRows()
 	end
 	local item = PLC.Session.items[self.currentIdx]
 	local responses = PLC.Session.responses[self.currentIdx]
+
+	-- Computed once per shown item, not once per candidate row -- the new item's own ilvl and
+	-- which slot(s) it competes against are the same for every candidate being compared.
+	local newItemLevel, slotIDs
+	if item and item.link then
+		-- item.link is already resolved/synced reliably by the time an item is visible in this
+		-- panel at all (the same guarantee its icon display already relies on, Data/Session.lua),
+		-- so no "not cached yet" retry is needed on this side the way Data/Gear.lua needs one for
+		-- an opponent's equipped item.
+		local _, _, _, itemLevel, _, _, _, _, equipLoc = C_Item.GetItemInfo(item.link)
+		newItemLevel = itemLevel
+		slotIDs = equipLoc and EQUIP_SLOTS[equipLoc]
+	end
+
 	for guid, entry in PLC.Roster:IterateGroup() do
 		local r = responses and responses[guid]
-		table.insert(rows, {
+		local row = {
 			guid = guid,
 			name = entry.name, -- full "Name-Realm", kept only for the sort below
 			shortName = PLC.Roster:ShortName(entry.name),
@@ -71,7 +128,29 @@ function Panel:buildRows()
 			note = r and r.note,
 			present = PLC.Presence:IsPresent(guid),
 			staged = item ~= nil and item.preAwardGuid == guid,
-		})
+		}
+
+		if slotIDs then
+			local link1, icon1, ilvl1 = resolveEquippedSlot(guid, slotIDs[1])
+			local link2, icon2, ilvl2 = resolveEquippedSlot(guid, slotIDs[2])
+			row.gearLink1, row.gearIcon1 = link1, icon1
+			row.gearLink2, row.gearIcon2 = link2, icon2
+
+			-- The lower of the two (or whichever single one exists) -- the one more likely to
+			-- actually get replaced is the relevant comparison, not an average of both.
+			local equippedIlvl
+			if ilvl1 and ilvl2 then
+				equippedIlvl = math.min(ilvl1, ilvl2)
+			else
+				equippedIlvl = ilvl1 or ilvl2
+			end
+			row.equippedIlvl = equippedIlvl
+			if newItemLevel and equippedIlvl then
+				row.diff = newItemLevel - equippedIlvl
+			end
+		end
+
+		table.insert(rows, row)
 	end
 	table.sort(rows, function(a, b) return a.name < b.name end)
 	return rows
@@ -141,6 +220,45 @@ function Panel:OnItemUpdated(idx, guid)
 	self:updateHeader()
 end
 
+-- Builds one of the two equipped-gear icon columns -- `suffix` ("1"/"2") picks which half of the
+-- row's gearLink*/gearIcon* pair this particular column reads, same factory-function pattern
+-- UI/SessionFrame.lua's iconColumn(suffix) already uses for its own two-icons-per-row sidebar.
+-- Hidden entirely for a single-slot item's unused second column, not just blank.
+local function gearColumn(suffix)
+	return {
+		width = 24,
+		isWidget = true,
+		create = function(row)
+			local holder = CreateFrame("Frame", nil, row)
+			holder:SetSize(20, 20)
+			holder.texture = holder:CreateTexture(nil, "ARTWORK")
+			-- Inset 1px, not SetAllPoints -- the border below sits at the holder's exact edge, on
+			-- the BORDER layer, which an edge-to-edge ARTWORK-layer texture would render over and
+			-- hide entirely (same reason UI/SessionFrame.lua's icon texture is inset, see its
+			-- iconColumn).
+			holder.texture:SetPoint("TOPLEFT", 1, -1)
+			holder.texture:SetPoint("BOTTOMRIGHT", -1, 1)
+			holder.border = Primitives.createBorder(holder)
+			-- Same hover-tooltip helper UI/LootFrame.lua's and UI/SessionFrame.lua's item icons
+			-- already use, just pointed at the candidate's equipped item instead of the session
+			-- item -- holder.itemLink is read fresh on every hover, set below in update().
+			Primitives.attachItemTooltip(holder)
+			return holder
+		end,
+		update = function(holder, rowData)
+			local link = rowData["gearLink" .. suffix]
+			if link then
+				holder.texture:SetTexture(rowData["gearIcon" .. suffix] or "Interface\\Icons\\INV_Misc_QuestionMark")
+				holder.itemLink = link
+				holder:Show()
+			else
+				holder.itemLink = nil
+				holder:Hide()
+			end
+		end,
+	}
+end
+
 -- Builds the "N of M voted" header + candidate/role/response/Award/Pre-Award grid into `parent`
 -- and returns the panel object. Only one is ever actually live at a time in practice (the one
 -- UI/SessionFrame.lua mounts), but nothing here assumes that -- VotingFrame.activePanel (set
@@ -168,10 +286,24 @@ function VotingFrame.CreatePanel(parent)
 
 	dataTable:SetColumns({
 		{
-			width = 150,
-			render = function(row)
-				local r, g, b = classColor(row.class)
-				return row.shortName, r, g, b
+			-- Widget, not plain text -- hosting the class icon needs an actual Frame.
+			width = 165,
+			isWidget = true,
+			create = function(row)
+				local holder = CreateFrame("Frame", nil, row)
+				holder:SetSize(165, 20)
+				holder.classIcon = Primitives.createClassIcon(holder, nil)
+				holder.classIcon:SetSize(16, 16)
+				holder.classIcon:SetPoint("LEFT")
+				holder.text = Primitives.createText(holder, "", 11)
+				holder.text:SetPoint("LEFT", holder.classIcon, "RIGHT", 4, 0)
+				return holder
+			end,
+			update = function(holder, rowData)
+				Primitives.setClassIcon(holder.classIcon, rowData.class)
+				local r, g, b = classColor(rowData.class)
+				holder.text:SetText(rowData.shortName)
+				holder.text:SetTextColor(r, g, b)
 			end,
 		},
 		{
@@ -191,7 +323,16 @@ function VotingFrame.CreatePanel(parent)
 				holder:SetSize(150, 20)
 				holder:EnableMouse(true)
 				holder.text = Primitives.createText(holder, "", 11)
-				holder.text:SetAllPoints()
+				holder.text:SetPoint("LEFT")
+				-- Leaves room on the right for the note icon instead of SetAllPoints -- response
+				-- text is always short, so this just bounds its width rather than changing how
+				-- it looks in the (overwhelmingly common) no-note case.
+				holder.text:SetPoint("RIGHT", -14, 0)
+				-- A small "has a note" glyph instead of requiring you to already know to hover --
+				-- the hover-tooltip itself (below) is unchanged, this is purely a visibility aid.
+				holder.noteIcon = Primitives.createNoteIcon(holder, 10)
+				holder.noteIcon:SetPoint("RIGHT", -2, 0)
+				holder.noteIcon:Hide()
 				holder:SetScript("OnEnter", function(frame)
 					if frame.note and frame.note ~= "" then
 						GameTooltip:SetOwner(frame, "ANCHOR_TOP")
@@ -219,8 +360,34 @@ function VotingFrame.CreatePanel(parent)
 					holder.text:SetTextColor(r, g, b)
 				end
 				holder.note = rowData.note
+				holder.noteIcon:SetShown(rowData.note ~= nil and rowData.note ~= "")
 			end,
 		},
+		{
+			width = 35,
+			justify = "CENTER",
+			render = function(row)
+				return row.equippedIlvl and tostring(row.equippedIlvl) or "-"
+			end,
+		},
+		{
+			-- Green/red/white against the equipped item's ilvl (see Panel:buildRows) -- reuses
+			-- Theme.COLORS.success (added for the Award-feedback green) and the existing warning
+			-- red, no new Theme entries.
+			width = 35,
+			justify = "CENTER",
+			render = function(row)
+				if not row.diff then
+					return "-"
+				end
+				local colorName = row.diff > 0 and "success" or (row.diff < 0 and "warning" or "text")
+				local r, g, b = Primitives.color(colorName)
+				local sign = row.diff > 0 and "+" or ""
+				return sign .. row.diff, r, g, b
+			end,
+		},
+		gearColumn("1"),
+		gearColumn("2"),
 		{
 			width = 60,
 			isWidget = true,

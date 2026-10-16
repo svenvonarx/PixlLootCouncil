@@ -80,6 +80,48 @@ function Primitives.createLogo(parent, height)
 	return logo
 end
 
+-- The standard Blizzard circular class-icon atlas (matching modern Blizzard UI, e.g. the group
+-- finder tool) -- CLASS_ICON_TCOORDS is a long-standing Blizzard global, keyed by class FILE
+-- token (e.g. "WARRIOR", "MAGE"), mapping to {left, right, top, bottom} texture coordinates into
+-- this one shared atlas. No new art asset needed. Split into a setter + a creator (rather than
+-- just the creator) so a pooled/recycled widget (UI/Widgets/DataTable.lua row cells) can update
+-- an existing icon's class in its own update() instead of needing a new texture every render.
+function Primitives.setClassIcon(icon, classToken)
+	local coords = classToken and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classToken]
+	if coords then
+		icon:SetTexCoord(unpack(coords))
+		icon:Show()
+	else
+		icon:Hide()
+	end
+end
+
+function Primitives.createClassIcon(parent, classToken)
+	local icon = parent:CreateTexture(nil, "ARTWORK")
+	icon:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circle")
+	Primitives.setClassIcon(icon, classToken)
+	return icon
+end
+
+-- A small "page with lines" glyph marking "this row has a note attached" -- built from the same
+-- flat vector-primitive technique as the header close button's rotated-hairline "X"
+-- (UI/Widgets/Primitives.lua's createCloseButton) and the resize grip's dot-triangle
+-- (makeResizable), not a new texture asset. Caller toggles visibility with :SetShown(...)
+-- depending on whether that row actually has a note -- this just builds the glyph.
+function Primitives.createNoteIcon(parent, size)
+	size = size or 10
+	local icon = CreateFrame("Frame", nil, parent)
+	icon:SetSize(size, size)
+	icon.border = Primitives.createBorder(icon, "dim")
+	for i = 1, 2 do
+		local line = Primitives.createTexture(icon, "ARTWORK", "dim")
+		line:SetHeight(1)
+		line:SetPoint("TOPLEFT", 2, -(2 + (i - 1) * 3))
+		line:SetPoint("TOPRIGHT", -2, -(2 + (i - 1) * 3))
+	end
+	return icon
+end
+
 -- Requested size is scaled ~20% down before SetFont (ported formula, min 9px) -- falls back to
 -- the default Blizzard font if the bundled one fails to load (e.g. font file missing on disk),
 -- same safety net FojjiCore's own OptionsMenu.lua uses.

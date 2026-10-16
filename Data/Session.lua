@@ -285,6 +285,9 @@ function Session:Start()
 	self.lastHolderSeenAt = time()
 	self.responseTimeoutSeconds = PLC.db.profile.responseTimeoutSeconds
 	startHeartbeat()
+	-- The holder is almost always also a candidate -- announce their own equipped gear the same
+	-- as every other candidate does (see Data/Gear.lua), not a special case.
+	PLC.Gear:BroadcastOwn()
 
 	-- Whatever's already been silently collected becomes this review pass's starting batch.
 	-- Each item's response deadline is stamped NOW, not back when it was bagged -- otherwise an
@@ -475,6 +478,8 @@ function Session:OnSessionStartReceived(data)
 	self.responseTimeoutSeconds = data.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
 	applyReceivedItems(data.items)
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_STARTED_BY"], data.owner and data.owner.name or "?"))
+	-- Announces OUR gear now that we know a review pass actually started -- see Data/Gear.lua.
+	PLC.Gear:BroadcastOwn()
 	self:notifyLootFrame()
 	self:notifySessionFrame()
 end
@@ -660,6 +665,10 @@ function Session:OnSyncDataReceived(data)
 	self.responses = data.responses or {}
 	self.lastHolderSeenAt = data.lastHolderSeenAt or time()
 	print(L["CHAT_PREFIX"] .. L["SESSION_SYNCED"])
+	-- A late joiner catching up never got the session-start broadcast that would otherwise have
+	-- triggered this -- announce our gear now so we're not a permanent gap in the group's gear
+	-- data for this session (see Data/Gear.lua).
+	PLC.Gear:BroadcastOwn()
 end
 
 local function restoreFromSaved()
