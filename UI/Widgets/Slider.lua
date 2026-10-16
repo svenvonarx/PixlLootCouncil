@@ -6,46 +6,45 @@ local Theme = PLC.UI.Theme
 local Slider = {}
 PLC.UI.Widgets.Slider = Slider
 
--- Ported from FojjiCore (Options.lua:338-377, see docs/analysis/fojjicore-ui-style.md): a real
--- Slider frame over a flat 4px track, with a solid accent-colored thumb texture -- no separate
--- fill/progress bar.
+-- A titled horizontal slider: label on top, a thin track with an accent handle, min/max captions
+-- underneath and the current value to the right. Returns the Slider itself; its outer frame is
+-- slider.container (position that) and slider.valueText is the value caption (the caller updates
+-- it from OnValueChanged).
+local TRACK_HEIGHT = 18
+local RAIL_HEIGHT = 4
+
 function Slider.createSlider(parent, labelText, minValue, maxValue, step)
+	local width = Theme.LAYOUT.sliderWidth
 	local container = CreateFrame("Frame", nil, parent)
-	container:SetSize(Theme.LAYOUT.sliderWidth + 75, Theme.LAYOUT.sliderHeight)
+	container:SetSize(width + 75, Theme.LAYOUT.sliderHeight)
 
-	local label = Primitives.createText(container, labelText, 13, "white")
-	label:SetPoint("TOPLEFT")
+	local title = Primitives.createText(container, labelText, 13, "white")
+	title:SetPoint("TOPLEFT")
 
-	local track = CreateFrame("Frame", nil, container)
-	track:SetSize(Theme.LAYOUT.sliderWidth, 18)
-	track:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -13)
-
-	local bg = Primitives.createTexture(track, "BACKGROUND", "scroll")
-	bg:SetPoint("LEFT")
-	bg:SetPoint("RIGHT")
-	bg:SetHeight(4)
-
-	local slider = CreateFrame("Slider", nil, track)
-	slider:SetAllPoints()
+	local slider = CreateFrame("Slider", nil, container)
+	slider:SetSize(width, TRACK_HEIGHT)
+	slider:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -13)
 	slider:SetOrientation("HORIZONTAL")
 	slider:SetMinMaxValues(minValue, maxValue)
 	slider:SetValueStep(step)
 	slider:SetObeyStepOnDrag(true)
 
-	local thumb = slider:CreateTexture(nil, "ARTWORK")
-	thumb:SetSize(12, 20)
-	thumb:SetColorTexture(Primitives.color("accent"))
-	slider:SetThumbTexture(thumb)
+	local rail = Primitives.createTexture(slider, "BACKGROUND", "scroll")
+	rail:SetHeight(RAIL_HEIGHT)
+	rail:SetPoint("LEFT")
+	rail:SetPoint("RIGHT")
 
-	local minText = Primitives.createText(container, tostring(minValue), 10, "dim")
-	minText:SetPoint("TOPLEFT", track, "BOTTOMLEFT", 0, -4)
+	local handle = Primitives.createTexture(slider, "ARTWORK", "accent")
+	handle:SetSize(12, 20)
+	slider:SetThumbTexture(handle)
 
-	local maxText = Primitives.createText(container, tostring(maxValue), 10, "dim")
-	maxText:SetPoint("TOPRIGHT", track, "BOTTOMRIGHT", 0, -4)
+	local low = Primitives.createText(container, tostring(minValue), 10, "dim")
+	low:SetPoint("TOPLEFT", slider, "BOTTOMLEFT", 0, -4)
+	local high = Primitives.createText(container, tostring(maxValue), 10, "dim")
+	high:SetPoint("TOPRIGHT", slider, "BOTTOMRIGHT", 0, -4)
 
 	slider.valueText = Primitives.createText(container, "", 12, "white")
-	slider.valueText:SetPoint("LEFT", track, "RIGHT", 20, 0)
+	slider.valueText:SetPoint("LEFT", slider, "RIGHT", 20, 0)
 	slider.container = container
-
 	return slider
 end

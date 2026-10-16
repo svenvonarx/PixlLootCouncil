@@ -6,58 +6,52 @@ local Theme = PLC.UI.Theme
 local Checkbox = {}
 PLC.UI.Widgets.Checkbox = Checkbox
 
--- Ported from FojjiCore (Options.lua:285-336, see docs/analysis/fojjicore-ui-style.md): a custom
--- 16x16 box (not the Blizzard CheckButton template) with a flat accent-colored fill as the check
--- mark, shown/hidden rather than drawn as a glyph.
+-- A label with a small square in front of it; checked shows an accent-filled inner square. The
+-- whole row is clickable. onChanged(checked) fires on every click.
+local BOX_SIZE = 16
+local MARK_INSET = 3
+
 function Checkbox.createCheckbox(parent, text, onChanged)
-	local button = CreateFrame("Button", nil, parent)
-	button:SetSize(Theme.LAYOUT.checkboxWidth, Theme.LAYOUT.checkboxHeight)
+	local row = CreateFrame("Button", nil, parent)
+	row:SetSize(Theme.LAYOUT.checkboxWidth, Theme.LAYOUT.checkboxHeight)
 
-	local box = CreateFrame("Frame", nil, button)
-	box:SetSize(16, 16)
-	box:SetPoint("LEFT")
+	local square = CreateFrame("Frame", nil, row)
+	square:SetSize(BOX_SIZE, BOX_SIZE)
+	square:SetPoint("LEFT")
+	Primitives.createTexture(square, "BACKGROUND", "field"):SetAllPoints()
+	row.border = Primitives.createBorder(square)
 
-	local bg = Primitives.createTexture(box, "BACKGROUND", "field")
-	bg:SetAllPoints()
+	row.check = Primitives.createTexture(square, "ARTWORK", "accent")
+	row.check:SetPoint("TOPLEFT", MARK_INSET, -MARK_INSET)
+	row.check:SetPoint("BOTTOMRIGHT", -MARK_INSET, MARK_INSET)
 
-	button.border = Primitives.createBorder(box, "border")
+	row.label = Primitives.createText(row, text, 12)
+	row.label:SetPoint("LEFT", square, "RIGHT", 9, 0)
 
-	button.check = Primitives.createTexture(box, "ARTWORK", "accent")
-	button.check:SetPoint("TOPLEFT", 3, -3)
-	button.check:SetPoint("BOTTOMRIGHT", -3, 3)
-	button.check:Hide()
-
-	button.label = Primitives.createText(button, text, 12)
-	button.label:SetPoint("LEFT", box, "RIGHT", 9, 0)
-
-	button.checked = false
-
-	function button:SetChecked(value)
+	function row:SetChecked(value)
 		self.checked = value and true or false
 		self.check:SetShown(self.checked)
 	end
 
-	function button:GetChecked()
+	function row:GetChecked()
 		return self.checked
 	end
 
-	button:SetScript("OnClick", function(self)
-		self:SetChecked(not self:GetChecked())
+	row:SetScript("OnClick", function(self)
+		self:SetChecked(not self.checked)
 		if onChanged then
-			onChanged(self:GetChecked())
+			onChanged(self.checked)
 		end
 	end)
-
-	button:SetScript("OnEnter", function(self)
+	row:SetScript("OnEnter", function(self)
 		Primitives.setBorderColor(self.border, "accent", 0.85)
 		self.label:SetTextColor(Primitives.color("white"))
 	end)
-
-	button:SetScript("OnLeave", function(self)
+	row:SetScript("OnLeave", function(self)
 		Primitives.setBorderColor(self.border, "border")
-		local r, g, b = Primitives.color("text")
-		self.label:SetTextColor(r, g, b)
+		self.label:SetTextColor(Primitives.color("text"))
 	end)
 
-	return button
+	row:SetChecked(false)
+	return row
 end

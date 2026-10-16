@@ -3,9 +3,7 @@ local ADDON_NAME, PLC = ...
 local Primitives = PLC.UI.Widgets.Primitives
 local ScrollFrame = PLC.UI.Widgets.ScrollFrame
 
--- New widget -- no direct upstream pattern to port (see docs/SPECIFICATION.md §4.4; neither
--- RCLootCouncil_Classic's lib-st nor FojjiCore's createScrollFrame describe a row-recycling
--- virtualized list internally). Fixed pool of row frames sized to visible rows, rebound on
+-- A virtualized list: a fixed pool of row frames sized to the visible rows, rebound on
 -- scroll/column change instead of created/destroyed per row.
 --
 -- Column spec: either a text column { width, justify, render = function(rowData) return text,

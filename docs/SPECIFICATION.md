@@ -2,7 +2,7 @@
 
 Status: **v1 — approved, scope decisions recorded in §9** · Target client: WoW Burning Crusade Classic Anniversary 2.5.5 (`## Interface: 20506`)
 
-This document is the result of a full architectural analysis of `RCLootCouncil_Classic` (the addon whose functionality we are replicating) and `FojjiCore` (the addon whose options-panel look we are replicating). It defines what we build and, just as importantly, which specific patterns we deliberately avoid and why. Source analyses: `docs/analysis/rclootcouncil-architecture.md`, `docs/analysis/fojjicore-ui-style.md`.
+This document is the result of a full architectural analysis of `RCLootCouncil_Classic` (the addon whose functionality we are replicating). It defines what we build and, just as importantly, which specific patterns we deliberately avoid and why. Source analysis: `docs/analysis/rclootcouncil-architecture.md`.
 
 ---
 
@@ -38,31 +38,17 @@ Derived directly from §7 and the "Rewrite recommendations" of the RCLootCouncil
 | 8 | In-combat gating is structural, not a scattered manual `InCombatLockdown()` check per call site | Upstream gates per call site by hand, which is easy to miss on a new code path. We centralize "can we touch secure-adjacent UI right now" into the frame/session lifecycle itself. |
 | 9 | A loot session's identity/ownership is sticky and **location-independent** — never reset by zoning, travel, group reformation, or the holder briefly losing Blizzard's "Master Looter" designation or disconnecting | User-reported pain point: upstream prompts "do you want this addon to handle loot?" on every raid entry, and a mis-click on that prompt while traveling mid-session breaks the active session. A session must persist purely on the holder's explicit "start" and "end" actions — never on ambient group/location state. See §5.3. |
 
-## 4. Visual design system (from FojjiCore)
+## 4. Visual design system
 
-The entire addon UI — not just the options panel — adopts FojjiCore's look: fully custom `CreateFrame`-based widgets, no `BackdropTemplate`, no AceGUI, near-black flat-color fills with a single accent color, 1px hairline borders, one bundled font. This gives us a consistent, modern look across every window instead of mixing Blizzard-default chrome (AceConfigDialog, `lib-st`'s default skin, `LibDialog` popups) with a custom options panel.
+The entire addon UI uses one design system of its own: fully custom `CreateFrame`-based widgets, no `BackdropTemplate`, no AceGUI, near-black flat-color fills tinted by a single accent color, 1px hairline borders, one bundled font (Inter, SIL Open Font License — `font/Inter-LICENSE.txt`). This keeps every window consistent instead of mixing Blizzard-default chrome (AceConfigDialog, `lib-st`'s default skin, `LibDialog` popups) with custom panels.
 
-### 4.1 Palette (ported from FojjiCore, to be re-tinted with our own accent)
+### 4.1 Palette
 
-| token | FojjiCore value | role |
-|---|---|---|
-| `accent` | `#66B3FF` (configurable via theme picker) | primary highlight / brand |
-| `frame` | `#050507` | outer window fill |
-| `header` | `#060709` | header bg base |
-| `sidebar` | `#06080A` | sidebar fill |
-| `content` | `#090A0C` | content panel fill |
-| `field` / `fieldHover` | `#060709` / `#0B0D10` | inputs, dropdowns, checkboxes |
-| `button` / `buttonHover` | `#0D0F11` / `#131619` | buttons |
-| `border` / `borderDim` | `#292E38` / `#21262E` | hairline borders |
-| `text` / `dim` | `#E0E3E8` / `#80878F` | body / secondary text |
-| `warning` | `#FF4040` | close button, errors, pass/destructive actions |
+Defined in `UI/Theme.lua`: fixed colors (`text`, `dim`, `title`, `white`, `field`, `fieldHover`, `scroll`, `warning`, `success`) plus accent-tinted surfaces (`frame`, `header`, `sidebar`, `content`, `button`, `buttonHover`, `border`, `borderDim`) — each a neutral near-black base moved a small, per-surface fraction towards the accent, so the whole palette follows the accent. **Default accent: `#E8A33D`** (warm gold), configurable under Options → Appearance.
 
-**Decided accent: `#E8A33D`** (warm gold) — same dark-chrome system as FojjiCore, loot-flavored brand color instead of FojjiCore's azure, keeping the two addons visually distinct. Background shades (`frame`/`header`/`sidebar`/`content`/`border`/`button`) are derived from FojjiCore's `applyTheme()` formula (near-black base + small fraction of accent RGB mixed per channel) so the whole palette stays internally consistent without hand-tuning every token.
+### 4.2 Construction primitives
 
-### 4.2 Construction primitives to port (pattern, not literal code)
-
-A small local factory-function layer, no external UI dependency beyond a bundled font:
-`createTexture`, `createArtwork`, `createText`, `createBorder` (4×1px strips, no backdrop template), `createButton`, `createCheckbox`, `createSlider`, `createDropdownButton` + a custom popup list module, `createScrollFrame`, `createPageHeader`, plus the **theme-registry** pattern (`themeTextures`/`themeFonts`/`themeGlows` weak tables + one `applyTheme()` call to retint everything live) if a theme/accent picker is wanted later.
+`UI/Widgets/Primitives.lua` (themed fills, text, borders, icons, edit box, resize grip), `Button`, `Checkbox`, `Slider`, `Dropdown` + `PopupMenu`, `ScrollFrame` (pixel and row-indexed), `DataTable` (row-recycling list), `PanelLayout`. Every themed texture/font string registers with `Theme:Track`, so an accent change recolors the whole UI live.
 
 ### 4.3 Panel layout (reused for every PixlLootCouncil window)
 
@@ -93,13 +79,13 @@ PixlLootCouncil/
     Award.lua              -- CanGiveLoot-style pre-validation + GiveMasterLoot funnel
     Trade.lua               -- event-driven trade confirmation (no trade-frame hooking)
   UI/
-    Theme.lua             -- palette, fonts, theme-registry (ported FojjiCore pattern)
+    Theme.lua             -- palette and live re-theming
     Widgets/              -- createButton/createCheckbox/createSlider/createDropdown/createTable/...
     SessionFrame.lua        -- ML: curate & start a loot session
     VotingFrame.lua           -- ML/council: candidate response grid + award buttons
     LootFrame.lua              -- candidate: respond to active session
     HistoryFrame.lua            -- past awards
-    OptionsFrame.lua             -- FojjiCore-style settings panel
+    OptionsFrame.lua             -- settings panel
   Locale/
     Locales.xml             -- loads all 11 locale files (ported from RCLootCouncil_Classic strings where UI text matches)
     enUS.lua / deDE.lua / esES.lua / esMX.lua / frFR.lua / itIT.lua / koKR.lua / ptBR.lua / ruRU.lua / zhCN.lua / zhTW.lua
@@ -131,13 +117,13 @@ Beyond the core item/response/award flow, the command set includes what §5.1's 
 
 | Keep | Drop | Build custom instead |
 |---|---|---|
-| AceAddon-3.0, AceEvent-3.0, AceComm-3.0 + ChatThrottleLib, AceSerializer-3.0 + LibDeflate, AceDB-3.0 (+ profile switching), AceTimer-3.0, AceBucket-3.0, AceConsole-3.0 | AceGUI-3.0 (+SharedMediaWidgets), AceConfig-3.0/Dialog/Registry, `lib-st`, LibDialog-1.0, MSA-DropDownMenu-1.0, RxLua, the custom `Init/Require` DI layer | Options panel (FojjiCore-style), confirm/decline popups, dropdown menu, scrollable data table, frame position persistence (LibWindow is tiny enough we may still just vendor it rather than reinvent — low risk either way) |
+| AceAddon-3.0, AceEvent-3.0, AceComm-3.0 + ChatThrottleLib, AceSerializer-3.0 + LibDeflate, AceDB-3.0 (+ profile switching), AceTimer-3.0, AceBucket-3.0, AceConsole-3.0 | AceGUI-3.0 (+SharedMediaWidgets), AceConfig-3.0/Dialog/Registry, `lib-st`, LibDialog-1.0, MSA-DropDownMenu-1.0, RxLua, the custom `Init/Require` DI layer | Options panel (own design system), confirm/decline popups, dropdown menu, scrollable data table, frame position persistence (LibWindow is tiny enough we may still just vendor it rather than reinvent — low risk either way) |
 
-Rationale: the Ace3 *infrastructure* libs (events/comm/serialization/db/timers) are solid, low-risk, and not where upstream's problems come from (§8 of the architecture analysis) — reinventing them would add risk for no benefit. Everything we drop is either a **UI skin** we're replacing with the FojjiCore-derived design system, or a dependency (RxLua, the second DI container) upstream itself only used narrowly enough that it added maintenance surface without real benefit.
+Rationale: the Ace3 *infrastructure* libs (events/comm/serialization/db/timers) are solid, low-risk, and not where upstream's problems come from (§8 of the architecture analysis) — reinventing them would add risk for no benefit. Everything we drop is either a **UI skin** we're replacing with the addon's own design system (§4), or a dependency (RxLua, the second DI container) upstream itself only used narrowly enough that it added maintenance surface without real benefit.
 
 ## 7. Feature scope (phased — decided)
 
-**Phase 1 — core loop (first working build):** loot detection, session start/curation (ML), candidate response UI (Need/Greed/Pass + configurable custom responses), voting grid, award with pre-validation, basic chat announcements, FojjiCore-styled options panel for the above, and all 11 locales for whatever UI strings exist at that point. No trade-window automation, no history frame, no cross-officer sync yet.
+**Phase 1 — core loop (first working build):** loot detection, session start/curation (ML), candidate response UI (Need/Greed/Pass + configurable custom responses), voting grid, award with pre-validation, basic chat announcements, options panel for the above, and all 11 locales for whatever UI strings exist at that point. No trade-window automation, no history frame, no cross-officer sync yet.
 
 **Phase 2:** trade-window integration (event-driven confirm/track, no frame hooking), "award later"/bagged-item handling, loot history frame + persistent history SavedVariables.
 
@@ -154,7 +140,7 @@ Locale files are maintained alongside every phase (new strings added to all 11 f
 
 | Decision | Outcome |
 |---|---|
-| Accent color | `#E8A33D` warm gold — same FojjiCore-derived chrome, distinct brand color |
+| Accent color | `#E8A33D` warm gold |
 | Phase 1 scope | Core loop only (detection → session → voting → award); trade/history/sync deferred to Phases 2–3 |
 | Localization | Port all 11 RCLootCouncil_Classic locales from the start, maintained alongside every phase |
 | Stuck-session recovery | Any council member can force-end a session whose holder's heartbeat has gone stale (see §5.1) — prevents an indefinitely blocked raid while normal travel/reload/brief disconnects never trigger it |

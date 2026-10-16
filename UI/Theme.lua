@@ -4,34 +4,39 @@ PLC.UI = PLC.UI or {}
 local Theme = {}
 PLC.UI.Theme = Theme
 
--- Ports FojjiCore's dark-chrome palette + applyTheme() mixing formula (see
--- docs/SPECIFICATION.md §4, docs/analysis/fojjicore-ui-style.md) with our own configurable accent
--- (db.profile.accent, default #E8A33D warm gold) instead of FojjiCore's 4-preset theme picker --
--- we only ever have the one accent. fieldHover/text/dim/scroll/white/warning are never
--- recomputed below, matching FojjiCore's own applyTheme(): only the near-black background
--- channels and the accent itself derive from the user's color choice.
-Theme.COLORS = {
-	accent = { 0.91, 0.64, 0.24 },
-	title = { 0.90, 0.94, 1.00 },
-	frame = { 0.018, 0.021, 0.026 },
-	header = { 0.022, 0.026, 0.032 },
-	sidebar = { 0.025, 0.032, 0.040 },
-	content = { 0.035, 0.040, 0.048 },
-	field = { 0.024, 0.028, 0.034 },
-	fieldHover = { 0.044, 0.052, 0.064 },
-	button = { 0.052, 0.058, 0.068 },
-	buttonHover = { 0.075, 0.088, 0.105 },
-	border = { 0.16, 0.18, 0.22 },
-	borderDim = { 0.13, 0.15, 0.18 },
-	text = { 0.88, 0.89, 0.91 },
-	dim = { 0.50, 0.53, 0.57 },
-	scroll = { 0.08, 0.09, 0.11 },
+-- PixlLootCouncil's look: near-black surfaces with a faint tint of one user-chosen accent color
+-- (db.profile.accent, default #E8A33D warm gold), flat fills and 1px borders. Every themed texture
+-- and font string is tracked here, so changing the accent (Options -> Appearance) recolors the
+-- whole UI live.
+
+-- Fixed colors, independent of the accent.
+local FIXED = {
+	title = { 0.92, 0.95, 1.00 },
+	text = { 0.87, 0.88, 0.90 },
+	dim = { 0.52, 0.54, 0.58 },
 	white = { 1, 1, 1 },
-	warning = { 1.00, 0.25, 0.25 },
-	success = { 0.25, 0.85, 0.35 },
+	field = { 0.022, 0.026, 0.032 },
+	fieldHover = { 0.042, 0.050, 0.062 },
+	scroll = { 0.075, 0.085, 0.100 },
+	warning = { 1.00, 0.27, 0.27 },
+	success = { 0.27, 0.84, 0.38 },
 }
 
--- Shared widget sizing constants -- extended as later stages add widgets that need them.
+-- Accent-tinted surfaces: a neutral base color moved `tint` of the way towards the accent.
+local TINTED = {
+	frame = { base = { 0.018, 0.020, 0.026 }, tint = 0.012 },
+	header = { base = { 0.024, 0.027, 0.034 }, tint = 0.070 },
+	sidebar = { base = { 0.026, 0.030, 0.037 }, tint = 0.022 },
+	content = { base = { 0.050, 0.056, 0.068 }, tint = 0.020 },
+	button = { base = { 0.040, 0.045, 0.055 }, tint = 0.065 },
+	buttonHover = { base = { 0.055, 0.062, 0.075 }, tint = 0.150 },
+	border = { base = { 0.110, 0.120, 0.140 }, tint = 0.220 },
+	borderDim = { base = { 0.080, 0.090, 0.110 }, tint = 0.110 },
+}
+
+Theme.COLORS = {}
+
+-- Shared widget sizes.
 Theme.LAYOUT = {
 	buttonHeight = 28,
 	headerHeight = 32,
@@ -46,51 +51,71 @@ Theme.LAYOUT = {
 	contentPadding = 16,
 }
 
--- Weak-keyed so a destroyed widget's entry is collected instead of leaking. Every
--- createTexture/createText/createArtwork(tinted) call in UI/Widgets/Primitives.lua registers
--- itself here, so Theme:Refresh() can re-skin every live widget in one pass with no need to
--- track frame references anywhere else (ported pattern, see fojjicore-ui-style.md).
-Theme.themeTextures = setmetatable({}, { __mode = "k" })
-Theme.themeFonts = setmetatable({}, { __mode = "k" })
-Theme.themeGlows = setmetatable({}, { __mode = "k" })
+-- [region] = { kind = "fill" | "tint" | "text", color = name, alpha = number|nil }. Weak keys,
+-- so widgets that go away are simply dropped.
+local tracked = setmetatable({}, { __mode = "k" })
 
 function Theme:Color(name, alpha)
 	local c = self.COLORS[name] or self.COLORS.text
 	return c[1], c[2], c[3], alpha or 1
 end
 
--- The exact near-black-base + accent-mix formula FojjiCore's applyTheme() uses (Options.lua:117-
--- 143), generalized to whatever accent the user picks (Stage 7's Appearance panel) instead of a
--- fixed preset list.
-function Theme:ApplyFromAccent(r, g, b)
-	local C = self.COLORS
-	C.accent = { r, g, b }
-	C.frame = { 0.015 + r * 0.014, 0.018 + g * 0.014, 0.026 + b * 0.014 }
-	C.header = { 0.025 + r * 0.08, 0.028 + g * 0.08, 0.036 + b * 0.08 }
-	C.sidebar = { 0.025 + r * 0.025, 0.028 + g * 0.025, 0.035 + b * 0.025 }
-	C.content = { 0.055 + r * 0.018, 0.060 + g * 0.018, 0.073 + b * 0.018 }
-	C.border = { 0.10 + r * 0.24, 0.10 + g * 0.24, 0.12 + b * 0.24 }
-	C.borderDim = { 0.07 + r * 0.12, 0.08 + g * 0.12, 0.10 + b * 0.12 }
-	C.button = { 0.035 + r * 0.07, 0.04 + g * 0.07, 0.05 + b * 0.07 }
-	C.buttonHover = { 0.045 + r * 0.17, 0.05 + g * 0.17, 0.06 + b * 0.17 }
+local function paint(region, entry)
+	local r, g, b, a = Theme:Color(entry.color, entry.alpha)
+	if entry.kind == "fill" then
+		region:SetColorTexture(r, g, b, a)
+	elseif entry.kind == "tint" then
+		region:SetVertexColor(r, g, b)
+	else
+		region:SetTextColor(r, g, b)
+	end
+end
 
+-- Registers a region to be repainted on accent changes, and paints it now.
+--   "fill": a texture filled with a theme color   "tint": a texture vertex-colored with one
+--   "text": a font string's text color
+function Theme:Track(region, kind, colorName, alpha)
+	local entry = { kind = kind, color = colorName, alpha = alpha }
+	tracked[region] = entry
+	paint(region, entry)
+	return region
+end
+
+-- Calls fn(fontString) for every tracked font string (UI/Widgets/Primitives.lua's font refresh).
+function Theme:ForEachText(fn)
+	for region, entry in pairs(tracked) do
+		if entry.kind == "text" then
+			fn(region)
+		end
+	end
+end
+
+function Theme:ApplyFromAccent(r, g, b)
+	local colors = self.COLORS
+	for name, c in pairs(FIXED) do
+		colors[name] = c
+	end
+	colors.accent = { r, g, b }
+	local accent = colors.accent
+	for name, spec in pairs(TINTED) do
+		local t = spec.tint
+		colors[name] = {
+			spec.base[1] + (accent[1] - spec.base[1]) * t,
+			spec.base[2] + (accent[2] - spec.base[2]) * t,
+			spec.base[3] + (accent[3] - spec.base[3]) * t,
+		}
+	end
 	self:Refresh()
 end
 
 function Theme:Refresh()
-	for texture, data in pairs(self.themeTextures) do
-		local r, g, b, a = self:Color(data.name, data.alpha)
-		texture:SetColorTexture(r, g, b, a)
-	end
-	for texture in pairs(self.themeGlows) do
-		local r, g, b = self:Color("accent")
-		texture:SetVertexColor(r, g, b)
-	end
-	for font, colorName in pairs(self.themeFonts) do
-		local r, g, b = self:Color(colorName)
-		font:SetTextColor(r, g, b)
+	for region, entry in pairs(tracked) do
+		paint(region, entry)
 	end
 end
+
+-- Defaults right away, so widgets built before OnEnable still get real colors.
+Theme:ApplyFromAccent(0.91, 0.64, 0.24)
 
 PLC:RegisterOnEnable(function()
 	local accent = PLC.db.profile.accent

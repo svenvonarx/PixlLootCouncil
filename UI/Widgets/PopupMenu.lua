@@ -1,289 +1,221 @@
 local ADDON_NAME, PLC = ...
 
 local Primitives = PLC.UI.Widgets.Primitives
-local Theme = PLC.UI.Theme
 
--- Ported from FojjiCore's OptionsMenu.lua in full (see docs/analysis/fojjicore-ui-style.md) --
--- PopupMenu.Open(owner, entries, opts)/Close()/IsOpen(owner)/Refresh(). Entry fields: text,
--- checked, disabled, tag, onClick, onRemove, onFavorite, favorite, keepOpen, header, color.
--- Options: width, maxRows, openUp.
+-- One shared popup list, used by dropdowns and the history filter menu. Only one is open at a
+-- time; clicking anywhere outside closes it.
+--
+--   PopupMenu.Open(owner, entries, opts)  opens below `owner` (opts.openUp: above it).
+--                                         opts.width (default: owner's width, min 220),
+--                                         opts.maxRows (default 7, the list scrolls past that)
+--   PopupMenu.Close() / PopupMenu.IsOpen(owner) / PopupMenu.Refresh()
+--
+-- Entry fields: text; color ({r,g,b} or {r=,g=,b=}); checked (accent marker on the left);
+-- header (an accent-colored, unclickable section title); disabled (dimmed, unclickable);
+-- onClick(entry); keepOpen (stay open after the click and redraw -- for toggle lists, where
+-- onClick updates entry.checked itself).
 local PopupMenu = {}
 PLC.UI.Widgets.PopupMenu = PopupMenu
 
-local ROW_H, PAD = 22, 3
+local ROW_HEIGHT = 22
+local PADDING = 3
+local SCROLLBAR_WIDTH = 3
 
-local popup, catcher, track, thumb
-local edges = {}
-local rows = {}
-local current
+local menu -- the popup frame, built on first use
+local blocker -- full-screen click catcher behind it
+local state -- { owner, entries, first, width, maxRows } while open
 
-local Render
+local draw -- forward-declared: rows call it on scroll
 
-function PopupMenu.IsOpen(owner)
-	return current ~= nil and (owner == nil or current.owner == owner)
+local function isClickable(entry)
+	return entry ~= nil and not entry.header and not entry.disabled
 end
 
-function PopupMenu.Close()
-	if popup and popup:IsShown() then
-		popup:Hide()
+local function entryColor(entry)
+	if entry.color then
+		local c = entry.color
+		return c.r or c[1], c.g or c[2], c.b or c[3]
 	end
-	if catcher then
-		catcher:Hide()
-	end
-	current = nil
+	return Primitives.color((entry.disabled and "dim") or (entry.header and "accent") or "text")
 end
 
-local function scroll(delta)
-	if not current then
+local function scrollBy(rows)
+	if state then
+		state.first = state.first + rows
+		draw()
+	end
+end
+
+local function onRowClick(row)
+	local entry = row.entry
+	if not isClickable(entry) then
 		return
 	end
-	current.offset = current.offset - delta
-	Render()
+	if entry.keepOpen then
+		if entry.onClick then
+			entry.onClick(entry)
+		end
+		draw()
+		return
+	end
+	PopupMenu.Close()
+	if entry.onClick then
+		entry.onClick(entry)
+	end
 end
 
-local function getRow(index)
-	local row = rows[index]
-	if row then
-		return row
-	end
+local function makeRow()
+	local row = CreateFrame("Button", nil, menu)
+	row:SetHeight(ROW_HEIGHT)
 
-	row = CreateFrame("Button", nil, popup)
-	row:SetHeight(ROW_H)
+	row.highlight = row:CreateTexture(nil, "BACKGROUND")
+	row.highlight:SetAllPoints()
+	row.highlight:Hide()
 
-	row.hover = row:CreateTexture(nil, "BACKGROUND")
-	row.hover:SetAllPoints()
-	row.hover:Hide()
-
-	row.mark = row:CreateTexture(nil, "ARTWORK")
-	row.mark:SetWidth(2)
-	row.mark:SetPoint("TOPLEFT")
-	row.mark:SetPoint("BOTTOMLEFT")
+	row.marker = row:CreateTexture(nil, "ARTWORK")
+	row.marker:SetWidth(2)
+	row.marker:SetPoint("TOPLEFT")
+	row.marker:SetPoint("BOTTOMLEFT")
 
 	row.label = Primitives.createText(row, "", 11)
 	row.label:SetJustifyH("LEFT")
 	row.label:SetWordWrap(false)
 	row.label:SetPoint("LEFT", 9, 0)
-
-	row.tag = Primitives.createText(row, "", 9, "dim")
-
-	row.remove = CreateFrame("Button", nil, row)
-	row.remove:SetSize(ROW_H, ROW_H)
-	row.remove:SetPoint("RIGHT")
-	row.remove:SetFrameLevel(row:GetFrameLevel() + 3)
-	row.remove.x = Primitives.createText(row.remove, "x", 12)
-	row.remove.x:SetPoint("CENTER", 0, 1)
+	row.label:SetPoint("RIGHT", -8, 0)
 
 	row:EnableMouseWheel(true)
-	row:SetScript("OnMouseWheel", function(_, delta)
-		scroll(delta)
-	end)
+	row:SetScript("OnMouseWheel", function(_, delta) scrollBy(-delta) end)
+	row:SetScript("OnClick", onRowClick)
 	row:SetScript("OnEnter", function(self)
-		if self.entry and not self.entry.disabled and not self.entry.header then
+		if isClickable(self.entry) then
 			local r, g, b = Primitives.color("accent")
-			self.hover:SetColorTexture(r, g, b, 0.16)
-			self.hover:Show()
+			self.highlight:SetColorTexture(r, g, b, 0.16)
+			self.highlight:Show()
 		end
 	end)
 	row:SetScript("OnLeave", function(self)
-		self.hover:Hide()
+		self.highlight:Hide()
 	end)
-	row:SetScript("OnClick", function(self)
-		local entry = self.entry
-		if not entry or entry.disabled or entry.header then
-			return
-		end
-		if entry.keepOpen then
-			if entry.onClick then
-				entry.onClick(entry)
-			end
-			PopupMenu.Refresh()
-		else
-			PopupMenu.Close()
-			if entry.onClick then
-				entry.onClick(entry)
-			end
-		end
-	end)
-	row.remove:SetScript("OnEnter", function(self)
-		local r, g, b = Primitives.color("warning")
-		self.x:SetTextColor(r, g, b)
-	end)
-	row.remove:SetScript("OnLeave", function(self)
-		local r, g, b = Primitives.color(row.entry and row.entry.favorite and "accent" or "dim")
-		self.x:SetTextColor(r, g, b)
-	end)
-	row.remove:SetScript("OnClick", function()
-		local entry = row.entry
-		if not entry or entry.disabled or entry.header then
-			return
-		end
-		if entry.onFavorite then
-			entry.favorite = not entry.favorite
-			entry.onFavorite(entry.favorite)
-			Render()
-		elseif entry.onRemove then
-			entry.onRemove(entry)
-			PopupMenu.Refresh()
-		end
-	end)
-
-	rows[index] = row
 	return row
 end
 
-Render = function()
-	if not current or not popup then
+local function build()
+	menu = CreateFrame("Frame", nil, UIParent)
+	menu:SetFrameStrata("TOOLTIP")
+	menu:EnableMouse(true)
+	menu:EnableMouseWheel(true)
+	menu:SetScript("OnMouseWheel", function(_, delta) scrollBy(-delta) end)
+	menu.bg = menu:CreateTexture(nil, "BACKGROUND")
+	menu.bg:SetAllPoints()
+	menu.border = Primitives.createBorder(menu, "accent", 0.7)
+	menu.rows = {}
+
+	menu.track = menu:CreateTexture(nil, "ARTWORK")
+	menu.track:SetWidth(SCROLLBAR_WIDTH)
+	menu.track:SetPoint("TOPRIGHT", -2, -PADDING)
+	menu.track:SetPoint("BOTTOMRIGHT", -2, PADDING)
+	menu.thumb = menu:CreateTexture(nil, "OVERLAY")
+	menu.thumb:SetWidth(SCROLLBAR_WIDTH)
+
+	blocker = CreateFrame("Button", nil, UIParent)
+	blocker:SetFrameStrata("TOOLTIP")
+	blocker:SetAllPoints(UIParent)
+	blocker:SetScript("OnClick", PopupMenu.Close)
+	blocker:Hide()
+end
+
+function draw()
+	if not state then
 		return
 	end
-	local entries = current.entries
-	local count = #entries
-	local visible = math.min(count, current.maxRows)
-	current.offset = math.max(0, math.min(current.offset, math.max(0, count - visible)))
-	local scrolling = count > visible
-	local width = current.width
-	local inner = width - 2 - (scrolling and 7 or 0)
+	local entries = state.entries
+	local visible = math.min(#entries, state.maxRows)
+	local lastFirst = math.max(1, #entries - visible + 1)
+	state.first = math.max(1, math.min(state.first, lastFirst))
+	local scrolls = #entries > visible
 
-	popup:SetSize(width, visible * ROW_H + PAD * 2)
-	local bgR, bgG, bgB = Primitives.color("header")
-	popup.bg:SetColorTexture(bgR, bgG, bgB, 0.98)
-	local bR, bG, bB = Primitives.color("accent", 0.7)
-	for _, edge in ipairs(edges) do
-		edge:SetColorTexture(bR, bG, bB, 0.7)
-	end
+	local hr, hg, hb = Primitives.color("header")
+	menu.bg:SetColorTexture(hr, hg, hb, 0.98)
+	menu:SetSize(state.width, visible * ROW_HEIGHT + PADDING * 2)
 
-	for index = 1, visible do
-		local entry = entries[current.offset + index]
-		local row = getRow(index)
+	local rowWidth = state.width - 2 - (scrolls and (SCROLLBAR_WIDTH + 4) or 0)
+	for i = 1, visible do
+		local row = menu.rows[i] or makeRow()
+		menu.rows[i] = row
+		local entry = entries[state.first + i - 1]
 		row.entry = entry
+		row:SetWidth(rowWidth)
 		row:ClearAllPoints()
-		row:SetPoint("TOPLEFT", popup, "TOPLEFT", 1, -(PAD + (index - 1) * ROW_H))
-		row:SetWidth(inner)
-		row:SetHeight(ROW_H)
-		row.hover:Hide()
-
-		local colorName = (entry.disabled and "dim") or (entry.header and "accent") or "text"
+		row:SetPoint("TOPLEFT", 1, -PADDING - (i - 1) * ROW_HEIGHT)
+		row.highlight:Hide()
 		row.label:SetText(entry.text or "")
-		if entry.color then
-			row.label:SetTextColor(entry.color.r or entry.color[1], entry.color.g or entry.color[2], entry.color.b or entry.color[3])
-		else
-			local r, g, b = Primitives.color(colorName)
-			row.label:SetTextColor(r, g, b)
-		end
-
-		if entry.tag then
-			row.tag:SetText(entry.tag)
-			row.tag:ClearAllPoints()
-			row.tag:SetPoint("RIGHT", row, "RIGHT", (entry.onFavorite and -46) or (entry.onRemove and -(ROW_H + 2)) or -8, 0)
-			row.tag:Show()
-		else
-			row.tag:SetText("")
-			row.tag:Hide()
-		end
-
-		local reserve = 10 + (entry.onFavorite and 44 or (entry.onRemove and ROW_H or 0))
-			+ (entry.tag and ((row.tag:GetStringWidth() or 30) + 8) or 0)
-		row.label:ClearAllPoints()
-		row.label:SetPoint("LEFT", row, "LEFT", 9, 0)
-		row.label:SetPoint("RIGHT", row, "RIGHT", -reserve, 0)
-
+		row.label:SetTextColor(entryColor(entry))
 		if entry.checked then
 			local r, g, b = Primitives.color("accent")
-			row.mark:SetColorTexture(r, g, b, 1)
-			row.mark:Show()
-		else
-			row.mark:Hide()
+			row.marker:SetColorTexture(r, g, b, 1)
 		end
-
-		row.remove:SetWidth(entry.onFavorite and 40 or ROW_H)
-		row.remove.x:SetText(entry.onFavorite and "FAV" or "x")
-		row.remove:SetShown(entry.onRemove ~= nil or entry.onFavorite ~= nil)
-		local r, g, b = Primitives.color(entry.favorite and "accent" or "dim")
-		row.remove.x:SetTextColor(r, g, b)
+		row.marker:SetShown(entry.checked and true or false)
 		row:Show()
 	end
-	for index = visible + 1, #rows do
-		rows[index]:Hide()
-		rows[index].entry = nil
+	for i = visible + 1, #menu.rows do
+		menu.rows[i]:Hide()
+		menu.rows[i].entry = nil
 	end
 
-	track:SetShown(scrolling)
-	thumb:SetShown(scrolling)
-	if scrolling then
-		local trackHeight = visible * ROW_H
-		local size = math.max(14, trackHeight * visible / count)
-		local room = trackHeight - size
-		local fraction = current.offset / math.max(1, count - visible)
-		thumb:SetHeight(size)
-		thumb:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -2, -(PAD + room * fraction))
+	menu.track:SetShown(scrolls)
+	menu.thumb:SetShown(scrolls)
+	if scrolls then
+		local tr, tg, tb = Primitives.color("scroll")
+		menu.track:SetColorTexture(tr, tg, tb, 1)
+		local ar, ag, ab = Primitives.color("accent")
+		menu.thumb:SetColorTexture(ar, ag, ab, 0.75)
+		local trackHeight = visible * ROW_HEIGHT
+		local thumbHeight = math.max(14, trackHeight * visible / #entries)
+		local progress = (state.first - 1) / (lastFirst - 1)
+		menu.thumb:SetHeight(thumbHeight)
+		menu.thumb:ClearAllPoints()
+		menu.thumb:SetPoint("TOPRIGHT", -2, -PADDING - (trackHeight - thumbHeight) * progress)
 	end
 end
 
-function PopupMenu.Refresh()
-	Render()
-end
-
-local function ensurePopup()
-	if popup then
-		return
-	end
-
-	popup = CreateFrame("Frame", nil, UIParent)
-	popup:SetFrameStrata("TOOLTIP")
-	popup:EnableMouseWheel(true)
-	popup:SetScript("OnMouseWheel", function(_, delta)
-		scroll(delta)
-	end)
-
-	popup.bg = popup:CreateTexture(nil, "BACKGROUND")
-	popup.bg:SetAllPoints()
-
-	popup.border = Primitives.createBorder(popup, "accent", 0.7)
-	edges = { popup.border.top, popup.border.bottom, popup.border.left, popup.border.right }
-
-	track = popup:CreateTexture(nil, "ARTWORK")
-	track:SetWidth(3)
-	track:SetPoint("TOPRIGHT", popup, "TOPRIGHT", -2, -3)
-	track:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -2, 3)
-	local r, g, b = Primitives.color("scroll")
-	track:SetColorTexture(r, g, b, 1)
-
-	thumb = popup:CreateTexture(nil, "OVERLAY")
-	thumb:SetWidth(3)
-	local ar, ag, ab = Primitives.color("accent")
-	thumb:SetColorTexture(ar, ag, ab, 0.75)
-
-	catcher = CreateFrame("Button", nil, UIParent)
-	catcher:SetFrameStrata("TOOLTIP")
-	catcher:SetFrameLevel(1)
-	catcher:SetAllPoints(UIParent)
-	catcher:SetScript("OnClick", PopupMenu.Close)
-	catcher:Hide()
-end
-
--- owner: any frame with GetWidth/GetBottom/GetTop (anchors above/below it). opts: width,
--- maxRows, openUp.
 function PopupMenu.Open(owner, entries, opts)
-	ensurePopup()
+	if not menu then
+		build()
+	end
 	opts = opts or {}
-
-	current = {
+	state = {
 		owner = owner,
 		entries = entries,
-		offset = 0,
+		first = 1,
 		width = opts.width or math.max(220, owner:GetWidth()),
 		maxRows = opts.maxRows or 7,
 	}
-
-	popup:ClearAllPoints()
+	menu:ClearAllPoints()
 	if opts.openUp then
-		popup:SetPoint("BOTTOMLEFT", owner, "TOPLEFT", 0, 2)
+		menu:SetPoint("BOTTOMLEFT", owner, "TOPLEFT", 0, 2)
 	else
-		popup:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -2)
+		menu:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -2)
 	end
-	popup:SetFrameLevel((owner:GetFrameLevel() or 0) + 10)
+	local level = (owner:GetFrameLevel() or 0) + 10
+	menu:SetFrameLevel(level)
+	blocker:SetFrameLevel(level - 1)
+	draw()
+	blocker:Show()
+	menu:Show()
+end
 
-	Render()
-	popup:Show()
-	catcher:Show()
-	catcher:SetFrameLevel(popup:GetFrameLevel() - 1)
+function PopupMenu.Close()
+	state = nil
+	if menu then
+		menu:Hide()
+		blocker:Hide()
+	end
+end
+
+function PopupMenu.IsOpen(owner)
+	return state ~= nil and (owner == nil or state.owner == owner)
+end
+
+function PopupMenu.Refresh()
+	draw()
 end
