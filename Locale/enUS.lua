@@ -18,6 +18,15 @@ L["TAINT_FORBIDDEN"] = "Forbidden action captured: %s"
 L["ROSTER_EMPTY"] = "Roster is empty (not in a group?)."
 L["ROSTER_ENTRY"] = "%s (%s) role=%s online=%s council=%s"
 
+L["PROFESSIONS_EMPTY"] = "No profession data synced yet."
+L["PROFESSIONS_ENTRY"] = "%s: %s"
+L["PROFESSIONS_NONE"] = "none synced"
+-- Matched directly against GetSkillLineInfo's localized skill name (see Data/Professions.lua --
+-- Classic/TBC Classic has no numeric skill-line ID API to key on instead) -- a locale file that
+-- doesn't override this falls back to the English "Enchanting" via AceLocale, which then simply
+-- won't match that locale's own client-side skill name. Translate this key, not just for display.
+L["PROFESSION_ENCHANTING"] = "Enchanting"
+
 L["LOOT_METHOD_NOT_MASTER"] = "This group's loot method isn't Master Loot -- PixlLootCouncil can't run a session until it is."
 L["DEBUG_ON"] = "Debug logging enabled."
 L["DEBUG_OFF"] = "Debug logging disabled."
@@ -55,9 +64,9 @@ L["SESSION_ADDITEM_UNKNOWN"] = "Could not resolve that item -- check the itemID/
 L["SESSION_ADDITEM_SUCCESS"] = "Added %s to the session."
 L["SESSION_ALREADY_AWARDED"] = "That item has already been awarded."
 L["SESSION_AWARD_UNKNOWN_WINNER"] = "Could not find that player in the roster."
-L["SESSION_AWARD_TRADE_INSTRUCTION"] = "%s awarded to %s -- trade it to them!"
-L["SESSION_DISENCHANT_INSTRUCTION"] = "%s sent to %s for disenchant!"
 L["SESSION_AWARD_ALL_RESULT"] = "Awarded %d pre-awarded item(s)."
+
+L["TRADE_NOT_FOUND"] = "Could not find %s nearby to trade with."
 
 L["VOTINGFRAME_AWARD"] = "Award"
 L["VOTINGFRAME_DISENCHANT"] = "Disenchant"
@@ -80,6 +89,7 @@ L["SESSIONFRAME_PENDING"] = "Pending"
 L["SESSIONFRAME_EXPIRED"] = "Expired"
 L["SESSIONFRAME_TIME_LEFT"] = "Time left: %ds"
 L["SESSIONFRAME_ENCHANTER_LABEL"] = "Enchanter:"
+L["SESSIONFRAME_NO_ENCHANTER"] = "No Enchanter known"
 -- Not window-prefixed -- shared by both UI/SessionFrame.lua's and UI/LootFrame.lua's header,
 -- since whoever's holding the session matters just as much to a candidate deciding how to
 -- respond as it does to the holder's own window.
@@ -88,6 +98,15 @@ L["SESSIONFRAME_NO_ITEMS"] = "No items yet -- loot something above the quality t
 
 L["LOOTFRAME_TITLE"] = "Loot Response"
 L["LOOTFRAME_NOTE_PLACEHOLDER"] = "Optional Note..."
+
+L["TRADEFRAME_TITLE"] = "Loot Trades"
+L["TRADEFRAME_HANDOUT_SECTION"] = "Items to hand out"
+L["TRADEFRAME_COLLECT_SECTION"] = "Items to collect"
+L["TRADEFRAME_TRADE"] = "Trade"
+L["TRADEFRAME_FOLLOW"] = "Follow"
+L["TRADEFRAME_AWARDED_JUST_NOW"] = "Awarded just now"
+L["TRADEFRAME_AWARDED_AGO"] = "Awarded %dm ago"
+L["TRADEFRAME_NO_ITEMS"] = "Nothing to trade right now."
 
 L["OPTIONS_TITLE"] = "PixlLootCouncil Options"
 L["OPTIONS_SECTION_RAID"] = "RAID TOOLS"

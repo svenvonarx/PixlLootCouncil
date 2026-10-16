@@ -8,7 +8,8 @@ local Dropdown = {}
 PLC.UI.Widgets.Dropdown = Dropdown
 
 -- Ported from FojjiCore (Options.lua:421-450, see docs/analysis/fojjicore-ui-style.md): a flat
--- field-colored button with a right-aligned "v" text glyph (not a texture).
+-- field-colored button with a right-aligned chevron (Primitives.createChevron -- a drawn glyph,
+-- not a font character, so it's crisp regardless of what the bundled custom font's "v" looks like).
 function Dropdown.createDropdownButton(parent)
 	local button = CreateFrame("Button", nil, parent)
 	button:SetSize(Theme.LAYOUT.fieldWidth, Theme.LAYOUT.fieldHeight)
@@ -23,9 +24,8 @@ function Dropdown.createDropdownButton(parent)
 	button.text:SetPoint("RIGHT", -38, 0)
 	button.text:SetJustifyH("LEFT")
 
-	button.arrow = Primitives.createText(button, "v", 11)
-	button.arrow:SetTextColor(0.65, 0.68, 0.72)
-	button.arrow:SetPoint("RIGHT", -14, 2)
+	button.arrow = Primitives.createChevron(button, 9, "dim")
+	button.arrow:SetPoint("RIGHT", -14, 0)
 
 	button:SetScript("OnEnter", function(self)
 		self.bg:SetColorTexture(Primitives.color("fieldHover"))

@@ -66,6 +66,25 @@ end
 -- Shows who's holding the current review pass directly in this window's title bar too (not just
 -- UI/SessionFrame.lua's) -- a candidate deciding how to respond benefits from knowing who's
 -- actually running the session just as much as the holder does.
+-- Each response button sizes itself to its own label (Button.lua), and the label SET itself is
+-- user-customizable (profile.responses, via the Options panel) -- so there's no fixed literal to
+-- sum the way VotingFrame's fixed-width Award column has for its own window-sizing math. Builds
+-- one throwaway instance purely to read back the real total width, rather than duplicating
+-- Button.lua's own sizing formula a second time just to predict it. A button's width is reliable
+-- immediately after creation (an explicit SetSize, not an anchor-resolved one), unlike content/
+-- scroll's own width below, which only resolves once the window actually has a size -- so this is
+-- safe to call before frame:SetSize, unlike trying to read the real row's own container width.
+local function measureResponseButtonsWidth()
+	local scratch = CreateFrame("Frame", nil, UIParent)
+	scratch:Hide()
+	local width = 0
+	for _, resp in ipairs(PLC.db.profile.responses) do
+		local button = ButtonWidget.createButton(scratch, resp.text)
+		width = width + button:GetWidth() + 6
+	end
+	return math.max(0, width - 6)
+end
+
 local function updateHeaderOwner()
 	if not header then
 		return
@@ -84,12 +103,25 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
-	-- Width fixed at 700 -- this row's columns (including the fixed-size response buttons+note,
-	-- see below) are fixed-width with no reflow, so a wider window never did anything but add
-	-- blank space on the right; 700 is the narrowest that actually fits everything without
-	-- clipping (see makeResizable below), so that's the one width that's ever useful. Height
-	-- stays freely resizable -- a taller window genuinely shows more pending items at once.
-	frame:SetSize(700, 260)
+	-- Width is derived from the response buttons' own real total width (measureResponseButtonsWidth
+	-- above), not a hardcoded literal -- a fixed "700" could never stay correct anyway, since
+	-- profile.responses (the button set/labels) is user-customizable via the Options panel, and a
+	-- hand-picked number also silently went stale once before (see UI/SessionFrame.lua's own
+	-- width -- the same category of bug, just caught there first) and clipped the note field
+	-- against the window's right border instead of leaving blank space like a too-WIDE guess would
+	-- have. icon(28) + name(170) + countdown(40) match those columns' own widths below; the note
+	-- box matches the button row's width exactly (buttonsWidth), with a 14px gap between them (see
+	-- the response-button column's create() below) and the grid's own scrollbar gutter
+	-- (ScrollFrame.RESERVED_WIDTH, reserved even when not actively scrolling) plus a small
+	-- breathing margin added past that.
+	local buttonsWidth = measureResponseButtonsWidth()
+	local ROW_RIGHT_MARGIN = 10
+	local rowContentWidth = 28 + 170 + 40 + buttonsWidth + 14 + buttonsWidth
+	local contentWidth = rowContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + ROW_RIGHT_MARGIN
+	local frameWidth = contentWidth + 20 -- content's own 10px left + 10px right insets, see below
+
+	-- Height stays freely resizable -- a taller window genuinely shows more pending items at once.
+	frame:SetSize(frameWidth, 260)
 	frame:SetPoint("CENTER", 0, -80)
 	-- Top of the three main windows on purpose -- one tier above UI/SessionFrame.lua's "DIALOG"
 	-- (itself one tier above UI/OptionsFrame.lua's "HIGH") -- responding to loot always needs to
@@ -102,9 +134,9 @@ local function ensureFrame()
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilLootFrame")
-	-- Width min and max are the same value (700) -- fixes the width (see the comment on
-	-- SetSize above) while leaving height genuinely resizable between 180 and 600.
-	Primitives.makeResizable(frame, 700, 180, 700, 600)
+	-- Width min and max are the same value -- fixes the width (see the comment on SetSize above)
+	-- while leaving height genuinely resizable between 180 and 600.
+	Primitives.makeResizable(frame, frameWidth, 180, frameWidth, 600)
 
 	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
 	frame.bg:SetAllPoints()

@@ -238,7 +238,14 @@ function Panel:Disenchant()
 	if not self.currentIdx then
 		return
 	end
-	PLC.Session:SetPreAward(self.currentIdx, PLC.Session:GetEnchanterGuid(), "disenchant")
+	local enchanterGuid = PLC.Session:GetEnchanterGuid()
+	-- GetEnchanterGuid() can genuinely return nil now (nobody's synced Enchanting yet) -- staging
+	-- to a nil guid would just surface as a confusing "unknown winner" error later at commit time,
+	-- so refuse up front instead. The button's own tooltip already explains why (see below).
+	if not enchanterGuid then
+		return
+	end
+	PLC.Session:SetPreAward(self.currentIdx, enchanterGuid, "disenchant")
 	PLC.UI.SessionFrame:AdvanceToNextItem()
 end
 
@@ -337,30 +344,17 @@ local function gearColumn(suffix)
 	}
 end
 
--- Builds the "N of M voted" header (with its header-level Disenchant control) + candidate/role/
--- response/Award grid into `parent` and returns the panel object. Only one is ever actually live
--- at a time in practice (the one UI/SessionFrame.lua mounts), but nothing here assumes that --
+-- Builds the candidate/role/response/Award grid into `parent` and returns the panel object. The
+-- "N of M voted" text and the Disenchant button are NOT created here -- UI/SessionFrame.lua
+-- builds and positions those itself, sharing the same top row as the item name and the Remove
+-- button (one compact header bar instead of two stacked ones), and passes them in so this panel
+-- can still own their content/click behavior. Only one panel is ever actually live at a time in
+-- practice (the one UI/SessionFrame.lua mounts), but nothing here assumes that --
 -- VotingFrame.activePanel (set below) is just "whichever panel Session's forward-hooks should
 -- talk to."
-function VotingFrame.CreatePanel(parent)
-	-- A row frame, not just the header text directly against `parent` -- the Disenchant button
-	-- needs to sit at this same top-of-panel level (item-scoped, like the vote count, not
-	-- per-candidate) rather than inside the per-row grid below.
-	local headerRow = CreateFrame("Frame", nil, parent)
-	headerRow:SetPoint("TOPLEFT")
-	headerRow:SetPoint("TOPRIGHT")
-	headerRow:SetHeight(Theme.LAYOUT.buttonHeight)
-
-	local disenchantButton = ButtonWidget.createButton(headerRow, L["VOTINGFRAME_DISENCHANT"], 90)
-	disenchantButton:SetPoint("TOPRIGHT")
-
-	local header = Primitives.createText(headerRow, "", 11, "dim")
-	header:SetPoint("LEFT")
-	header:SetPoint("TOP")
-	header:SetPoint("RIGHT", disenchantButton, "LEFT", -8, 0)
-
+function VotingFrame.CreatePanel(parent, header, disenchantButton)
 	local tableContainer = CreateFrame("Frame", nil, parent)
-	tableContainer:SetPoint("TOPLEFT", headerRow, "BOTTOMLEFT", 0, -6)
+	tableContainer:SetPoint("TOPLEFT", parent, "TOPLEFT")
 	tableContainer:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT")
 
 	-- No scroll:SetAllPoints() here -- UI/Widgets/ScrollFrame.lua anchors it to `tableContainer`
@@ -386,17 +380,20 @@ function VotingFrame.CreatePanel(parent)
 	-- hover background swap; hooking adds this tooltip on top instead of replacing that.
 	disenchantButton:HookScript("OnEnter", function(btn)
 		local guid = PLC.Session:GetEnchanterGuid()
-		local entry = guid and PLC.Roster:Get(guid)
-		local name = entry and PLC.Roster:ShortName(entry.name) or "?"
 		GameTooltip:SetOwner(btn, "ANCHOR_TOP")
-		GameTooltip:SetText(string.format(L["VOTINGFRAME_DISENCHANT_TARGET"], name))
+		if guid then
+			local entry = PLC.Roster:Get(guid)
+			GameTooltip:SetText(string.format(L["VOTINGFRAME_DISENCHANT_TARGET"], PLC.Roster:ShortName(entry and entry.name) or "?"))
+		else
+			GameTooltip:SetText(L["SESSIONFRAME_NO_ENCHANTER"])
+		end
 		GameTooltip:Show()
 	end)
 	disenchantButton:HookScript("OnLeave", function()
 		GameTooltip:Hide()
 	end)
 
-	dataTable:SetColumns({
+	local columns = {
 		{
 			-- Role icon, then class icon, then name -- replaces what used to be a separate
 			-- "DPS"/"Tank"/"Heal" text column entirely (role is now an icon here instead), which
@@ -409,7 +406,7 @@ function VotingFrame.CreatePanel(parent)
 				local holder = CreateFrame("Frame", nil, row)
 				holder:SetSize(130, 20)
 				holder.roleIcon = Primitives.createRoleIcon(holder, nil)
-				holder.roleIcon:SetSize(14, 14)
+				holder.roleIcon:SetSize(12, 12)
 				holder.roleIcon:SetPoint("LEFT")
 				holder.roleIcon:EnableMouse(true)
 				holder.roleIcon:SetScript("OnEnter", function(self)
@@ -424,7 +421,7 @@ function VotingFrame.CreatePanel(parent)
 				end)
 				holder.classIcon = Primitives.createClassIcon(holder, nil)
 				holder.classIcon:SetSize(16, 16)
-				holder.classIcon:SetPoint("LEFT", holder.roleIcon, "RIGHT", 3, 0)
+				holder.classIcon:SetPoint("LEFT", holder.roleIcon, "RIGHT", 4, 0)
 				holder.text = Primitives.createText(holder, "", 11)
 				holder.text:SetPoint("LEFT", holder.classIcon, "RIGHT", 4, 0)
 				return holder
@@ -541,7 +538,23 @@ function VotingFrame.CreatePanel(parent)
 				end)
 			end,
 		},
-	})
+	}
+	dataTable:SetColumns(columns)
+
+	-- Sum of every column's own width above, MINUS the trailing BUTTON_GAP the last (Award)
+	-- column's own width includes -- that gap is reserved purely for the row-height-formula
+	-- symmetry explained on BUTTON_GAP's own comment, and sits past the Award button's actual
+	-- right edge, not under it. UI/SessionFrame.lua reads GRID_WIDTH to align its header-row
+	-- controls (Disenchant/Remove/vote count) and the window's own width with where the Award
+	-- button really ends, so including that trailing gap here would misalign them by exactly
+	-- BUTTON_GAP -- small, but enough to read as "not quite lined up." Computed from `columns`
+	-- itself, not a separately maintained number, so it can't drift out of sync if a column width
+	-- changes.
+	local gridWidth = 0
+	for _, col in ipairs(columns) do
+		gridWidth = gridWidth + col.width
+	end
+	VotingFrame.GRID_WIDTH = gridWidth - BUTTON_GAP
 
 	VotingFrame.activePanel = self
 	return self

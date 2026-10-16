@@ -34,6 +34,8 @@ local detailArea
 local detailItemLabel
 local detailItemHover
 local detailRemoveButton
+local detailVoteCountText
+local detailDisenchantButton
 local detailContainer
 local votingPanel
 local startButton
@@ -330,19 +332,29 @@ local function onRemoveClick()
 	refresh()
 end
 
+-- Remove and Disenchant+vote-count share the same top-right slot (see ensureFrame) rather than
+-- needing separate rows -- they're never both meaningful at once: Remove only applies outside an
+-- active review (Session:IsHolder() itself requires state == "active", so Session:SetPreAward/
+-- SetEnchanter are no-ops the whole time Remove would be shown anyway), so showing one always
+-- means hiding the other, never both or neither.
 function showDetailFor(idx)
 	selectedIdx = idx
 	local item = idx and PLC.Session.items[idx]
 	if item then
 		detailItemLabel:SetText(item.link or "?")
 		detailItemHover.itemLink = item.link
-		detailRemoveButton:SetShown(PLC.Session.state ~= "active" and not item.awarded)
+		local showRemove = PLC.Session.state ~= "active" and not item.awarded
+		detailRemoveButton:SetShown(showRemove)
+		detailDisenchantButton:SetShown(not showRemove)
+		detailVoteCountText:SetShown(not showRemove)
 		detailContainer:Show()
 		votingPanel:ShowItem(idx)
 	else
 		detailItemLabel:SetText(L["SESSIONFRAME_NO_ITEMS"])
 		detailItemHover.itemLink = nil
 		detailRemoveButton:Hide()
+		detailDisenchantButton:Hide()
+		detailVoteCountText:Hide()
 		detailContainer:Hide()
 	end
 end
@@ -375,40 +387,40 @@ local function updateHeaderOwner()
 end
 
 -- Rebuilds the Enchanter dropdown's display text + entry list -- called from refresh() so it
--- stays live across roster changes, profession syncs, and holder picks alike. Entries are sorted
--- alphabetically by short name (PLC.Roster:ShortName), `checked` (not `selected` -- see
+-- stays live across roster changes, profession syncs, and holder picks alike. Hard-filtered to
+-- roster members Data/Professions.lua currently shows as actually having Enchanting trained --
+-- NOT "everyone, with enchanters just highlighted green" like an earlier round of this had it.
+-- That softer version is exactly what let a non-enchanter get picked (by the alphabetical default,
+-- or by a holder clicking the wrong name in a long list) in the first place; hard-filtering closes
+-- it at the source instead of trying to make the wrong option merely less likely. Entries are
+-- sorted alphabetically by short name (PLC.Roster:ShortName), `checked` (not `selected` -- see
 -- UI/Widgets/PopupMenu.lua's Render, which only ever reads `checked` for its checkmark) matches
--- Session:GetEnchanterGuid()'s current pick (explicit or the computed alphabetical default), and
--- anyone with synced Enchanting (Data/Professions.lua) is colored green so an informed pick is
--- easy without hard-filtering the list -- someone might deliberately pick an alt/mule not in the
--- synced data yet.
+-- Session:GetEnchanterGuid()'s current pick. When the list is empty (nobody's Enchanting has
+-- synced yet) the dropdown shows a placeholder and opens to an empty popup rather than silently
+-- falling back to someone without Enchanting.
 local function updateEnchanterDropdown()
 	if not enchanterDropdown then
 		return
 	end
 	local list = {}
 	for guid, entry in PLC.Roster:IterateGroup() do
-		table.insert(list, { guid = guid, name = PLC.Roster:ShortName(entry.name) })
+		if PLC.Professions:HasProfession(guid, PLC.Professions.ENCHANTING_KEY) then
+			table.insert(list, { guid = guid, name = PLC.Roster:ShortName(entry.name) })
+		end
 	end
 	table.sort(list, function(a, b) return a.name < b.name end)
 
 	local currentGuid = PLC.Session:GetEnchanterGuid()
-	local displayText = "?"
+	local displayText = L["SESSIONFRAME_NO_ENCHANTER"]
 	local entries = {}
 	for _, candidate in ipairs(list) do
 		local checked = candidate.guid == currentGuid
 		if checked then
 			displayText = candidate.name
 		end
-		local color
-		if PLC.Professions:HasProfession(candidate.guid, PLC.Professions.ENCHANTING_SKILL_LINE) then
-			local r, g, b = Primitives.color("success")
-			color = { r = r, g = g, b = b }
-		end
 		table.insert(entries, {
 			text = candidate.name,
 			checked = checked,
-			color = color,
 			onClick = function()
 				PLC.Session:SetEnchanter(candidate.guid)
 			end,
@@ -502,14 +514,10 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilSessionFrame", UIParent)
-	-- Width fixed at 630 -- the embedded UI/VotingFrame.lua grid's columns are fixed-width with
-	-- no reflow, so a wider window never did anything but add blank space on the right; 630 is
-	-- the narrowest the grid actually fits without clipping (see makeResizable below), so that's
-	-- the one width that's ever actually useful. Height stays freely resizable -- a taller window
-	-- genuinely shows more item icons in the sidebar.
-	-- +30 over the pre-Enchanter-row baseline, to compensate for the new toolbar row below the
-	-- header without shrinking the visible item list.
-	frame:SetSize(630, 530)
+	-- Width is fixed (set at the very end of this function, once VotingFrame.GRID_WIDTH is known
+	-- -- see the comment down there) but every child below positions itself via relative anchors,
+	-- not absolute pixel coordinates, so building them before the frame has a final size is fine;
+	-- WoW only resolves actual pixel positions at render time, well after ensureFrame() returns.
 	frame:SetPoint("CENTER", 0, 50)
 	-- Deliberately stays at "DIALOG" -- the middle of the three main windows: UI/OptionsFrame.lua
 	-- (built on UI/Widgets/PanelLayout.lua) sits one tier below at "HIGH", UI/LootFrame.lua sits
@@ -522,9 +530,6 @@ local function ensureFrame()
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilSessionFrame")
-	-- Width min and max are the same value (630) -- fixes the width (see the comment on
-	-- SetSize above) while leaving height genuinely resizable between 360 and 800.
-	Primitives.makeResizable(frame, 630, 390, 630, 830)
 	-- Covers every way the window can close -- the header's own close button, Escape (via
 	-- UISpecialFrames), or a future caller just calling frame:Hide() directly -- without needing
 	-- to duplicate stopTicker() at each of those call sites.
@@ -588,8 +593,9 @@ local function ensureFrame()
 	enchanterRow.label = Primitives.createText(enchanterRow, L["SESSIONFRAME_ENCHANTER_LABEL"], 12, "white")
 	enchanterRow.label:SetPoint("LEFT")
 
-	-- Resized down from Dropdown.createDropdownButton's 260px default -- this window is only
-	-- 630px wide and the icon sidebar/detail grid below already use nearly all of that.
+	-- Resized down from Dropdown.createDropdownButton's 260px default -- this window's width is
+	-- derived from the detail grid below (see the end of this function) and isn't wide enough to
+	-- spare for a full-size dropdown on top of the sidebar/grid it already has to fit.
 	enchanterDropdown = DropdownWidget.createDropdownButton(enchanterRow)
 	enchanterDropdown:SetSize(180, Theme.LAYOUT.fieldHeight)
 	enchanterDropdown:SetPoint("LEFT", enchanterRow.label, "RIGHT", 8, 0)
@@ -612,7 +618,7 @@ local function ensureFrame()
 	-- detail area's -- the icon sidebar reads better flush-ish against the window's edge.
 	content = CreateFrame("Frame", nil, frame)
 	content:SetPoint("TOPLEFT", enchanterRow, "BOTTOMLEFT", -4, -10)
-	content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 50)
+	content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -3, 50)
 
 	itemListContainer = CreateFrame("Frame", nil, content)
 	itemListContainer:SetPoint("TOPLEFT", content, "TOPLEFT")
@@ -634,11 +640,38 @@ local function ensureFrame()
 	detailArea:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT", 8, 0)
 	detailArea:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
 
+	-- One compact header bar: item name (left) and, sharing the same top-right slot (see
+	-- showDetailFor), either the Remove button (outside an active review) or the vote count +
+	-- Disenchant button (during one) -- previously two stacked rows (item name+Remove, then the
+	-- embedded panel's own "N of M voted"+Disenchant row below a second separator), which ate
+	-- extra vertical space for no reason once Disenchant existed. Both buttons' final TOPRIGHT
+	-- anchor is set further below, once VotingFrame.GRID_WIDTH is known (set by CreatePanel) --
+	-- they line up with the embedded grid's own right edge, not detailArea's full width, which is
+	-- wider than the grid's fixed-width columns actually fill (see frame:SetSize's width comment).
+
+	-- Only ever meaningful pre-Start()/post-End() for a not-yet-awarded item -- there's no wire
+	-- command to retract an item once it's been broadcast (Session:RemoveItem enforces the same
+	-- rule independently); showDetailFor keeps this hidden the rest of the time.
+	detailRemoveButton = ButtonWidget.createButton(detailArea, L["SESSIONFRAME_REMOVE"], 70)
+	detailRemoveButton:SetScript("OnClick", onRemoveClick)
+
+	-- Same top-right slot as detailRemoveButton -- showDetailFor shows exactly one of the two,
+	-- never both (see its own comment for why that's always safe).
+	detailDisenchantButton = ButtonWidget.createButton(detailArea, L["VOTINGFRAME_DISENCHANT"], 90)
+
+	detailVoteCountText = Primitives.createText(detailArea, "", 11, "dim")
+	detailVoteCountText:SetPoint("RIGHT", detailDisenchantButton, "LEFT", -10, 0)
+	detailVoteCountText:SetPoint("TOP", detailDisenchantButton, "TOP", 0, -8)
+
 	-- A Frame wrapping the label, not the label itself -- a FontString has no SetScript, so
-	-- showing a tooltip on hover needs an actual Frame to own OnEnter/OnLeave.
+	-- showing a tooltip on hover needs an actual Frame to own OnEnter/OnLeave. RIGHT is reserved
+	-- against the vote-count text's own left edge (not a fixed number), so it stays correct
+	-- regardless of exactly where that text and the button end up. This only bounds the hover-
+	-- tooltip trigger area, not the rendered text itself (detailItemLabel has no RIGHT point of
+	-- its own, so a very long item name can still visually extend further than this if it has to).
 	detailItemHover = CreateFrame("Frame", nil, detailArea)
 	detailItemHover:SetPoint("TOPLEFT")
-	detailItemHover:SetPoint("RIGHT", detailArea, "RIGHT", -80, 0)
+	detailItemHover:SetPoint("RIGHT", detailVoteCountText, "LEFT", -10, 0)
 	detailItemHover:SetHeight(20)
 	Primitives.attachItemTooltip(detailItemHover)
 
@@ -646,20 +679,44 @@ local function ensureFrame()
 	detailItemLabel:SetPoint("LEFT")
 	detailItemLabel:SetJustifyH("LEFT")
 
-	-- Only ever meaningful pre-Start()/post-End() for a not-yet-awarded item -- there's no wire
-	-- command to retract an item once it's been broadcast (Session:RemoveItem enforces the same
-	-- rule independently); showDetailFor keeps this hidden the rest of the time.
-	detailRemoveButton = ButtonWidget.createButton(detailArea, L["SESSIONFRAME_REMOVE"], 70)
-	detailRemoveButton:SetPoint("TOPRIGHT")
-	detailRemoveButton:SetScript("OnClick", onRemoveClick)
-
 	Primitives.createSeparator(detailArea, -28)
 
 	detailContainer = CreateFrame("Frame", nil, detailArea)
 	detailContainer:SetPoint("TOPLEFT", 0, -36)
 	detailContainer:SetPoint("BOTTOMRIGHT")
 
-	votingPanel = PLC.UI.VotingFrame.CreatePanel(detailContainer)
+	votingPanel = PLC.UI.VotingFrame.CreatePanel(detailContainer, detailVoteCountText, detailDisenchantButton)
+
+	-- Only now does VotingFrame.GRID_WIDTH exist (CreatePanel just set it) -- both buttons' right
+	-- edge lands exactly on the grid's own right edge (the Award column's), measured from
+	-- detailArea's LEFT since the grid itself starts flush with detailArea's left edge too.
+	detailDisenchantButton:SetPoint("TOPRIGHT", detailArea, "TOPLEFT", PLC.UI.VotingFrame.GRID_WIDTH, 0)
+	detailRemoveButton:SetPoint("TOPRIGHT", detailArea, "TOPLEFT", PLC.UI.VotingFrame.GRID_WIDTH, 0)
+
+	-- The window's own width is derived from the grid's real content width instead of a
+	-- hand-picked number -- a hardcoded width (630, from before this round) drifted out of sync
+	-- with an earlier column-narrowing pass and left a growing stripe of genuinely unused space
+	-- between the grid/buttons and the window's right border. Deriving it means it can't drift
+	-- again the same way if a column width ever changes: detailArea needs to fit the grid's
+	-- content (GRID_WIDTH) plus the grid's own scrollbar gutter (ScrollFrame.RESERVED_WIDTH,
+	-- reserved -- as blank space -- even when not actively scrolling, which is the common case for
+	-- a small council; this is a pre-existing characteristic of every DataTable in the addon, not
+	-- something specific to this window, so it's not shrunk here even though it reads as "more
+	-- wasted space" right next to the margin below); frame width then adds back everything between
+	-- the window's edge and detailArea's left edge (content's left/right insets below, the icon
+	-- sidebar, and the gap between the sidebar and detailArea). No added margin beyond that -- the
+	-- Award/Disenchant buttons sit right at detailArea's true edge, with content's own small right
+	-- inset (3px, see below) the only deliberate breathing room left before the window's border.
+	local detailAreaWidth = PLC.UI.VotingFrame.GRID_WIDTH + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH
+	local frameWidth = 6 + ICON_SIDEBAR_WIDTH + 8 + detailAreaWidth + 3
+
+	-- Height stays freely resizable -- a taller window genuinely shows more item icons in the
+	-- sidebar. +30 over the pre-Enchanter-row baseline, to compensate for the toolbar row below
+	-- the header without shrinking the visible item list.
+	frame:SetSize(frameWidth, 530)
+	-- Width min and max are the same value -- fixes the width (see the comment above) while
+	-- leaving height genuinely resizable between 390 and 830.
+	Primitives.makeResizable(frame, frameWidth, 390, frameWidth, 830)
 
 	frame:Hide()
 	return frame

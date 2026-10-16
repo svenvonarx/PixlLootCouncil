@@ -27,7 +27,7 @@ Session.owner = nil -- { guid, name }
 -- is realistically the same person across the whole night's many review passes.
 Session.enchanterGuid = nil
 -- [idx] = { idx, lootSlot, itemString, boss, quality, deadlineAt, link, icon, bagged, awarded,
---           awardReason, preAwardGuid, preAwardReason }
+--           awardReason, awardedAt, traded, preAwardGuid, preAwardReason }
 Session.items = {}
 Session.responses = {} -- [idx][guid] = { response, note }
 Session.lastHolderSeenAt = nil
@@ -42,20 +42,33 @@ function Session:IsHolder()
 	return self.state == "active" and self.owner ~= nil and self.owner.guid == UnitGUID("player")
 end
 
--- The explicit pick if there is one, otherwise the alphabetically-first roster member -- computed
--- fresh on every call (not cached alongside it) so the default naturally tracks roster changes
--- right up until someone actually picks, per the user's "always preselect the first in the list
--- alphabetically if not manually set" request. Never returns nil if the roster has anyone in it
--- at all (including just the player themself, solo).
+-- Strictly a known Enchanter or nothing -- NEVER a random roster member picked by alphabetical
+-- luck, even as a last-resort fallback. Two parts:
+--  1. An explicit pick (Session:SetEnchanter, via the now-filtered dropdown -- see
+--     UI/SessionFrame.lua) only counts while that person is STILL known to have Enchanting right
+--     now. This is what actually closes the bug for good: a stale pick persisted from before
+--     today's rework (back when the default/dropdown weren't profession-filtered yet) would
+--     otherwise keep silently overriding the computed default forever, since Session.enchanterGuid
+--     is sticky by design (never reset by Start()/End(), like owner) -- re-validating it here means
+--     a bad historical pick simply stops counting the moment it's checked, no manual cleanup
+--     needed.
+--  2. Otherwise, the alphabetically-first roster member who IS currently known to have Enchanting
+--     (Data/Professions.lua) -- or nil if nobody's synced Enchanting data yet. Returning nil here
+--     is deliberate: silently defaulting to someone who doesn't have Enchanting is the exact bug
+--     this replaces, so "we don't know anyone yet" has to be a real, visible state rather than a
+--     wrong-but-plausible-looking guess (see UI/SessionFrame.lua/UI/VotingFrame.lua's nil handling).
+-- Computed fresh on every call (not cached) so it naturally tracks roster/profession-sync changes.
 function Session:GetEnchanterGuid()
-	if self.enchanterGuid then
+	if self.enchanterGuid and PLC.Professions:HasProfession(self.enchanterGuid, PLC.Professions.ENCHANTING_KEY) then
 		return self.enchanterGuid
 	end
 	local bestGuid, bestName
 	for guid, entry in PLC.Roster:IterateGroup() do
-		local name = PLC.Roster:ShortName(entry.name)
-		if not bestName or name < bestName then
-			bestGuid, bestName = guid, name
+		if PLC.Professions:HasProfession(guid, PLC.Professions.ENCHANTING_KEY) then
+			local name = PLC.Roster:ShortName(entry.name)
+			if not bestName or name < bestName then
+				bestGuid, bestName = guid, name
+			end
 		end
 	end
 	return bestGuid
@@ -427,15 +440,15 @@ end
 
 -- Records a FINAL award decision for an already-bagged item -- by review time everything is
 -- bagged under this workflow, so there's no live loot slot left to call GiveMasterLoot against.
--- "Award" here means "decide + tell the holder who to trade it to," not "transfer it directly"
--- (no trade-window automation yet -- see docs/SPECIFICATION.md's Phase 2 notes). Holder-only:
--- only the person physically holding the item's bags should be able to commit this.
+-- "Award" here means "decide who gets it" -- the actual handoff is Loot/Trade.lua's job from here
+-- (UI/TradeFrame.lua's "items to hand out"/"items to collect" windows), not this function's.
+-- Holder-only: only the person physically holding the item's bags should be able to commit this.
 --
 -- The only caller is AwardAllPreAwarded below -- there's no more direct, one-click-and-it's-final
 -- path from the UI (see UI/VotingFrame.lua): every row's Award/Disenchant button only ever calls
 -- SetPreAward (stage), never this. `reason` is "award" (trade to winnerGuid) or "disenchant"
 -- (winnerGuid is the designated Enchanter, Session:GetEnchanterGuid() -- still a real roster GUID,
--- still goes through the exact same trade-instruction/Announce path, just with different wording).
+-- still goes through the exact same trade-tracking/Announce path, just with different wording).
 function Session:AwardBaggedItem(idx, winnerGuid, reason)
 	if not self:IsHolder() then
 		print(L["CHAT_PREFIX"] .. L["SESSION_NOT_HOLDER"])
@@ -458,23 +471,21 @@ function Session:AwardBaggedItem(idx, winnerGuid, reason)
 	reason = reason or "award"
 	item.awarded = winnerGuid
 	item.awardReason = reason
+	item.awardedAt = time() -- feeds UI/TradeFrame.lua's "awarded Xm ago" timer
 	item.preAwardGuid = nil
 	item.preAwardReason = nil
 	persist()
 	PLC.Comms.Sync:SendAward(self.sessionId, item.idx, winnerGuid, reason)
-	if reason == "disenchant" then
-		print(L["CHAT_PREFIX"] .. string.format(L["SESSION_DISENCHANT_INSTRUCTION"], item.link or "?", winnerEntry.name))
-	else
-		print(L["CHAT_PREFIX"] .. string.format(L["SESSION_AWARD_TRADE_INSTRUCTION"], item.link or "?", winnerEntry.name))
-	end
-	-- The "announce awards in chat" option (profile.announce.award) -- this is now the only
-	-- place that can ever fire it; Loot/Award.lua's OnLootSlotCleared skips it entirely for
-	-- "collect" reason self-loots (see the comment there).
+	-- No local "trade it to them!" print here anymore -- the raid-chat announcement below already
+	-- communicates who got what, and UI/TradeFrame.lua's own "items to hand out" row is the
+	-- holder's actual actionable reminder now; a third, redundant local system-message line on top
+	-- of both was exactly what the user asked to drop.
 	if PLC.Loot.Announce and PLC.Loot.Announce.AnnounceAward then
 		PLC.Loot.Announce:AnnounceAward({ link = item.link, winnerName = winnerEntry.name, reason = reason })
 	end
 	self:notifyVotingFrame(item.idx)
 	self:notifySessionFrame()
+	self:notifyTradeFrame()
 	return true
 end
 
@@ -585,6 +596,14 @@ function Session:notifySessionFrame()
 	end
 end
 
+-- UI/TradeFrame.lua doesn't exist until this round's own UI step -- guarded exactly like every
+-- other not-yet-built-module forward-call in this codebase (see notifyLootFrame above).
+function Session:notifyTradeFrame()
+	if PLC.UI and PLC.UI.TradeFrame and PLC.UI.TradeFrame.OnSessionUpdated then
+		PLC.UI.TradeFrame:OnSessionUpdated()
+	end
+end
+
 -- Broadcast to the whole group, not whispered to the holder -- every council member's client
 -- computes the same council set locally from Data/Roster.lua, so every council member's own
 -- embedded response grid can stay in sync independently of the holder relaying anything.
@@ -625,11 +644,46 @@ function Session:OnAwardReceived(data)
 	if item then
 		item.awarded = data.winnerGuid
 		item.awardReason = data.reason or "award"
+		item.awardedAt = time()
 		item.preAwardGuid = nil
 		item.preAwardReason = nil
 	end
 	self:notifyVotingFrame(data.idx)
 	self:notifySessionFrame()
+	self:notifyTradeFrame()
+end
+
+-- Holder-only, called from Loot/Trade.lua once it's confirmed (by actually re-checking its own
+-- bags after a trade closes, never just assumed) that an item genuinely left the holder's hands --
+-- see Loot/Trade.lua:OnTradeClosed. Every other client only ever learns this via the broadcast
+-- below (OnTradeCompleteReceived), never by guessing from their own BAG_UPDATE -- a recipient who
+-- already owned a stack of the same item would be a false positive for that, so the holder's own
+-- bags are kept the one source of truth.
+function Session:MarkItemTraded(idx)
+	if not self:IsHolder() then
+		return
+	end
+	local item = self.items[idx]
+	if not item or not item.awarded or item.traded then
+		return
+	end
+	item.traded = true
+	persist()
+	PLC.Comms.Sync:SendTradeComplete(self.sessionId, idx)
+	self:notifySessionFrame()
+	self:notifyTradeFrame()
+end
+
+function Session:OnTradeCompleteReceived(data)
+	if not data.sessionId or data.sessionId ~= self.sessionId then
+		return
+	end
+	local item = self.items[data.idx]
+	if item then
+		item.traded = true
+	end
+	self:notifySessionFrame()
+	self:notifyTradeFrame()
 end
 
 function Session:OnHeartbeatReceived(data)

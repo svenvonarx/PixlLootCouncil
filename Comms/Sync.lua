@@ -126,6 +126,18 @@ function Sync:SendSetEnchanter(sessionId, guid)
 	Protocol:Send("set_enchanter", { sessionId = sessionId, guid = guid }, ch)
 end
 
+-- Holder-only, sent once Loot/Trade.lua has actually confirmed (by re-checking its own bags, not
+-- assumed) that an item left the holder's hands -- see Data/Session.lua:MarkItemTraded. Everyone
+-- else trusts this broadcast rather than guessing from their own bags, since a recipient who
+-- already owned a stack of the same item would be a false positive for that.
+function Sync:SendTradeComplete(sessionId, idx)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("trade_complete", { sessionId = sessionId, idx = idx }, ch)
+end
+
 Protocol:RegisterHandler("session_start", function(data) PLC.Session:OnSessionStartReceived(data) end)
 Protocol:RegisterHandler("item_add", function(data) PLC.Session:OnItemAddReceived(data) end)
 Protocol:RegisterHandler("response", function(data) PLC.Session:OnResponseReceived(data) end)
@@ -139,3 +151,4 @@ Protocol:RegisterHandler("presence", function(data) PLC.Presence:OnPresenceRecei
 Protocol:RegisterHandler("gear", function(data) PLC.Gear:OnGearReceived(data) end)
 Protocol:RegisterHandler("profession", function(data) PLC.Professions:OnProfessionReceived(data) end)
 Protocol:RegisterHandler("set_enchanter", function(data) PLC.Session:OnEnchanterReceived(data) end)
+Protocol:RegisterHandler("trade_complete", function(data) PLC.Session:OnTradeCompleteReceived(data) end)

@@ -472,10 +472,55 @@ Award still just means "record the decision and tell the holder who to trade it 
 - A non-holder client picking from the dropdown should be a silent no-op (`Session:SetEnchanter`
   is holder-only) — confirm nothing changes on any client when a candidate clicks an entry.
 - Profession sync (solo-unverifiable beyond "no Lua error" — needs a second client actually
-  trained in a primary profession): at session start (or a late joiner's sync), confirm the
-  Enchanter dropdown's entries are colored green for any candidate with Enchanting trained
-  (`Data/Professions.lua:ENCHANTING_SKILL_LINE`), and left the default text color for everyone
-  else, including someone with a *different* primary profession (e.g. Tailoring) — this should
-  never show green just because *some* profession is known.
-- A character with no primary profession at all should show in the list (never hard-filtered
-  out) with no green highlight — the dropdown lets you pick anyone, informed or not.
+  trained in Enchanting): at session start (or a late joiner's sync), confirm the Enchanter
+  dropdown's entry list is hard-filtered to candidates `Data/Professions.lua` currently shows as
+  having Enchanting trained (`PLC.Professions.ENCHANTING_KEY`, matched against
+  `GetSkillLineInfo`'s localized name via `L["PROFESSION_ENCHANTING"]` -- Classic/TBC Classic has
+  no numeric skill-line ID API, see that file's own comments) — a candidate with a *different*
+  primary profession (e.g. Tailoring) or none at all should never appear in the list.
+- With nobody's Enchanting synced yet, the dropdown shows "No Enchanter known" rather than
+  defaulting to anyone — and `Session:GetEnchanterGuid()` returns nil in that state, not a random
+  roster member. `/plc professions` dumps exactly what each client currently has synced if this
+  doesn't match expectations.
+
+### 2.9 Trade automation (new this round, `Loot/Trade.lua` + `UI/TradeFrame.lua`)
+This is the one round whose core claim (auto-placing an item into a real trade window) genuinely
+can't be confirmed by reading code — it needs two live clients actually trading. Watch for
+`ADDON_ACTION_BLOCKED`/`ADDON_ACTION_FORBIDDEN` in `/plc errors` on any step below; that's the
+addon's own existing taint capture, and the fastest signal if a protected-function assumption
+(see `Loot/Trade.lua`'s own file comment) turns out wrong for this client.
+- Press **Award All** with at least one staged item: confirm no local "trade it to them!" chat
+  line appears anymore (removed this round) — only the raid-chat `AnnounceAward` line, same as
+  before.
+- The holder's **Loot Trades** window should pop open on its own right after Award All commits
+  (no manual open needed), showing the awarded item(s) under "Items to hand out" with the
+  winner's name and an "Awarded just now" timer that starts counting up.
+- On the winner's own client, the same window should pop open independently, showing the item
+  under "Items to collect" with the holder's name.
+- Click **Trade** on the holder's row: confirm a real trade window opens with that candidate (if
+  nearby) and the item is already sitting in a trade slot — nobody should need to drag it in
+  manually. Click **Trade** on the *recipient's* row instead (holder not clicking first) and
+  confirm the holder's own client still auto-places the item once the trade opens, since
+  placement isn't gated on who initiated it.
+- Click **Accept** on both sides manually (this part can never be automated — see the file
+  comment) and confirm: the item row disappears from both the holder's and recipient's windows
+  within a second or two of the trade closing, and once nothing's left in either section the
+  window hides itself on both clients.
+- Cancel a trade instead of accepting it: confirm the item stays listed as still needing to be
+  traded on both sides (nothing gets marked complete just because a trade window opened and
+  closed).
+- Close the trade window manually while an item is still pending, then award a *different* item:
+  confirm the window does **not** reopen just from a tick (unlike `UI/LootFrame.lua`, this one is
+  meant to respect a manual close) — but a genuinely new item becoming pending while the window is
+  still empty-and-hidden should still pop it open again. `/plc tradeframe` always force-reopens it
+  regardless.
+- On the recipient's row, click **Follow**: confirm it actually starts following the holder (same
+  hardware-event requirement as Trade — must be a direct click, not something scheduled).
+- A council member owed two different items by the same holder in the same review pass: confirm
+  **Trade** places both into the same trade window (up to the game's own trade-slot limit), not
+  just the first one.
+- Known gap, not a bug to chase: a client that reconnects/resyncs *after* already having won
+  something (rather than being online when the `award` command fired live) won't show it in
+  "items to collect" — the full-session resync (`session_sync_data`) doesn't currently carry
+  award/trade status, only the live `award` broadcast does. Pre-existing limitation, not
+  introduced this round.

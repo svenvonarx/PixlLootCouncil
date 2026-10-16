@@ -26,6 +26,7 @@ Comms\Sync.lua
 
 Loot\Detection.lua
 Loot\Award.lua
+Loot\Trade.lua
 Loot\Announce.lua
 
 UI\Theme.lua
@@ -42,4 +43,5 @@ UI\Widgets\PanelLayout.lua
 UI\LootFrame.lua
 UI\SessionFrame.lua
 UI\VotingFrame.lua
+UI\TradeFrame.lua
 UI\OptionsFrame.lua

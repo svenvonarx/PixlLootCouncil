@@ -170,16 +170,20 @@ function Primitives.createText(parent, text, size, colorName)
 	font:SetText(text or "")
 
 	-- A brand-new FontString using the bundled custom font sometimes doesn't actually render its
-	-- very first SetText until a frame tick passes -- observed as: every label that gets SetText
-	-- called again shortly after creation (DataTable cells, re-rendered on every refresh/update)
-	-- always shows correctly, while a label set exactly once at creation time (e.g. a static
-	-- button's text, set here and never touched again) sometimes stays blank forever. Re-applying
-	-- whatever the text actually is one tick later is a cheap, harmless nudge regardless of the
-	-- exact cause -- reads font:GetText() at fire time (not the `text` parameter) so it can never
-	-- clobber a legitimate SetText call that happens to land in between.
-	PLC:ScheduleTimer(function()
-		font:SetText(font:GetText() or "")
-	end, 0)
+	-- very first SetText until the font is truly ready -- observed as: every label that gets
+	-- SetText called again shortly after creation (DataTable cells, re-rendered on every refresh/
+	-- update) always shows correctly, while a label set exactly once at creation time (e.g. a
+	-- static button's text, set here and never touched again) sometimes stays blank forever. A
+	-- single next-tick retry was enough on a plain /reload but not reliably on a real first login
+	-- (far more addons/textures/fonts all loading at once, so the font can still not be ready a
+	-- tick later) -- several retries spread out over the following ~1.5s instead of just one,
+	-- cheap and self-terminating, covers both. Each one reads font:GetText() at fire time (not the
+	-- `text` parameter) so it can never clobber a legitimate SetText call that lands in between.
+	for _, delay in ipairs({ 0, 0.2, 0.5, 1.5 }) do
+		PLC:ScheduleTimer(function()
+			font:SetText(font:GetText() or "")
+		end, delay)
+	end
 
 	local r, g, b = Primitives.color(colorName or "text")
 	font:SetTextColor(r, g, b)
@@ -263,6 +267,35 @@ end
 function Primitives.anchorBelow(object, previous, gap)
 	object:ClearAllPoints()
 	object:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, -(gap or 8))
+end
+
+-- A small downward chevron ("⌄") built from two rotated stroke textures, same technique as
+-- createCloseButton's X above (just the bottom two strokes, not all four) -- not a font glyph,
+-- so it always renders crisp and consistent regardless of whether the bundled custom font
+-- actually has a good-looking "v"/arrow character in it. Used by UI/Widgets/Dropdown.lua's own
+-- button in place of the plain text "v" it used to draw.
+function Primitives.createChevron(parent, size, colorName)
+	size = size or 10
+	local icon = CreateFrame("Frame", nil, parent)
+	icon:SetSize(size, size)
+
+	local length = size * 0.62
+	local thickness = 1.4
+	-- Empirical offsets -- centers each stroke so the two meet at a point slightly below the
+	-- icon's own center, reading as a single "v" shape rather than two separate floating strokes.
+	local spread = length * 0.3
+
+	local legLeft = Primitives.createTexture(icon, "ARTWORK", colorName or "dim")
+	legLeft:SetSize(length, thickness)
+	legLeft:SetPoint("CENTER", icon, "CENTER", -spread, size * 0.1)
+	legLeft:SetRotation(math.rad(-45))
+
+	local legRight = Primitives.createTexture(icon, "ARTWORK", colorName or "dim")
+	legRight:SetSize(length, thickness)
+	legRight:SetPoint("CENTER", icon, "CENTER", spread, size * 0.1)
+	legRight:SetRotation(math.rad(45))
+
+	return icon
 end
 
 function Primitives.createSeparator(parent, y)
