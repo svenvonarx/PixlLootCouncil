@@ -63,13 +63,17 @@ local function ensureFrame()
 	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
 	frame:SetSize(600, 260)
 	frame:SetPoint("CENTER", 0, -80)
-	frame:SetFrameStrata("DIALOG")
+	-- One tier above UI/SessionFrame.lua's "DIALOG" strata on purpose -- responding to loot
+	-- always needs to be reachable, so this window must never end up hidden behind the session
+	-- window regardless of which was clicked/opened more recently.
+	frame:SetFrameStrata("FULLSCREEN_DIALOG")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag("LeftButton")
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilLootFrame")
+	Primitives.makeResizable(frame, 480, 180, 900, 600)
 
 	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
 	frame.bg:SetAllPoints()

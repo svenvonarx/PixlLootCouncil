@@ -181,3 +181,44 @@ function Primitives.createEditBox(parent, width, height, placeholder)
 
 	return box
 end
+
+-- Makes `frame` drag-resizable from a small corner grip, bottom-right -- a flat diagonal-dot
+-- mark (no dedicated resize-handle art asset), brightening to accent on hover like every other
+-- interactive element in this design system. `frame` must already support StartSizing (true for
+-- any plain CreateFrame("Frame", ...) once SetResizable(true) is called). Bounds keep the window
+-- from shrinking below its content's minimum usable layout.
+function Primitives.makeResizable(frame, minWidth, minHeight, maxWidth, maxHeight)
+	frame:SetResizable(true)
+	if frame.SetResizeBounds then
+		frame:SetResizeBounds(minWidth, minHeight, maxWidth or 2000, maxHeight or 2000)
+	else
+		frame:SetMinResize(minWidth, minHeight)
+		frame:SetMaxResize(maxWidth or 2000, maxHeight or 2000)
+	end
+
+	local grip = CreateFrame("Button", nil, frame)
+	grip:SetSize(16, 16)
+	grip:SetPoint("BOTTOMRIGHT", -3, 3)
+
+	grip.dot = Primitives.createTexture(grip, "OVERLAY", "dim")
+	grip.dot:SetPoint("BOTTOMRIGHT", -2, 2)
+	grip.dot:SetSize(8, 8)
+
+	grip:SetScript("OnMouseDown", function()
+		frame:StartSizing("BOTTOMRIGHT")
+	end)
+	grip:SetScript("OnMouseUp", function()
+		frame:StopMovingOrSizing()
+	end)
+	grip:SetScript("OnHide", function()
+		frame:StopMovingOrSizing()
+	end)
+	grip:SetScript("OnEnter", function()
+		grip.dot:SetColorTexture(Primitives.color("accent"))
+	end)
+	grip:SetScript("OnLeave", function()
+		grip.dot:SetColorTexture(Primitives.color("dim"))
+	end)
+
+	return grip
+end
