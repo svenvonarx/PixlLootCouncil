@@ -154,9 +154,10 @@ function VotingFrame.CreatePanel(parent)
 	tableContainer:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -6)
 	tableContainer:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT")
 
+	-- No scroll:SetAllPoints() here -- UI/Widgets/ScrollFrame.lua anchors it to `tableContainer`
+	-- itself now, reserving its own room for the scrollbar inside that.
 	local dataTable = DataTable.Create(tableContainer, 32) -- taller than the 24px default: the
 	-- Award buttons are 28px tall and would otherwise vertically overflow/clip against the next row
-	dataTable.scroll:SetAllPoints()
 
 	local self = setmetatable({
 		header = header,

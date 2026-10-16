@@ -68,9 +68,7 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   Adjacent rows should sit directly against each other too (no visible gap top/bottom around an
   icon) — if you still see a few px of padding on any edge of an icon, that's the bug this round
   specifically fixed (icons were being centered within slightly oversized cells instead of
-  flush-anchored). The sidebar's scrollbar (only visible once there are enough items to scroll)
-  should show up in the gap between the icon list and the detail area on the right, not inside
-  the icon list itself. Confirm clicking **either** icon in a two-icon row selects that specific
+  flush-anchored). Confirm clicking **either** icon in a two-icon row selects that specific
   item (not always the left one) — each icon is its own independent click target now, not a
   whole-row click.
 - Hover an icon: confirm a tooltip shows the item name and its current status
@@ -160,7 +158,21 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   and then **stops accepting more characters** once it's about full — it should NOT keep growing
   downward past the box's bottom border or past 2 lines; if you do manage to get a 3rd line's
   worth of text in, that's a bug (the box clips its own content as a backstop, but the character
-  cap is what should actually prevent it in normal use).
+  cap is what should actually prevent it in normal use). Vertical text alignment (fixed this
+  round): with the note box empty (just the "Optional Note..." placeholder) or holding a single
+  short line, confirm the text sits vertically centered in the box, level with the response
+  buttons' own centered labels right next to it — it previously sat pinned near the box's top
+  edge, which (even though the box's own border/frame was already the exact same height and
+  position as the buttons) read as the whole field being misaligned with them.
+- Scrollbar behavior (reworked this round, shared by every scrollable list in the addon — this
+  window, `UI/SessionFrame.lua`'s icon sidebar, and the embedded candidate grid inside it): seed
+  enough items that the list actually overflows and needs to scroll. Confirm the scrollbar thumb
+  is fully visible **inside** the window's own border — it previously extended several pixels
+  past the window's right edge, visible against the game world behind it. Confirm the thumb's
+  position reflects where the list actually is **immediately**, without needing to click/drag it
+  first (it previously stayed at a stale position after the list content changed size — e.g.
+  after an item was added — until manually dragged). Confirm the scrollbar is **completely
+  hidden** when the list fits without scrolling (e.g. only 1-2 items), not shown empty/inert.
 - Type something in an item's note field, then click a response button: the whole row disappears
   immediately (not a "you voted" label) — other items in the list are unaffected.
 - Leave an item unanswered and watch it run out: once `profile.responseTimeoutSeconds` passes

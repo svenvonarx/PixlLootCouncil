@@ -116,8 +116,10 @@ local function ensureFrame()
 	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
 	content:SetPoint("BOTTOMRIGHT", -10, 10)
 
+	-- UI/Widgets/ScrollFrame.lua anchors dataTable.scroll to `content` itself now (reserving its
+	-- own room for the scrollbar inside that), so no SetAllPoints here -- calling it would
+	-- override that anchoring and let the scrollbar stick out past the window's edge again.
 	dataTable = DataTable.Create(content, ROW_HEIGHT)
-	dataTable.scroll:SetAllPoints()
 
 	dataTable:SetColumns({
 		{

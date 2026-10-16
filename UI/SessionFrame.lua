@@ -87,10 +87,11 @@ local ICON_CELL_HEIGHT = ICON_SIZE + BAR_GAP + BAR_HEIGHT
 -- UI/Widgets/DataTable.lua:Layout's `cell:SetPoint("LEFT", row, "LEFT", x, 0)`), so a row any
 -- taller than the cell itself shows up as unwanted top/bottom padding on every icon.
 local ICON_ROW_HEIGHT = ICON_CELL_HEIGHT
--- Just the two icon columns -- no scrollbar width baked in here anymore (see ensureFrame below,
--- where the scrollbar now lives in the existing sidebar/detail-area gap instead of eating into
--- the icons' own width and showing up as blank padding after them).
-local ICON_SIDEBAR_WIDTH = ICON_SIZE * 2 + ICON_GAP
+-- The two icon columns, plus UI/Widgets/ScrollFrame.lua's own reserved strip for the scrollbar
+-- (it carves that out of whatever width it's given, rather than needing extra room outside it --
+-- see ScrollFrame.lua for why), so the icon columns still get their full width and the scrollbar
+-- still fits, both within this one container.
+local ICON_SIDEBAR_WIDTH = ICON_SIZE * 2 + ICON_GAP + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH
 
 -- Recomputes just the depleting bar from whatever update() last stashed on the holder
 -- (holder.deadlineAt/holder.awardedState) -- factored out so it can run both from update() (for
@@ -476,12 +477,10 @@ local function ensureFrame()
 	itemListContainer:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT")
 	itemListContainer:SetWidth(ICON_SIDEBAR_WIDTH)
 
+	-- No scroll:SetAllPoints() here -- UI/Widgets/ScrollFrame.lua anchors it to itemListContainer
+	-- itself now, reserving its own room for the scrollbar inside that (see ICON_SIDEBAR_WIDTH
+	-- above), so the icon columns and the scrollbar both fit within the sidebar's own bounds.
 	dataTable = DataTable.Create(itemListContainer, ICON_ROW_HEIGHT)
-	-- Flush on every edge -- no reserved scrollbar gutter inside itemListContainer anymore (that
-	-- showed up as dead space to the right of the icons). UI/Widgets/ScrollFrame.lua's scrollbar
-	-- draws 10-17px to the right of the scroll frame's own right edge, which now lands in the
-	-- existing gap between the sidebar and the detail area (widened below) instead.
-	dataTable.scroll:SetAllPoints()
 	dataTable:SetColumns(ICON_COLUMNS)
 
 	local divider = Primitives.createTexture(content, "ARTWORK", "borderDim")
@@ -490,9 +489,7 @@ local function ensureFrame()
 	divider:SetWidth(1)
 
 	detailArea = CreateFrame("Frame", nil, content)
-	-- Widened from the detail area's old flat 8px gap -- it now also has to fit the sidebar's
-	-- scrollbar (see dataTable.scroll above), which draws past itemListContainer's own edge.
-	detailArea:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT", 20, 0)
+	detailArea:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT", 8, 0)
 	detailArea:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
 
 	detailItemLabel = Primitives.createText(detailArea, "", 13, "white")

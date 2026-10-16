@@ -197,7 +197,13 @@ function Primitives.createEditBox(parent, width, height, placeholder, multiline,
 		box:SetMultiLine(true)
 		box:SetMaxLetters(maxLetters or 80)
 		box:SetTextInsets(6, 6, 2, 2)
-		box:SetJustifyV("TOP")
+		-- MIDDLE, not TOP -- most of the time this box holds just the placeholder or one short
+		-- line, and top-justifying that pinned it near the box's top edge while a button sitting
+		-- right next to it (UI/LootFrame.lua's response row) centers its label dead in the
+		-- middle -- same frame height, same border, but the text inside read as misaligned. Two
+		-- lines of wrapped text still read fine centered (the box is sized for ~2 lines, so it
+		-- fills most of the height either way).
+		box:SetJustifyV("MIDDLE")
 	else
 		box:SetTextInsets(6, 6, 0, 0)
 	end
