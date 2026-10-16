@@ -54,6 +54,7 @@ L["SESSION_AWARD_UNKNOWN_WINNER"] = "Could not find that player in the roster."
 L["SESSION_AWARD_ALL_RESULT"] = "Awarded %d pre-awarded item(s)."
 
 L["TRADE_NOT_FOUND"] = "Could not find %s nearby to trade with."
+L["TRADE_NO_TRADABLE"] = "No tradable %s found in your bags -- drag it into the trade window manually."
 
 L["VOTINGFRAME_AWARD"] = "Award"
 L["VOTINGFRAME_DISENCHANT"] = "Disenchant"

@@ -46,8 +46,8 @@ function Trade:ConfigureDisenchantButton(button, idx)
 	button:SetAttribute("macrotext", "/cast Disenchant\n/use item:" .. itemID)
 end
 
--- Scans every bag for the first stack of a given item ID -- used both to place an item into a
--- trade slot and, after the trade closes, to confirm it actually left (see OnTradeClosed below).
+-- Scans every bag for the first stack of a given item ID -- used by the self-disenchant watcher
+-- (onBagUpdate below) to confirm the item actually left. Trades use findTradableStack instead.
 -- Same (C_Container and C_Container.X) or X fallback pattern Loot/Award.lua:39 already established
 -- for container APIs.
 function Trade:FindBagSlot(itemID)
@@ -145,66 +145,217 @@ function Trade:FollowPartner(idx)
 	end
 end
 
--- Items this client just placed into the currently-open trade window, re-checked once it closes
--- (see onTradeClosed) -- the only way to actually confirm a trade went through versus being
--- cancelled is to look at whether the item is still sitting where it was.
-local placedItems = {} -- array of { idx, itemID }
+-- One slot held back on purpose, same reasoning a lot of trade addons use (RC included) -- the
+-- last trade slot is "Will not be traded", and this leaves room for either side to add something
+-- extra without first having to pull one of the auto-placed items back out.
+local MAX_AUTO_PLACE = (MAX_TRADE_ITEMS and MAX_TRADE_ITEMS - 1) or 6
+-- RC's TRADE_ADD_DELAY: placing items the instant TRADE_SHOW fires silently does nothing (the trade
+-- window isn't ready to accept them yet), and several at once also fail -- so each placement is
+-- scheduled, one per step.
+local TRADE_ADD_DELAY = 0.1
 
--- One slot held back on purpose, same reasoning a lot of trade addons use -- leaves room for
--- either side to manually add something extra (gold, an unrelated item) without first having to
--- pull one of the auto-placed items back out.
-local MAX_AUTO_PLACE = (MAX_TRADE_ITEMS and MAX_TRADE_ITEMS - 1) or 5
+local tradeOpen = false
+local tradePartnerGuid -- captured at TRADE_SHOW; the "npc" token is gone by the time a trade completes
+local placeQueue = {} -- array of { itemID, idxs = { idx, ... } } still to place this trade
+local usedSlots = {} -- ["bag:slot"] = true, bag slots already put into this trade
+local nextTradeSlot = 1
+local tradedSnapshot = {} -- [itemID] = count, what we had in the trade window at the last accept
+
+local function containerInfo(bag, slot)
+	if C_Container and C_Container.GetContainerItemInfo then
+		local info = C_Container.GetContainerItemInfo(bag, slot)
+		if info then
+			return info.itemID, info.stackCount or 1, info.isLocked
+		end
+		return nil
+	end
+	local _, count, locked, _, _, _, _, _, _, itemID = GetContainerItemInfo(bag, slot)
+	return itemID, count or 1, locked
+end
+
+-- RC's GetContainerItemTradeTimeRemaining, reduced to a yes/no: tradable unless soulbound, and a
+-- soulbound item still is while its "You may trade this item with players that were also eligible
+-- to loot this item for the next ..." line (BIND_TRADE_TIME_REMAINING) is on the tooltip.
+local scanTooltip
+local tradeTimePattern
+
+local function isTradable(bag, slot)
+	if not scanTooltip then
+		scanTooltip = CreateFrame("GameTooltip", "PixlLootCouncilScanTooltip", nil, "GameTooltipTemplate")
+		tradeTimePattern = BIND_TRADE_TIME_REMAINING
+			and BIND_TRADE_TIME_REMAINING:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1"):gsub("%%s", ".+")
+	end
+	scanTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+	scanTooltip:SetBagItem(bag, slot)
+	local bound = false
+	for i = 1, scanTooltip:NumLines() or 0 do
+		local line = _G["PixlLootCouncilScanTooltipTextLeft" .. i]
+		local text = line and line:GetText()
+		if text then
+			if text == ITEM_SOULBOUND or text == ITEM_ACCOUNTBOUND or text == ITEM_BIND_QUEST then
+				bound = true
+			elseif tradeTimePattern and text:match(tradeTimePattern) then
+				scanTooltip:Hide()
+				return true
+			end
+		end
+	end
+	scanTooltip:Hide()
+	return not bound
+end
+
+-- The first unlocked, tradable stack of itemID not already in this trade -- preferring one big
+-- enough to cover `needed` on its own. Returns bag, slot, stackCount.
+local function findTradableStack(itemID, needed)
+	local getNumSlots = getContainerFns()
+	local fallbackBag, fallbackSlot, fallbackCount
+	for bag = 0, NUM_BAG_SLOTS do
+		for slot = 1, getNumSlots(bag) or 0 do
+			local id, count, locked = containerInfo(bag, slot)
+			if id == itemID and not locked and not usedSlots[bag .. ":" .. slot] and isTradable(bag, slot) then
+				if count >= needed then
+					return bag, slot, count
+				end
+				if not fallbackBag then
+					fallbackBag, fallbackSlot, fallbackCount = bag, slot, count
+				end
+			end
+		end
+	end
+	return fallbackBag, fallbackSlot, fallbackCount
+end
+
+local function itemLabel(itemID)
+	return (select(2, C_Item.GetItemInfo(itemID))) or ("item:" .. itemID)
+end
+
+-- Places the head of placeQueue into the next trade slot, then schedules itself for the rest.
+-- Stacks are split so only the awarded count goes over (3 oils in one stack, 1 awarded -> 1 traded).
+local function placeNext()
+	if not tradeOpen or #placeQueue == 0 or nextTradeSlot > MAX_AUTO_PLACE then
+		return
+	end
+	local entry = table.remove(placeQueue, 1)
+	local needed = #entry.idxs
+	local bag, slot, count = findTradableStack(entry.itemID, needed)
+	if not bag then
+		print(L["CHAT_PREFIX"] .. string.format(L["TRADE_NO_TRADABLE"], itemLabel(entry.itemID)))
+	else
+		local amount = math.min(needed, count)
+		ClearCursor()
+		if count > amount then
+			local split = (C_Container and C_Container.SplitContainerItem) or SplitContainerItem
+			split(bag, slot, amount)
+		else
+			local _, _, pickup = getContainerFns()
+			pickup(bag, slot)
+		end
+		ClickTradeButton(nextTradeSlot)
+		usedSlots[bag .. ":" .. slot] = true
+		nextTradeSlot = nextTradeSlot + 1
+		if amount < needed then
+			-- No single stack covered every unit owed; the rest goes in the next trade slot.
+			local rest = {}
+			for i = amount + 1, needed do
+				table.insert(rest, entry.idxs[i])
+			end
+			table.insert(placeQueue, 1, { itemID = entry.itemID, idxs = rest })
+		end
+	end
+	if #placeQueue > 0 then
+		PLC:ScheduleTimer(placeNext, TRADE_ADD_DELAY)
+	end
+end
 
 -- Fires for both participants -- only the session owner's own client ever auto-places anything (a
 -- recipient has nothing of the holder's to place). IsOwner, not IsHolder -- trading routinely
 -- happens after the review pass has already ended (Award All ends it immediately), so this has to
 -- keep working regardless of live session state. Not gated on "did I click Trade" -- the other
--- party may have initiated it instead -- just: is my current trade partner (the "npc" unit token,
--- confirmed against Warcraft Wiki as the trade-partner token) someone I owe an un-traded award to?
--- Places as many of the owed items as fit, not just one, since the same person can easily be owed
--- more than one item from the same review pass.
+-- party may have initiated it instead -- just: is my current trade partner (the "npc" unit token)
+-- someone I owe an un-traded award to? Awards of the same item are grouped, so two oils owed to
+-- the same player go over as one stack of 2.
 local function onTradeShow()
-	wipe(placedItems)
-	if not PLC.Session:IsOwner() then
+	tradeOpen = true
+	wipe(placeQueue)
+	wipe(usedSlots)
+	wipe(tradedSnapshot)
+	nextTradeSlot = 1
+	tradePartnerGuid = UnitGUID("npc")
+	if not PLC.Session:IsOwner() or not tradePartnerGuid then
 		return
 	end
-	local partnerGuid = UnitGUID("npc")
-	if not partnerGuid then
-		return
-	end
-	local _, _, pickup = getContainerFns()
-	local tradeSlot = 1
+	local byItem, order = {}, {}
 	for idx, item in pairs(PLC.Session.items) do
-		if item.awarded == partnerGuid and not item.traded and tradeSlot <= MAX_AUTO_PLACE then
-			local itemID = itemIDFromItemString(item.itemString)
-			local bag, slot = Trade:FindBagSlot(itemID)
-			if bag then
-				pickup(bag, slot)
-				ClickTradeButton(tradeSlot)
-				table.insert(placedItems, { idx = idx, itemID = itemID })
-				tradeSlot = tradeSlot + 1
+		local itemID = itemIDFromItemString(item.itemString)
+		if itemID and item.awarded == tradePartnerGuid and not item.traded then
+			if not byItem[itemID] then
+				byItem[itemID] = { itemID = itemID, idxs = {} }
+				table.insert(order, byItem[itemID])
 			end
-			-- No bag match: already moved/traded outside the addon, mailed, banked, etc. -- leaves
-			-- the opened trade as-is for a manual drag rather than failing the whole flow.
+			table.insert(byItem[itemID].idxs, idx)
+		end
+	end
+	for _, entry in ipairs(order) do
+		table.sort(entry.idxs)
+		table.insert(placeQueue, entry)
+	end
+	if #placeQueue > 0 then
+		PLC:ScheduleTimer(placeNext, TRADE_ADD_DELAY)
+	end
+end
+
+-- RC's TRADE_ACCEPT_UPDATE: whenever either side accepts, record exactly what we're giving. Items
+-- can't change after an accept without resetting it (which fires this again), so the last snapshot
+-- is what a completed trade actually transferred -- including anything dragged in by hand.
+local function onTradeAcceptUpdate(_, playerAccepted, targetAccepted)
+	if playerAccepted ~= 1 and targetAccepted ~= 1 then
+		return
+	end
+	wipe(tradedSnapshot)
+	for i = 1, MAX_AUTO_PLACE do
+		local link = GetTradePlayerItemLink(i)
+		local itemID = link and tonumber(link:match("item:(%d+)"))
+		if itemID then
+			local _, _, count = GetTradePlayerItemInfo(i)
+			tradedSnapshot[itemID] = (tradedSnapshot[itemID] or 0) + (count or 1)
 		end
 	end
 end
 
--- Re-checks each item this client just placed -- gone means the trade actually went through
--- (cancelling a trade leaves everything exactly where it was); still present means it was
--- cancelled. Session:MarkItemTraded does its own holder/awarded/not-already-traded checks, so
--- nothing here needs to re-verify those.
-local function onTradeClosed()
-	for _, placed in ipairs(placedItems) do
-		local bag = Trade:FindBagSlot(placed.itemID)
-		if not bag then
-			PLC.Session:MarkItemTraded(placed.idx)
+-- "Trade complete." -- mark one pending award to this partner as traded per unit of that item we
+-- just gave them. Session:MarkItemTraded does its own owner/awarded/not-already-traded checks.
+local function onUIInfoMessage(_, messageType, message)
+	local complete = (LE_GAME_ERR_TRADE_COMPLETE and messageType == LE_GAME_ERR_TRADE_COMPLETE)
+		or (ERR_TRADE_COMPLETE and message == ERR_TRADE_COMPLETE)
+	if not complete or not tradePartnerGuid or not PLC.Session:IsOwner() then
+		return
+	end
+	local pending = {}
+	for idx, item in pairs(PLC.Session.items) do
+		if item.awarded == tradePartnerGuid and not item.traded then
+			table.insert(pending, idx)
 		end
 	end
-	wipe(placedItems)
+	table.sort(pending)
+	for _, idx in ipairs(pending) do
+		local itemID = itemIDFromItemString(PLC.Session.items[idx].itemString)
+		if itemID and (tradedSnapshot[itemID] or 0) > 0 then
+			tradedSnapshot[itemID] = tradedSnapshot[itemID] - 1
+			PLC.Session:MarkItemTraded(idx)
+		end
+	end
+	wipe(tradedSnapshot)
+end
+
+local function onTradeClosed()
+	tradeOpen = false
+	wipe(placeQueue)
+	wipe(usedSlots)
 end
 
 PLC.Events:RegisterHandler("TRADE_SHOW", onTradeShow)
+PLC.Events:RegisterHandler("TRADE_ACCEPT_UPDATE", onTradeAcceptUpdate)
+PLC.Events:RegisterHandler("UI_INFO_MESSAGE", onUIInfoMessage)
 PLC.Events:RegisterHandler("TRADE_CLOSED", onTradeClosed)
 
 -- Equipment slots 1-19 (head..tabard, the stable Vanilla-era numbering this whole client line
