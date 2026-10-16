@@ -76,6 +76,7 @@ L["SESSIONFRAME_PREAWARDED_TO"] = "Pre-awarded: %s"
 L["SESSIONFRAME_PENDING"] = "Pending"
 L["SESSIONFRAME_EXPIRED"] = "Expired"
 L["SESSIONFRAME_TIME_LEFT"] = "Time left: %ds"
+L["SESSIONFRAME_STARTED_BY"] = "Started by %s"
 L["SESSIONFRAME_NO_ITEMS"] = "No items yet -- loot something above the quality threshold."
 
 L["LOOTFRAME_TITLE"] = "Loot Response"

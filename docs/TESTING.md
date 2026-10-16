@@ -46,12 +46,12 @@ corpse's loot window" flow.
 - Nothing to click solo here — `Comms/Protocol.lua`'s envelope/version-gate logic and the full
   command round-trip can only be exercised with a second client (Part 2.1).
 
-### 1.5 Session window: icon sidebar + embedded response grid (reworked again, RCLootCouncil-style)
-`UI/SessionFrame.lua` is a narrow left-hand icon sidebar (one icon per item, driven directly by
-`PLC.Session.items` — items are already bagged by the time anyone could react to them, see 1.3)
-plus a content area on the right. `UI/VotingFrame.lua` is an embedded panel in that content area,
-not its own popup — click an icon, its full candidate/response/Award/Pre-Award grid loads next
-to it, not below a row list anymore.
+### 1.5 Session window: icon sidebar + embedded response grid (two-column sidebar this round)
+`UI/SessionFrame.lua` is a narrow left-hand icon sidebar, **two icons per row** once there's more
+than one item (driven directly by `PLC.Session.items` — items are already bagged by the time
+anyone could react to them, see 1.3), plus a content area on the right. `UI/VotingFrame.lua` is
+an embedded panel in that content area, not its own popup — click an icon, its full
+candidate/response/Award/Pre-Award grid loads next to it, not below a row list anymore.
 - `/plc sessionframe` any time opens it — there's no more automatic popup on loot (that was pure
   spam across a multi-hour raid; see 1.3's rework note).
 - `/plc testdata` adds one real test item (Hearthstone, itemID 6948 — always cached, so it
@@ -60,30 +60,42 @@ to it, not below a row list anymore.
 - Confirm the sidebar shows the item's icon with a hairline border, auto-selects it, and the
   content area on the right shows the item's name + a Remove button above the "N out of M have
   voted" line + the candidate/role/response/Award/Pre-Award grid.
-- Hover the icon: confirm a tooltip shows the item name and its current status
-  (Pending/Pre-awarded: X/Awarded: X/Expired). Seed a second test item (`/plc additem <itemID>`)
-  and confirm its icon's border color differs once you pre-award or award it (accent for
-  pre-awarded, a dimmer border for awarded, warning-red for expired) — this is the "visibly
-  flagged" status the icons carry instead of inline text, since there's no room for that at
-  sidebar width.
-- Per-item deadline visual (new this round): each icon's own row now shows a faint depleting
-  background behind the icon (full width at broadcast, shrinking to nothing as
-  `profile.responseTimeoutSeconds` runs out, same accent→warning-red flip under 10s as the main
-  response window) — confirm it's independent per item (seed two items a few seconds apart and
-  watch their backgrounds empty at different rates/times, not in lockstep), that it keeps
-  counting down live while the window is open (no click/refresh needed — a new 1-second ticker
-  drives it), that it disappears once that item is awarded or pre-awarded, and that hovering the
-  icon while still pending shows a new tooltip line ("Time left: Ns") that also counts down live;
-  that line should be absent once awarded. Confirm adding a new item mid-review (via `/plc
-  additem` or a live loot while Session is active) still works exactly as before — this round
-  deliberately did **not** touch per-item deadlines or lock out adding items during a session.
+- Two-column layout (new this round): with only one item total, confirm it renders as a single
+  icon (no empty second slot look). Seed a second item (`/plc additem <itemID>`) and confirm the
+  two icons sit side by side on the same row, flush against the left edge of the window and
+  tight against each other (no large gap) — a third item should start a new row below, not a
+  third column. Confirm clicking **either** icon in a two-icon row selects that specific item
+  (not always the left one) — each icon is its own independent click target now, not a
+  whole-row click.
+- Hover an icon: confirm a tooltip shows the item name and its current status
+  (Pending/Pre-awarded: X/Awarded: X/Expired). Seed a third test item and confirm its icon's
+  border color differs once you pre-award or award it (accent for pre-awarded, a dimmer border
+  for awarded, warning-red for expired) — this is the "visibly flagged" status the icons carry
+  instead of inline text, since there's no room for that at sidebar width.
+- Per-item deadline visual (now a bar under each icon instead of a faint row tint, since two
+  icons can now share one row): confirm a short, solid-colored bar directly beneath each pending
+  icon, full width at broadcast and shrinking to nothing as `profile.responseTimeoutSeconds` runs
+  out, with the same accent→warning-red flip under 10s as the main response window. Confirm it's
+  clearly visible (not faint) and independent per item — seed two items a few seconds apart and
+  watch their bars empty at different rates, not in lockstep. Confirm it keeps counting down live
+  while the window is open (no click/refresh needed — a 1-second ticker drives it), disappears
+  once that item is awarded or pre-awarded, and that hovering a still-pending icon shows a
+  tooltip line ("Time left: Ns") that also counts down live and is absent once awarded. Confirm
+  adding a new item mid-review (via `/plc additem` or a live loot while Session is active) still
+  works exactly as before — this round deliberately did **not** touch per-item deadlines or lock
+  out adding items during a session.
+- Selected-icon highlight: confirm the currently-selected icon shows a visible accent glow (not
+  a whole-row tint anymore, since a row can hold a second, unrelated item) and that it moves to
+  exactly the icon you clicked.
 - With `Session.state` still `"inactive"` (haven't clicked Start yet), confirm the Remove button
   above the grid is visible for the selected item; click it, confirm the item's icon disappears
   from the sidebar and `PLC.Session.items` is actually empty.
 - Click "Start Session": confirm Remove disappears (no wire command exists to retract an
-  already-broadcast item), End Session and Award All buttons appear, and (with a second client,
-  or `/plc additem` on the same one) that new icons keep showing up live if looted while
-  reviewing is still in progress.
+  already-broadcast item), End Session and Award All buttons appear, the window's title bar now
+  shows "Started by <name>" (holder's own character name, no realm suffix — see the realm-display
+  note below), and (with a second client, or `/plc additem` on the same one) that new icons keep
+  showing up live if looted while reviewing is still in progress. End the session and confirm
+  "Started by" disappears again.
 - Seed several test items and confirm the sidebar scrolls without leaking frames (watch
   `/framestack` row count across repeated adds — it should stay bounded, not grow unbounded).
 - Click Award on a candidate in the response grid: confirm the item's icon border flips to the
@@ -99,13 +111,20 @@ to it, not below a row list anymore.
   only "candidate" — see 2.7 for the full presence-timeout version): confirm it reads an actual
   response (BiS/Upgrade/etc.) once voted, "Waiting for response..." for a roster member who has
   the addon but hasn't voted, or "No addon detected" for one who's never checked in at all.
+- **No realm in the candidate grid (new this round):** with a second client/character (so there's
+  a real "Name-Realm" roster entry, not just your own unqualified name), confirm the candidate
+  grid shows just the character name, no "-Realm" suffix — same for the "Awarded to"/"Pre-awarded
+  to" tooltip lines on sidebar icons, and the new "Started by" header label. This is display-only
+  — comms/sync and Roster lookups still use the full "Name-Realm" internally, unaffected.
 
 ### 1.6 Candidate response window (whole-row timer background + new response set this round)
 - `UI/LootFrame.lua` pops up for you as a candidate once a review session starts (`Session:Start`
-  broadcasts the backlog), showing one row per item: an icon, a compact countdown number, 5
-  response buttons (BiS/Upgrade/PvP/OS/Pass by default — replacing the old Need/Greed/Pass set),
-  and a note field next to them, separated from the buttons by a thin vertical divider. `/plc
-  lootframe` reopens it manually.
+  broadcasts the backlog), showing one row per item: an icon, a compact countdown number, then a
+  response row of 5 buttons (BiS/Upgrade/PvP/OS/Pass by default — replacing the old
+  Need/Greed/Pass set) with a note field stacked directly beneath them, separated by a thin
+  horizontal divider. `/plc lootframe` reopens it manually. Rows are noticeably taller than
+  before to fit the stacked note field — confirm the window's default size and its resize-down
+  minimum both still show a complete row without clipping the note box.
 - The old per-item column with its own small progress bar is gone — the countdown is now a
   depleting **background across the whole row** (full-row tint at broadcast, shrinking
   right-to-left to nothing as `profile.responseTimeoutSeconds` runs out), with the standalone
@@ -114,11 +133,16 @@ to it, not below a row list anymore.
   warning-red together once under 10 seconds remain. Confirm it's still per-row/per-item — add a
   second item a few seconds after the first (mid-review item additions still work, see 1.5) and
   confirm its row counts down independently, not tied to the first item's or any shared clock.
-- Confirm all 5 response buttons fit on one row without clipping or overlapping the divider/note
-  field, and that clicking any of them (BiS/Upgrade/PvP/OS/Pass) sends that response correctly.
-- Confirm the note field shows "Optional Note..." as placeholder text (gray, cleared on real
-  input) and reads as visually grouped with its own divider separating it from the buttons,
-  instead of floating right after them.
+- Dynamic button widths (new this round): confirm the 5 response buttons are no longer all the
+  same fixed width — short labels like "OS" should hug their text with modest padding, while
+  "Upgrade" is visibly wider to fit its longer label, and none of them look cramped or overly
+  padded next to each other.
+- Confirm the note field directly below the buttons is as wide as the full button row (not a
+  narrow fixed box), separated from the buttons by a thin horizontal divider so it reads as its
+  own grouped element. Confirm it shows "Optional Note..." as placeholder text (gray, cleared on
+  real input). Type a longer note (40+ characters): confirm the text **wraps onto a second line
+  inside the box** instead of running past the box's right edge/border — this was the "overlap"
+  bug from the previous fixed-width single-line box.
 - Type something in an item's note field, then click a response button: the whole row disappears
   immediately (not a "you voted" label) — other items in the list are unaffected.
 - Leave an item unanswered and watch it run out: once `profile.responseTimeoutSeconds` passes
@@ -138,6 +162,10 @@ to it, not below a row list anymore.
 - Every window's header (this one, Session, Options) now shows the brand logo to the left of the
   title, accent-tinted — confirm it re-tints live along with everything else when you change the
   accent color in Options → Appearance.
+- Close button style (new this round, all three windows): confirm the header's close control is
+  now a thin accent-colored "X" (two crossed hairlines) with no background square behind it,
+  instead of the old solid-square button with a red "x" glyph — and that it still closes the
+  window on click, and still flips to warning-red on hover.
 
 ### 1.7 Chat announcements (Stage 6, reworked after first playtest, solo-visible parts)
 - With `profile.announce.sessionStart` on (default), starting a session should post **one**

@@ -111,6 +111,43 @@ function Primitives.setBorderColor(border, colorName, alpha)
 	end
 end
 
+-- Every window's header close control -- previously a flat colored square behind a bundled-font
+-- "x" glyph, which read as a stray button rather than a close control (the font's "x" is stubby/
+-- rounded at header-icon size and needed the square backing just to be visible at all). This is
+-- two thin rotated hairlines crossing at the button's center instead -- no background, no font
+-- glyph, just a longer/thinner "X" that matches the rest of the flat, no-backdrop design
+-- language. Accent by default, flips to warning-red on hover (the one spot in the app where
+-- hovering something red-flagged is the *safe* affordance, not a warning).
+function Primitives.createCloseButton(parent, size)
+	size = size or 20
+	local button = CreateFrame("Button", nil, parent)
+	button:SetSize(size, size)
+
+	local length = size * 0.6
+	local thickness = 1.4
+
+	local strokeA = Primitives.createTexture(button, "ARTWORK", "accent")
+	strokeA:SetSize(length, thickness)
+	strokeA:SetPoint("CENTER")
+	strokeA:SetRotation(math.rad(45))
+
+	local strokeB = Primitives.createTexture(button, "ARTWORK", "accent")
+	strokeB:SetSize(length, thickness)
+	strokeB:SetPoint("CENTER")
+	strokeB:SetRotation(math.rad(-45))
+
+	button:SetScript("OnEnter", function()
+		strokeA:SetColorTexture(Primitives.color("warning"))
+		strokeB:SetColorTexture(Primitives.color("warning"))
+	end)
+	button:SetScript("OnLeave", function()
+		strokeA:SetColorTexture(Primitives.color("accent"))
+		strokeB:SetColorTexture(Primitives.color("accent"))
+	end)
+
+	return button
+end
+
 function Primitives.anchorBelow(object, previous, gap)
 	object:ClearAllPoints()
 	object:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, -(gap or 8))
@@ -131,15 +168,27 @@ function Primitives.createPageHeader(parent, title)
 	return titleText
 end
 
--- Single-line text input, flat field-colored fill + 1px border like every other widget here --
--- no BackdropTemplate. EditBox has no native placeholder attribute, so one is faked with the
--- standard WoW idiom (dim placeholder text shown/cleared on focus); call :GetValue() rather than
--- :GetText() to get "" while the placeholder is showing instead of the placeholder string itself.
-function Primitives.createEditBox(parent, width, height, placeholder)
+-- Flat field-colored fill + 1px border like every other widget here -- no BackdropTemplate.
+-- EditBox has no native placeholder attribute, so one is faked with the standard WoW idiom (dim
+-- placeholder text shown/cleared on focus); call :GetValue() rather than :GetText() to get ""
+-- while the placeholder is showing instead of the placeholder string itself.
+--
+-- `multiline`, when true, lets text word-wrap onto a second line instead of running past the
+-- box's right edge (UI/LootFrame.lua's note field -- a fixed single-line box let typed text
+-- overflow visibly past its own border, into whatever sat to its right). Capped at a short
+-- length so it can't grow past the ~2 lines the box is actually sized for.
+function Primitives.createEditBox(parent, width, height, placeholder, multiline)
 	local box = CreateFrame("EditBox", nil, parent)
 	box:SetSize(width, height or 20)
 	box:SetAutoFocus(false)
-	box:SetTextInsets(6, 6, 0, 0)
+	if multiline then
+		box:SetMultiLine(true)
+		box:SetMaxLetters(60)
+		box:SetTextInsets(6, 6, 4, 4)
+		box:SetJustifyV("TOP")
+	else
+		box:SetTextInsets(6, 6, 0, 0)
+	end
 
 	local pixelSize = math.max(9, math.floor(11 * 0.8 + 0.5))
 	if box:SetFont(FONT, pixelSize, "") == false then

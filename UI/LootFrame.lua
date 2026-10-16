@@ -18,6 +18,14 @@ local frame
 local dataTable
 local tickerHandle
 
+-- Response buttons sit on their own row now, with the note field stacked directly beneath them
+-- at the same width (previously side-by-side, which forced a fixed, too-narrow note box that
+-- let typed text run straight past its own border -- see Primitives.createEditBox's multiline
+-- support).
+local NOTE_BOX_HEIGHT = 30
+local NOTE_BOX_GAP = 4
+local ROW_HEIGHT = Theme.LAYOUT.buttonHeight + NOTE_BOX_GAP + NOTE_BOX_HEIGHT + 8
+
 local function myResponse(idx)
 	local responses = PLC.Session.responses[idx]
 	local guid = UnitGUID("player")
@@ -61,7 +69,7 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
-	frame:SetSize(600, 260)
+	frame:SetSize(600, 320)
 	frame:SetPoint("CENTER", 0, -80)
 	-- Top of the three main windows on purpose -- one tier above UI/SessionFrame.lua's "DIALOG"
 	-- (itself one tier above UI/OptionsFrame.lua's "HIGH") -- responding to loot always needs to
@@ -74,7 +82,10 @@ local function ensureFrame()
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilLootFrame")
-	Primitives.makeResizable(frame, 480, 180, 900, 600)
+	-- Taller minimum than before -- the response row is now two stacked sub-rows (buttons, then
+	-- the note field beneath), so it needs noticeably more vertical room per item than the old
+	-- single-line layout did.
+	Primitives.makeResizable(frame, 480, 220, 900, 600)
 
 	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
 	frame.bg:SetAllPoints()
@@ -93,13 +104,8 @@ local function ensureFrame()
 	header.title = Primitives.createText(header, L["LOOTFRAME_TITLE"], 14, "title")
 	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, 0)
 
-	header.close = CreateFrame("Button", nil, header)
-	header.close:SetSize(20, 20)
+	header.close = Primitives.createCloseButton(header, 20)
 	header.close:SetPoint("RIGHT", -6, 0)
-	header.close.bg = Primitives.createTexture(header.close, "BACKGROUND", "button")
-	header.close.bg:SetAllPoints()
-	header.close.label = Primitives.createText(header.close, "x", 14, "warning")
-	header.close.label:SetPoint("CENTER")
 	header.close:SetScript("OnClick", function()
 		frame:Hide()
 	end)
@@ -110,7 +116,7 @@ local function ensureFrame()
 	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
 	content:SetPoint("BOTTOMRIGHT", -10, 10)
 
-	dataTable = DataTable.Create(content, 32)
+	dataTable = DataTable.Create(content, ROW_HEIGHT)
 	dataTable.scroll:SetAllPoints()
 
 	dataTable:SetColumns({
@@ -153,30 +159,41 @@ local function ensureFrame()
 			end,
 		},
 		{
-			width = 330,
+			-- Non-binding -- this is the last column in the row, so its declared width is never
+			-- used to position anything after it (see UI/Widgets/DataTable.lua:Layout). The
+			-- container below sizes itself to its own content instead.
+			width = 260,
 			isWidget = true,
 			create = function(row)
 				local container = CreateFrame("Frame", nil, row)
-				container:SetSize(330, 28)
 				container.buttons = {}
+
 				local x = 0
+				local BUTTON_GAP = 6
 				for i, resp in ipairs(PLC.db.profile.responses) do
-					local button = ButtonWidget.createButton(container, resp.text, 46)
-					button:SetPoint("LEFT", x, 0)
-					x = x + 50
+					-- Omitting a fixed width lets each button size itself to its own label (see
+					-- UI/Widgets/Button.lua) -- a shared fixed width left short labels like "OS"
+					-- swimming in padding while "Upgrade" looked cramped against its own border.
+					local button = ButtonWidget.createButton(container, resp.text)
+					button:SetPoint("TOPLEFT", x, 0)
+					x = x + button:GetWidth() + BUTTON_GAP
 					container.buttons[resp.key] = button
 				end
+				local buttonsWidth = x - BUTTON_GAP
 
-				-- Thin vertical divider so the note box reads as its own grouped element
-				-- instead of floating in space right after the buttons (same pattern as
-				-- UI/SessionFrame.lua's sidebar/detail-pane divider).
+				-- Same width as the button row above it, not a separate fixed width -- stacked
+				-- below instead of squeezed in beside the buttons, with its own thin divider so
+				-- it reads as its own grouped element rather than floating in space.
 				container.divider = Primitives.createTexture(container, "ARTWORK", "borderDim")
-				container.divider:SetPoint("TOP", x + 6, -2)
-				container.divider:SetPoint("BOTTOM", x + 6, 2)
-				container.divider:SetWidth(1)
+				container.divider:SetPoint("TOPLEFT", 0, -(Theme.LAYOUT.buttonHeight + 1))
+				container.divider:SetPoint("TOPRIGHT", container, "TOPLEFT", buttonsWidth, -(Theme.LAYOUT.buttonHeight + 1))
+				container.divider:SetHeight(1)
 
-				container.noteBox = Primitives.createEditBox(container, 110, 22, L["LOOTFRAME_NOTE_PLACEHOLDER"])
-				container.noteBox:SetPoint("LEFT", x + 16, 0)
+				container.noteBox = Primitives.createEditBox(
+					container, buttonsWidth, NOTE_BOX_HEIGHT, L["LOOTFRAME_NOTE_PLACEHOLDER"], true)
+				container.noteBox:SetPoint("TOPLEFT", 0, -(Theme.LAYOUT.buttonHeight + NOTE_BOX_GAP))
+
+				container:SetSize(buttonsWidth, Theme.LAYOUT.buttonHeight + NOTE_BOX_GAP + NOTE_BOX_HEIGHT)
 				return container
 			end,
 			-- Only resets the note box when this row-pool slot gets rebound to a DIFFERENT item

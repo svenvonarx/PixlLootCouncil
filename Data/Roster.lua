@@ -66,6 +66,15 @@ function Roster:Get(guid)
 	return self.members[guid]
 end
 
+-- Display-only helper -- entry.name itself always stays "Name-Realm" (addUnit above appends the
+-- realm unconditionally, same-realm group or not, since it's used for wire/identity purposes
+-- elsewhere), but showing the realm in the Loot Session window's candidate grid was pure clutter
+-- for the overwhelmingly common same-realm-raid case. Matches up to the FIRST hyphen only --
+-- player names can never contain one, but some realm names do (e.g. "Area-52").
+function Roster:ShortName(fullName)
+	return fullName and fullName:match("^[^-]+") or fullName
+end
+
 function Roster:GetCouncil()
 	local council = {}
 	for guid, entry in pairs(self.members) do

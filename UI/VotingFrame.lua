@@ -63,7 +63,8 @@ function Panel:buildRows()
 		local r = responses and responses[guid]
 		table.insert(rows, {
 			guid = guid,
-			name = entry.name,
+			name = entry.name, -- full "Name-Realm", kept only for the sort below
+			shortName = PLC.Roster:ShortName(entry.name),
 			class = entry.class,
 			role = entry.role,
 			response = r and r.response,
@@ -169,7 +170,7 @@ function VotingFrame.CreatePanel(parent)
 			width = 150,
 			render = function(row)
 				local r, g, b = classColor(row.class)
-				return row.name, r, g, b
+				return row.shortName, r, g, b
 			end,
 		},
 		{

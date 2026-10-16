@@ -21,6 +21,7 @@ local SessionFrame = {}
 PLC.UI.SessionFrame = SessionFrame
 
 local frame
+local header
 local content
 local itemListContainer
 local dataTable
@@ -34,11 +35,12 @@ local endButton
 local awardAllButton
 local selectedIdx -- which session item's response grid is currently shown in the detail area
 local refresh -- forward-declared: onRemoveClick (defined before it) calls it
+local showDetailFor -- forward-declared: iconColumn's OnClick (defined before it) calls it
 local tickerHandle
 
 -- Mirrors UI/LootFrame.lua's ticker -- this window has no per-second updates driving it
 -- otherwise (unlike LootFrame, nothing re-renders it on a timer), so without this the sidebar's
--- depleting background and the tooltip's remaining-time line would only ever update on the next
+-- depleting bars and the tooltip's remaining-time line would only ever update on the next
 -- item/award/click event, not while someone's just watching the clock run down.
 local function startTicker()
 	if tickerHandle then
@@ -70,33 +72,60 @@ local function hasLiveCountdown(rows)
 	return false
 end
 
--- Single icon-only column -- status is shown via the icon's border color (no room for inline
--- text at sidebar width) plus a tooltip naming the item and its status on hover. Priority
--- Awarded > Pre-awarded > Expired > Pending -- the "visibly flagged" overview status (see
--- docs/SPECIFICATION.md's bagged-item workflow notes).
-local ICON_SIZE = 30
-local ICON_ROW_HEIGHT = 34
-local ICON_SIDEBAR_WIDTH = 46
+-- Two icons per sidebar row instead of one -- a raid can easily bag a dozen+ items over a few
+-- hours, and a single-wide column meant a lot of scrolling for not much payoff at this narrow a
+-- width. Status is shown via the icon's border color (no room for inline text at this width)
+-- plus a tooltip naming the item and its status on hover; a depleting bar directly under each
+-- icon is its own per-item countdown visual (see docs/SPECIFICATION.md's bagged-item workflow
+-- notes for the Awarded > Pre-awarded > Expired > Pending status priority).
+local ICON_SIZE = 28
+local ICON_GAP = 2 -- between the two icon columns -- kept tight on purpose, see user feedback
+local BAR_GAP = 1
+local BAR_HEIGHT = 3
+local ICON_CELL_HEIGHT = ICON_SIZE + BAR_GAP + BAR_HEIGHT
+local ICON_ROW_HEIGHT = ICON_CELL_HEIGHT + 2
+local SCROLLBAR_WIDTH = 14
+local ICON_SIDEBAR_WIDTH = ICON_SIZE * 2 + ICON_GAP + SCROLLBAR_WIDTH
 
-local ICON_COLUMNS = {
-	{
-		width = ICON_SIZE,
+-- Each DataTable row holds up to two items (see pairItemRows below) -- `suffix` ("1"/"2") picks
+-- which half of the row this particular column reads/writes, so the same builder serves both
+-- columns. Each icon is its own clickable Button (not a generic DataTable row click, which only
+-- ever gets ONE data item per row) with its own hover tooltip and selection highlight.
+local function iconColumn(suffix)
+	return {
+		width = suffix == "1" and (ICON_SIZE + ICON_GAP) or ICON_SIZE,
 		isWidget = true,
 		create = function(row)
-			local holder = CreateFrame("Frame", nil, row)
-			holder:SetSize(ICON_SIZE, ICON_SIZE)
-			holder.texture = holder:CreateTexture(nil, "ARTWORK")
+			local holder = CreateFrame("Button", nil, row)
+			holder:SetSize(ICON_SIZE, ICON_CELL_HEIGHT)
+
+			holder.iconFrame = CreateFrame("Frame", nil, holder)
+			holder.iconFrame:SetSize(ICON_SIZE, ICON_SIZE)
+			holder.iconFrame:SetPoint("TOP")
+
+			holder.texture = holder.iconFrame:CreateTexture(nil, "ARTWORK")
 			holder.texture:SetPoint("TOPLEFT", 1, -1)
 			holder.texture:SetPoint("BOTTOMRIGHT", -1, 1)
-			holder.border = Primitives.createBorder(holder)
+			holder.border = Primitives.createBorder(holder.iconFrame)
 
-			-- Tooltip handlers go on `row` itself (already mouse-enabled with its own OnMouseUp
-			-- click handler, see UI/Widgets/DataTable.lua:getRow), not on `holder` -- a separate
-			-- mouse-enabled child frame sitting almost exactly on top of the row (the icon fills
-			-- nearly the entire narrow sidebar width) would otherwise swallow every click before
-			-- it ever reached the row's own handler, which is exactly why the icons weren't
-			-- properly clickable.
-			row:SetScript("OnEnter", function(self)
+			holder.selectionGlow = Primitives.createTexture(holder.iconFrame, "OVERLAY", "accent", 0.35)
+			holder.selectionGlow:SetAllPoints()
+			holder.selectionGlow:Hide()
+
+			-- Depleting bar directly beneath the icon -- a full-strength colored fill on its own
+			-- small track reads far more clearly at a glance than a faint tint behind an icon that
+			-- already covers almost the entire cell (the previous row-background approach).
+			holder.timerTrack = Primitives.createTexture(holder, "BACKGROUND", "scroll")
+			holder.timerTrack:SetPoint("TOPLEFT", holder.iconFrame, "BOTTOMLEFT", 0, -BAR_GAP)
+			holder.timerTrack:SetSize(ICON_SIZE, BAR_HEIGHT)
+			holder.timerTrack:Hide()
+
+			holder.timerBar = holder:CreateTexture(nil, "ARTWORK")
+			holder.timerBar:SetPoint("TOPLEFT", holder.timerTrack, "TOPLEFT")
+			holder.timerBar:SetHeight(BAR_HEIGHT)
+			holder.timerBar:Hide()
+
+			holder:SetScript("OnEnter", function(self)
 				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 				GameTooltip:SetText(holder.tooltipName or "?")
 				if holder.tooltipStatus then
@@ -107,47 +136,83 @@ local ICON_COLUMNS = {
 				end
 				GameTooltip:Show()
 			end)
-			row:SetScript("OnLeave", function()
+			holder:SetScript("OnLeave", function()
 				GameTooltip:Hide()
+			end)
+			holder:SetScript("OnClick", function()
+				if holder.itemIdx then
+					showDetailFor(holder.itemIdx)
+					if dataTable then
+						dataTable:Refresh()
+					end
+				end
 			end)
 
 			return holder
 		end,
 		update = function(holder, rowData)
-			holder.texture:SetTexture(rowData.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-			holder.tooltipName = rowData.link or "?"
+			local idx = rowData["idx" .. suffix]
+			holder.itemIdx = idx
+			if not idx then
+				holder:Hide()
+				return
+			end
+			holder:Show()
+
+			local link = rowData["link" .. suffix]
+			local icon = rowData["icon" .. suffix]
+			local awarded = rowData["awarded" .. suffix]
+			local preAwardGuid = rowData["preAwardGuid" .. suffix]
+			local deadlineAt = rowData["deadlineAt" .. suffix]
+
+			holder.texture:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+			holder.tooltipName = link or "?"
+			holder.selectionGlow:SetShown(selectedIdx == idx)
 
 			local borderColor
 			holder.tooltipRemaining = nil
-			if rowData.awarded then
-				local entry = PLC.Roster:Get(rowData.awarded)
-				holder.tooltipStatus = string.format(L["SESSIONFRAME_AWARDED_TO"], (entry and entry.name) or "?")
+			if awarded then
+				local entry = PLC.Roster:Get(awarded)
+				holder.tooltipStatus = string.format(L["SESSIONFRAME_AWARDED_TO"], PLC.Roster:ShortName(entry and entry.name) or "?")
 				borderColor = "borderDim"
-			elseif rowData.preAwardGuid then
-				local entry = PLC.Roster:Get(rowData.preAwardGuid)
-				holder.tooltipStatus = string.format(L["SESSIONFRAME_PREAWARDED_TO"], (entry and entry.name) or "?")
+			elseif preAwardGuid then
+				local entry = PLC.Roster:Get(preAwardGuid)
+				holder.tooltipStatus = string.format(L["SESSIONFRAME_PREAWARDED_TO"], PLC.Roster:ShortName(entry and entry.name) or "?")
 				borderColor = "accent"
-			elseif rowData.deadlineAt and time() > rowData.deadlineAt then
+			elseif deadlineAt and time() > deadlineAt then
 				holder.tooltipStatus = L["SESSIONFRAME_EXPIRED"]
 				borderColor = "warning"
 			else
 				holder.tooltipStatus = L["SESSIONFRAME_PENDING"]
 				borderColor = "border"
 			end
-
-			-- Not just an "expired" check -- awarded/pre-awarded items keep their own deadline
-			-- in the background too (CollectDetectedItems/AddManualItem never clear it just
-			-- because a decision was staged), so this only adds the line while it's still
-			-- actually counting down for someone to respond to.
-			if not rowData.awarded and rowData.deadlineAt and time() < rowData.deadlineAt then
-				holder.tooltipRemaining = string.format(L["SESSIONFRAME_TIME_LEFT"], math.ceil(rowData.deadlineAt - time()))
-			end
 			Primitives.setBorderColor(holder.border, borderColor)
-		end,
-	},
-}
 
-local function itemRows()
+			-- Not just an "expired" check -- awarded/pre-awarded items keep their own deadline in
+			-- the background too (CollectDetectedItems/AddManualItem never clear it just because a
+			-- decision was staged), so the bar/tooltip line only show while still actually counting
+			-- down for someone to respond to.
+			if not awarded and deadlineAt and time() < deadlineAt then
+				local remaining = deadlineAt - time()
+				local total = math.max(1, PLC.Session.responseTimeoutSeconds)
+				local colorName = remaining <= 10 and "warning" or "accent"
+				local r, g, b = Primitives.color(colorName)
+				holder.timerTrack:Show()
+				holder.timerBar:Show()
+				holder.timerBar:SetWidth(math.max(0.5, ICON_SIZE * math.min(1, remaining / total)))
+				holder.timerBar:SetColorTexture(r, g, b, 1)
+				holder.tooltipRemaining = string.format(L["SESSIONFRAME_TIME_LEFT"], math.ceil(remaining))
+			else
+				holder.timerTrack:Hide()
+				holder.timerBar:Hide()
+			end
+		end,
+	}
+end
+
+local ICON_COLUMNS = { iconColumn("1"), iconColumn("2") }
+
+local function flatItemRows()
 	local rows = {}
 	for idx, item in pairs(PLC.Session.items) do
 		table.insert(rows, {
@@ -160,6 +225,26 @@ local function itemRows()
 		})
 	end
 	table.sort(rows, function(a, b) return a.idx < b.idx end)
+	return rows
+end
+
+-- Packs the flat, sorted item list into the two-icons-per-row shape ICON_COLUMNS expects --
+-- row.idx2/link2/etc. are simply absent (not nil-filled) for a trailing odd item out, which
+-- iconColumn's update() reads as "nothing in this cell" and hides it.
+local function pairItemRows(flat)
+	local rows = {}
+	for i = 1, #flat, 2 do
+		local a, b = flat[i], flat[i + 1]
+		local row = {
+			idx1 = a.idx, link1 = a.link, icon1 = a.icon,
+			awarded1 = a.awarded, preAwardGuid1 = a.preAwardGuid, deadlineAt1 = a.deadlineAt,
+		}
+		if b then
+			row.idx2, row.link2, row.icon2 = b.idx, b.link, b.icon
+			row.awarded2, row.preAwardGuid2, row.deadlineAt2 = b.awarded, b.preAwardGuid, b.deadlineAt
+		end
+		table.insert(rows, row)
+	end
 	return rows
 end
 
@@ -185,7 +270,7 @@ local function onRemoveClick()
 	refresh()
 end
 
-local function showDetailFor(idx)
+function showDetailFor(idx)
 	selectedIdx = idx
 	local item = idx and PLC.Session.items[idx]
 	if item then
@@ -212,6 +297,21 @@ local function updateButtons()
 	end
 end
 
+-- Shows who holds the current review pass directly in the window's own title bar (previously
+-- only a one-time chat line on session start, easy to miss/scroll past) -- hidden entirely
+-- outside an active session, since there's no "holder" otherwise.
+local function updateHeaderOwner()
+	if not header then
+		return
+	end
+	if PLC.Session.state == "active" and PLC.Session.owner then
+		header.ownerLabel:SetText(string.format(L["SESSIONFRAME_STARTED_BY"], PLC.Roster:ShortName(PLC.Session.owner.name) or "?"))
+		header.ownerLabel:Show()
+	else
+		header.ownerLabel:Hide()
+	end
+end
+
 -- Rebuilds the icon list, keeps/advances the selection, and updates the bottom button row --
 -- called whenever the frame is (re)shown, after Start()/End()/Award All/Remove, and from
 -- Session's notifySessionFrame forward-hook whenever the item set or an award/pre-award changes
@@ -222,29 +322,23 @@ function refresh()
 		return
 	end
 
-	local rows = itemRows()
-	dataTable:SetRows(rows)
+	local flat = flatItemRows()
 
 	-- Auto-selects the first not-yet-awarded item, and auto-advances off whatever was selected
 	-- once it gets awarded -- never auto-advances AWAY from an item the user deliberately picked
-	-- while it's still pending.
+	-- while it's still pending. Resolved before SetRows below, since icon cells read `selectedIdx`
+	-- directly (a closed-over upvalue, not a parameter) while rendering.
 	if not selectedIdx or (PLC.Session.items[selectedIdx] and PLC.Session.items[selectedIdx].awarded) then
-		selectedIdx = firstPendingIdx(rows)
+		selectedIdx = firstPendingIdx(flat)
 	end
 
-	local dataIndex
-	for i, row in ipairs(rows) do
-		if row.idx == selectedIdx then
-			dataIndex = i
-			break
-		end
-	end
-	dataTable:SetSelectedIndex(dataIndex)
+	dataTable:SetRows(pairItemRows(flat))
 	showDetailFor(selectedIdx)
 
 	updateButtons()
+	updateHeaderOwner()
 
-	if hasLiveCountdown(rows) then
+	if hasLiveCountdown(flat) then
 		startTicker()
 	else
 		stopTicker()
@@ -297,7 +391,7 @@ local function ensureFrame()
 	frame.bg:SetAllPoints()
 	frame.border = Primitives.createBorder(frame)
 
-	local header = CreateFrame("Frame", nil, frame)
+	header = CreateFrame("Frame", nil, frame)
 	header:SetHeight(Theme.LAYOUT.headerHeight)
 	header:SetPoint("TOPLEFT")
 	header:SetPoint("TOPRIGHT")
@@ -310,13 +404,12 @@ local function ensureFrame()
 	header.title = Primitives.createText(header, L["SESSIONFRAME_TITLE"], 14, "title")
 	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, 0)
 
-	header.close = CreateFrame("Button", nil, header)
-	header.close:SetSize(20, 20)
+	header.ownerLabel = Primitives.createText(header, "", 11, "dim")
+	header.ownerLabel:SetPoint("LEFT", header.title, "RIGHT", 10, 0)
+	header.ownerLabel:Hide()
+
+	header.close = Primitives.createCloseButton(header, 20)
 	header.close:SetPoint("RIGHT", -6, 0)
-	header.close.bg = Primitives.createTexture(header.close, "BACKGROUND", "button")
-	header.close.bg:SetAllPoints()
-	header.close.label = Primitives.createText(header.close, "x", 14, "warning")
-	header.close.label:SetPoint("CENTER")
 	header.close:SetScript("OnClick", function()
 		frame:Hide()
 	end)
@@ -337,9 +430,10 @@ local function ensureFrame()
 
 	-- Anchored to frame's actual corners, not a button's position -- see git history for why
 	-- this matters (a prior version anchored to a centered button's TOPRIGHT and silently
-	-- clipped everything past ~half the window's real width).
+	-- clipped everything past ~half the window's real width). Left inset trimmed down from the
+	-- detail area's -- the icon sidebar reads better flush-ish against the window's edge.
 	content = CreateFrame("Frame", nil, frame)
-	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
+	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 6, -10)
 	content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 50)
 
 	itemListContainer = CreateFrame("Frame", nil, content)
@@ -351,29 +445,8 @@ local function ensureFrame()
 	-- Leaves room on the right for the scrollbar (createScrollFrame anchors it just past the
 	-- scroll frame's own right edge) instead of letting it crowd right up against the divider.
 	dataTable.scroll:SetPoint("TOPLEFT")
-	dataTable.scroll:SetPoint("BOTTOMRIGHT", -14, 0)
+	dataTable.scroll:SetPoint("BOTTOMRIGHT", -SCROLLBAR_WIDTH, 0)
 	dataTable:SetColumns(ICON_COLUMNS)
-	dataTable:SetRowClickHandler(function(rowData)
-		showDetailFor(rowData.idx)
-	end)
-
-	-- Same per-item depleting background as UI/LootFrame.lua, now visible on this window too
-	-- (it previously had no time-remaining visual on the sidebar at all). Nothing to show once
-	-- an item is awarded (decision made) or its deadline has already passed (the border color
-	-- above already flags "warning" for that).
-	dataTable:SetRowTimerProvider(function(rowData)
-		if rowData.awarded or not rowData.deadlineAt then
-			return nil
-		end
-		local remaining = rowData.deadlineAt - time()
-		if remaining <= 0 then
-			return nil
-		end
-		local total = math.max(1, PLC.Session.responseTimeoutSeconds)
-		local colorName = remaining <= 10 and "warning" or "accent"
-		local r, g, b = Primitives.color(colorName)
-		return remaining / total, r, g, b, 0.18
-	end)
 
 	local divider = Primitives.createTexture(content, "ARTWORK", "borderDim")
 	divider:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT")
