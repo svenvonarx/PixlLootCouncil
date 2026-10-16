@@ -221,9 +221,10 @@ local function ensureFrame()
 	frame = CreateFrame("Frame", "PixlLootCouncilSessionFrame", UIParent)
 	frame:SetSize(640, 500)
 	frame:SetPoint("CENTER", 0, 50)
-	-- Deliberately stays at "DIALOG" -- UI/LootFrame.lua sits one strata tier above this on
-	-- purpose, so responding to loot is always reachable regardless of which window was
-	-- clicked/opened more recently.
+	-- Deliberately stays at "DIALOG" -- the middle of the three main windows: UI/OptionsFrame.lua
+	-- (built on UI/Widgets/PanelLayout.lua) sits one tier below at "HIGH", UI/LootFrame.lua sits
+	-- one tier above at "FULLSCREEN_DIALOG", so responding to loot is always reachable regardless
+	-- of which window was clicked/opened more recently.
 	frame:SetFrameStrata("DIALOG")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
@@ -244,8 +245,11 @@ local function ensureFrame()
 	header.bg = Primitives.createTexture(header, "BACKGROUND", "header")
 	header.bg:SetAllPoints()
 
+	header.logo = Primitives.createLogo(header, 20)
+	header.logo:SetPoint("LEFT", 10, 0)
+
 	header.title = Primitives.createText(header, L["SESSIONFRAME_TITLE"], 14, "title")
-	header.title:SetPoint("LEFT", 10, 0)
+	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, 0)
 
 	header.close = CreateFrame("Button", nil, header)
 	header.close:SetSize(20, 20)

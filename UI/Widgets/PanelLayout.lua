@@ -19,7 +19,12 @@ function PanelLayout.Create(opts)
 	local frame = CreateFrame("Frame", opts.name, UIParent)
 	frame:SetSize(opts.width or 760, opts.height or 540)
 	frame:SetPoint("CENTER")
-	frame:SetFrameStrata("DIALOG")
+	-- One tier below UI/SessionFrame.lua's "DIALOG" on purpose (both used to sit at "DIALOG",
+	-- which made their relative stacking order undefined/click-order-dependent -- the exact
+	-- overlap this window and the session window would get stuck in). Options is the least
+	-- time-sensitive of the three main windows, so it sits lowest; UI/LootFrame.lua stays above
+	-- both at "FULLSCREEN_DIALOG".
+	frame:SetFrameStrata("HIGH")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag("LeftButton")
@@ -41,8 +46,11 @@ function PanelLayout.Create(opts)
 	header.bg = Primitives.createTexture(header, "BACKGROUND", "header")
 	header.bg:SetAllPoints()
 
+	header.logo = Primitives.createLogo(header, 20)
+	header.logo:SetPoint("LEFT", 10, 0)
+
 	header.title = Primitives.createText(header, opts.title or "", 14, "title")
-	header.title:SetPoint("LEFT", 10, 0)
+	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, 0)
 
 	header.close = CreateFrame("Button", nil, header)
 	header.close:SetSize(20, 20)

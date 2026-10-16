@@ -34,6 +34,18 @@ function Primitives.createArtwork(parent, asset, layer, tinted)
 	return texture
 end
 
+-- The brand mark, rasterized from the vector source at 98x128 (its natural 43.5:57 aspect
+-- ratio) for crisp scaling down to header-icon size. Accent-tinted via createArtwork above, so
+-- it live-retints along with everything else when the user changes their accent color.
+local LOGO_ASPECT = 98 / 128
+
+function Primitives.createLogo(parent, height)
+	height = height or 20
+	local logo = Primitives.createArtwork(parent, "logo.png", "ARTWORK", true)
+	logo:SetSize(height * LOGO_ASPECT, height)
+	return logo
+end
+
 -- Requested size is scaled ~20% down before SetFont (ported formula, min 9px) -- falls back to
 -- the default Blizzard font if the bundled one fails to load (e.g. font file missing on disk),
 -- same safety net FojjiCore's own OptionsMenu.lua uses.

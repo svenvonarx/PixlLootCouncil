@@ -104,15 +104,19 @@ to it, not below a row list anymore.
   (stamped fresh the moment `Start()` broadcasts, not however long ago the item was actually
   bagged), that row disappears on its own (checked every second while the window is open) — and
   if that was the only pending item, the whole window auto-hides.
-- Open this window with `UI/SessionFrame.lua` also open and overlapping it: confirm this one is
-  always drawn on top, regardless of which window was clicked or opened more recently (it sits
-  one frame-strata tier above the session window on purpose — responding to loot must never end
-  up hidden behind it).
+- Open this window with `UI/SessionFrame.lua` and `UI/OptionsFrame.lua` also open and
+  overlapping — confirm the stacking order is always Options (bottom) → Session (middle) →
+  this one (top), regardless of which was clicked or opened most recently (three separate
+  frame-strata tiers now: "HIGH"/"DIALOG"/"FULLSCREEN_DIALOG" — this was the actual overlap bug,
+  Options and Session used to share the same "DIALOG" tier with undefined relative order).
 - Both windows are now drag-resizable from a small corner grip, bottom-right (brightens to accent
   on hover) — confirm dragging it resizes the window within sensible bounds (it can't shrink
   below a usable minimum), and that a taller `UI/SessionFrame.lua` actually shows more item icons
   at once (the icon list is a real scrolling table, so it picks up the extra height) — widening
   either window just adds blank space on the right, since column widths are still fixed for now.
+- Every window's header (this one, Session, Options) now shows the brand logo to the left of the
+  title, accent-tinted — confirm it re-tints live along with everything else when you change the
+  accent color in Options → Appearance.
 
 ### 1.7 Chat announcements (Stage 6, reworked after first playtest, solo-visible parts)
 - With `profile.announce.sessionStart` on (default), starting a session should post **one**
