@@ -39,17 +39,21 @@ local refresh -- forward-declared: onRemoveClick (defined before it) calls it
 -- text at sidebar width) plus a tooltip naming the item and its status on hover. Priority
 -- Awarded > Pre-awarded > Expired > Pending -- the "visibly flagged" overview status (see
 -- docs/SPECIFICATION.md's bagged-item workflow notes).
+local ICON_SIZE = 30
+local ICON_ROW_HEIGHT = 34
+local ICON_SIDEBAR_WIDTH = 46
+
 local ICON_COLUMNS = {
 	{
-		width = 48,
+		width = ICON_SIZE,
 		isWidget = true,
 		create = function(row)
 			local holder = CreateFrame("Frame", nil, row)
-			holder:SetSize(40, 40)
+			holder:SetSize(ICON_SIZE, ICON_SIZE)
 			holder:EnableMouse(true)
 			holder.texture = holder:CreateTexture(nil, "ARTWORK")
-			holder.texture:SetPoint("TOPLEFT", 2, -2)
-			holder.texture:SetPoint("BOTTOMRIGHT", -2, 2)
+			holder.texture:SetPoint("TOPLEFT", 1, -1)
+			holder.texture:SetPoint("BOTTOMRIGHT", -1, 1)
 			holder.border = Primitives.createBorder(holder)
 			holder:SetScript("OnEnter", function(self)
 				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -267,9 +271,9 @@ local function ensureFrame()
 	itemListContainer = CreateFrame("Frame", nil, content)
 	itemListContainer:SetPoint("TOPLEFT", content, "TOPLEFT")
 	itemListContainer:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT")
-	itemListContainer:SetWidth(70)
+	itemListContainer:SetWidth(ICON_SIDEBAR_WIDTH)
 
-	dataTable = DataTable.Create(itemListContainer, 48)
+	dataTable = DataTable.Create(itemListContainer, ICON_ROW_HEIGHT)
 	-- Leaves room on the right for the scrollbar (createScrollFrame anchors it just past the
 	-- scroll frame's own right edge) instead of letting it crowd right up against the divider.
 	dataTable.scroll:SetPoint("TOPLEFT")
@@ -285,7 +289,7 @@ local function ensureFrame()
 	divider:SetWidth(1)
 
 	detailArea = CreateFrame("Frame", nil, content)
-	detailArea:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT", 11, 0)
+	detailArea:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT", 8, 0)
 	detailArea:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
 
 	detailItemLabel = Primitives.createText(detailArea, "", 13, "white")

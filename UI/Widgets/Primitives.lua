@@ -44,6 +44,19 @@ function Primitives.createText(parent, text, size, colorName)
 		font:SetFont(STANDARD_TEXT_FONT, pixelSize, "")
 	end
 	font:SetText(text or "")
+
+	-- A brand-new FontString using the bundled custom font sometimes doesn't actually render its
+	-- very first SetText until a frame tick passes -- observed as: every label that gets SetText
+	-- called again shortly after creation (DataTable cells, re-rendered on every refresh/update)
+	-- always shows correctly, while a label set exactly once at creation time (e.g. a static
+	-- button's text, set here and never touched again) sometimes stays blank forever. Re-applying
+	-- whatever the text actually is one tick later is a cheap, harmless nudge regardless of the
+	-- exact cause -- reads font:GetText() at fire time (not the `text` parameter) so it can never
+	-- clobber a legitimate SetText call that happens to land in between.
+	PLC:ScheduleTimer(function()
+		font:SetText(font:GetText() or "")
+	end, 0)
+
 	local r, g, b = Primitives.color(colorName or "text")
 	font:SetTextColor(r, g, b)
 	Theme.themeFonts[font] = colorName or "text"
