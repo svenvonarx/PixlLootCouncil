@@ -50,22 +50,29 @@ local ICON_COLUMNS = {
 		create = function(row)
 			local holder = CreateFrame("Frame", nil, row)
 			holder:SetSize(ICON_SIZE, ICON_SIZE)
-			holder:EnableMouse(true)
 			holder.texture = holder:CreateTexture(nil, "ARTWORK")
 			holder.texture:SetPoint("TOPLEFT", 1, -1)
 			holder.texture:SetPoint("BOTTOMRIGHT", -1, 1)
 			holder.border = Primitives.createBorder(holder)
-			holder:SetScript("OnEnter", function(self)
+
+			-- Tooltip handlers go on `row` itself (already mouse-enabled with its own OnMouseUp
+			-- click handler, see UI/Widgets/DataTable.lua:getRow), not on `holder` -- a separate
+			-- mouse-enabled child frame sitting almost exactly on top of the row (the icon fills
+			-- nearly the entire narrow sidebar width) would otherwise swallow every click before
+			-- it ever reached the row's own handler, which is exactly why the icons weren't
+			-- properly clickable.
+			row:SetScript("OnEnter", function(self)
 				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-				GameTooltip:SetText(self.tooltipName or "?")
-				if self.tooltipStatus then
-					GameTooltip:AddLine(self.tooltipStatus, 1, 1, 1)
+				GameTooltip:SetText(holder.tooltipName or "?")
+				if holder.tooltipStatus then
+					GameTooltip:AddLine(holder.tooltipStatus, 1, 1, 1)
 				end
 				GameTooltip:Show()
 			end)
-			holder:SetScript("OnLeave", function()
+			row:SetScript("OnLeave", function()
 				GameTooltip:Hide()
 			end)
+
 			return holder
 		end,
 		update = function(holder, rowData)
