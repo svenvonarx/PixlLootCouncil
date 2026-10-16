@@ -10,8 +10,12 @@ local LOOT_TIMEOUT = 5 -- seconds; matches the verified upstream constant (ml_co
 
 Award.pendingQueue = {} -- array of { slot, link, winnerGuid, winnerName, reason, timerHandle }
 
--- Mirrors the verified CanGiveLoot rule set (ml_core.lua:667-721) client-side, before ever
--- calling the protected GiveMasterLoot API. Returns true, or false + a localized cause string.
+-- Mirrors the verified CanGiveLoot rule set (ml_core.lua:667-721) client-side, narrowed to the
+-- one path this addon still uses it for: the ML self-looting a bagged item into their own bags
+-- (see TryAward below). Under the bagged-item workflow, awarding to anyone else is
+-- PLC.Session:AwardBaggedItem recording a decision -- never a live GiveMasterLoot transfer, the
+-- deliberate no-trade-automation choice -- so this never runs for any winnerGuid but the ML's own
+-- anymore. Returns true, or false + a localized cause string.
 function Award:CanGiveLoot(slot, winnerGuid)
 	local Detection = PLC.Loot.Detection
 	local info = Detection.lootSlotInfo[slot]
@@ -28,44 +32,24 @@ function Award:CanGiveLoot(slot, winnerGuid)
 		return false, L["CANGIVE_ITEM_CHANGED"]
 	end
 
-	local winnerEntry = PLC.Roster:Get(winnerGuid)
-	if not winnerEntry then
+	if not PLC.Roster:Get(winnerGuid) then
 		return false, L["CANGIVE_NOT_IN_GROUP"]
 	end
 
-	if winnerGuid == UnitGUID("player") then
-		local getFreeSlots = (C_Container and C_Container.GetContainerNumFreeSlots) or GetContainerNumFreeSlots
-		local freeSlots = 0
-		for bag = 0, NUM_BAG_SLOTS do
-			freeSlots = freeSlots + (getFreeSlots(bag) or 0)
-		end
-		if freeSlots <= 0 then
-			return false, L["CANGIVE_NO_BAG_SPACE"]
-		end
-		return true
+	local getFreeSlots = (C_Container and C_Container.GetContainerNumFreeSlots) or GetContainerNumFreeSlots
+	local freeSlots = 0
+	for bag = 0, NUM_BAG_SLOTS do
+		freeSlots = freeSlots + (getFreeSlots(bag) or 0)
 	end
-
-	if not winnerEntry.online then
-		return false, L["CANGIVE_OFFLINE"]
+	if freeSlots <= 0 then
+		return false, L["CANGIVE_NO_BAG_SPACE"]
 	end
-
-	-- GetMasterLootCandidate already reflects Blizzard's own master-loot eligibility (in group,
-	-- in range/instance) for this specific slot -- this loop is the verified exact shape
-	-- (ml_core.lua:694-700), adapted to compare GUIDs since our identity model is GUID-keyed.
-	for i = 1, MAX_RAID_MEMBERS do
-		local candidateUnit = GetMasterLootCandidate(slot, i)
-		if not candidateUnit then
-			break
-		end
-		if UnitGUID(candidateUnit) == winnerGuid then
-			return true
-		end
-	end
-	return false, L["CANGIVE_NOT_ELIGIBLE"]
+	return true
 end
 
--- The single funnel for every award path (see docs/SPECIFICATION.md §3 principle 4). Validates
--- first, then calls the real protected API, then queues a timeout-bounded pending entry that
+-- The funnel for the ML's own silent self-collection (see docs/SPECIFICATION.md §3 principle 4;
+-- Data/Session.lua:CollectDetectedItems is the only caller, always with the ML's own GUID).
+-- Validates first, then loots the slot, then queues a timeout-bounded pending entry that
 -- OnLootSlotCleared/OnTimeout resolve.
 function Award:TryAward(slot, winnerGuid, reason)
 	local info = PLC.Loot.Detection.lootSlotInfo[slot]
@@ -78,29 +62,7 @@ function Award:TryAward(slot, winnerGuid, reason)
 		return false
 	end
 
-	if winnerGuid == UnitGUID("player") then
-		-- Awarding to the master looter themself is just looting the slot directly.
-		LootSlot(slot)
-	else
-		local candidateIndex
-		for i = 1, MAX_RAID_MEMBERS do
-			local candidateUnit = GetMasterLootCandidate(slot, i)
-			if not candidateUnit then
-				break
-			end
-			if UnitGUID(candidateUnit) == winnerGuid then
-				candidateIndex = i
-				break
-			end
-		end
-		if not candidateIndex then
-			-- CanGiveLoot already confirmed eligibility moments ago; this should not happen, but
-			-- GiveMasterLoot must never be called with a nil index.
-			print(L["CHAT_PREFIX"] .. string.format(L["AWARD_FAILED"], info.link, winnerEntry.name, L["CANGIVE_NOT_ELIGIBLE"]))
-			return false
-		end
-		GiveMasterLoot(slot, candidateIndex)
-	end
+	LootSlot(slot)
 
 	local entry = {
 		slot = slot,

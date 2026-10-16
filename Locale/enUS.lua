@@ -32,8 +32,6 @@ L["CANGIVE_LOOT_CLOSED"] = "loot window is not open"
 L["CANGIVE_ITEM_CHANGED"] = "the item in that slot has changed"
 L["CANGIVE_NO_BAG_SPACE"] = "not enough bag space"
 L["CANGIVE_NOT_IN_GROUP"] = "player is not in your group"
-L["CANGIVE_OFFLINE"] = "player is offline"
-L["CANGIVE_NOT_ELIGIBLE"] = "player is not an eligible master loot candidate for this item"
 
 L["ANNOUNCE_SESSION_START"] = "[PixlLootCouncil] Loot session started with %d item(s) -- check your Loot Response window!"
 L["ANNOUNCE_AWARD"] = "[PixlLootCouncil] %s awarded to %s"
