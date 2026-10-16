@@ -27,7 +27,8 @@ Session.owner = nil -- { guid, name }
 -- is realistically the same person across the whole night's many review passes.
 Session.enchanterGuid = nil
 -- [idx] = { idx, lootSlot, itemString, boss, quality, deadlineAt, link, icon, bagged, awarded,
---           awardReason, awardedAt, traded, preAwardGuid, preAwardReason }
+--           awardReason, awardedAt, traded, preAwardGuid, preAwardReason,
+--           itemGUID, tradeExpiresAt, boe, untradable -- Loot/BagTracker.lua's trade tracking }
 Session.items = {}
 Session.responses = {} -- [idx][guid] = { response, note }
 Session.lastHolderSeenAt = nil
@@ -148,6 +149,9 @@ end
 -- once by the holder right when a batch is actually broadcast (Start()/CollectDetectedItems,
 -- never at the moment an item was silently bagged, which could have been hours earlier) and must
 -- stay the SAME absolute value for every client, including one that resyncs well after the fact.
+-- Trade time travels as seconds REMAINING, not the holder's absolute tradeExpiresAt -- each client's
+-- time() is its own machine clock, so an absolute value would be off by however far the clocks
+-- differ; applyReceivedItems turns it back into a local tradeExpiresAt.
 local function stripForTransmit(entries)
 	local out = {}
 	for idx, entry in pairs(entries) do
@@ -157,6 +161,9 @@ local function stripForTransmit(entries)
 			boss = entry.boss,
 			quality = entry.quality,
 			deadlineAt = entry.deadlineAt,
+			tradeRemaining = entry.tradeExpiresAt and math.max(0, entry.tradeExpiresAt - time()) or nil,
+			boe = entry.boe,
+			untradable = entry.untradable,
 		}
 	end
 	return out
@@ -218,6 +225,17 @@ end
 
 local function applyReceivedItems(items)
 	for idx, entry in pairs(items) do
+		if entry.tradeRemaining then
+			entry.tradeExpiresAt = time() + entry.tradeRemaining
+			entry.tradeRemaining = nil
+		end
+		-- An item_add can re-send an item this client already has (the holder learned its trade
+		-- time later) -- keep the award/trade state we already know about.
+		local existing = Session.items[idx]
+		if existing then
+			entry.awarded, entry.awardReason, entry.awardedAt = existing.awarded, existing.awardReason, existing.awardedAt
+			entry.traded = existing.traded
+		end
 		entry.link, entry.icon = reconstructItemVisuals(entry.itemString)
 		Session.items[idx] = entry
 		if not entry.link then
@@ -329,7 +347,100 @@ function Session:CollectDetectedItems(lootSlotInfo)
 			entry.deadlineAt = time() + self.responseTimeoutSeconds
 		end
 		self:broadcastNewItems(newlyCollected)
+	else
+		self:ScheduleAutoStart()
 	end
+end
+
+-- Adds an item Loot/BagTracker.lua found in the bags (raid loot that didn't come through this
+-- client's own loot-window collection: a trade-window BoP or a BoE recipe). Same shape as a
+-- collected item, already bagged and tied to its physical copy via itemGUID. Returns the entry.
+function Session:AddTrackedItem(link, itemGUID)
+	if self.state == "active" and not self:IsHolder() then
+		return nil
+	end
+	local _, fullLink, quality, _, _, _, _, _, _, icon = C_Item.GetItemInfo(link)
+	local instanceName, _, difficultyID, difficultyName, _, _, _, mapID, groupSize = GetInstanceInfo()
+	local idx = self.nextIdx
+	self.nextIdx = self.nextIdx + 1
+	local entry = {
+		idx = idx,
+		itemString = itemStringFromLink(fullLink or link),
+		quality = quality,
+		link = fullLink or link,
+		icon = icon,
+		bagged = true,
+		itemGUID = itemGUID,
+		instance = instanceName,
+		difficultyName = difficultyName,
+		mapID = mapID,
+		difficultyID = difficultyID,
+		groupSize = groupSize,
+	}
+	self.items[idx] = entry
+	self.isCollector = true
+	persist()
+	self:notifySessionFrame()
+	if self:IsHolder() then
+		entry.deadlineAt = time() + self.responseTimeoutSeconds
+		self:broadcastNewItems({ [idx] = entry })
+	else
+		self:ScheduleAutoStart()
+	end
+	return entry
+end
+
+-- Called by Loot/BagTracker.lua after it updated items' trade status. During an active review,
+-- items that were broadcast before their trade time was known are re-sent once (item_add on an
+-- existing idx just refreshes it on the other clients -- see applyReceivedItems).
+function Session:OnTradeStatusChanged()
+	if self:IsHolder() then
+		local resend = {}
+		for idx, item in pairs(self.items) do
+			if item.deadlineAt and not item.awarded and not item.tradeSynced
+				and (item.tradeExpiresAt or item.boe or item.untradable) then
+				item.tradeSynced = true
+				resend[idx] = item
+			end
+		end
+		if next(resend) then
+			PLC.Comms.Sync:SendItemAdd(self.sessionId, stripForTransmit(resend))
+		end
+	end
+	if self:IsHolder() or self.isCollector then
+		persist()
+	end
+	self:notifySessionFrame()
+	self:notifyTradeFrame()
+end
+
+-- RC's autoStart: the master looter collecting loot starts a review pass on its own. Debounced, so
+-- one boss's whole loot window (plus the bag scan that follows it) becomes a single session.
+local AUTO_START_DELAY = 3
+local autoStartTimer
+
+function Session:ScheduleAutoStart()
+	if not PLC.db.profile.autoStartSession or self.state == "active" or not IsInGroup() then
+		return
+	end
+	if autoStartTimer then
+		PLC:CancelTimer(autoStartTimer)
+	end
+	autoStartTimer = PLC:ScheduleTimer(function()
+		autoStartTimer = nil
+		if self.state == "active" or not PLC.CouncilRules:AmIMasterLooter() then
+			return
+		end
+		for _, item in pairs(self.items) do
+			if not item.awarded and not item.untradable then
+				self:Start()
+				if PLC.UI and PLC.UI.SessionFrame and PLC.UI.SessionFrame.Open then
+					PLC.UI.SessionFrame:Open()
+				end
+				return
+			end
+		end
+	end, AUTO_START_DELAY)
 end
 
 -- Forward-hook target already called (defensively) from Loot/Award.lua, fired once
@@ -387,8 +498,11 @@ function Session:Start()
 	-- previous End() must not silently show as "Staged" again the moment a new review starts.
 	local toSend = {}
 	for idx, item in pairs(self.items) do
-		if not item.awarded then
+		-- Items whose trade window already ran out can't go to anyone -- they stay in the list
+		-- (marked expired) until removed, but aren't put up for review.
+		if not item.awarded and not item.untradable then
 			item.deadlineAt = time() + self.responseTimeoutSeconds
+			item.tradeSynced = item.tradeExpiresAt ~= nil or item.boe or nil
 			item.preAwardGuid = nil
 			item.preAwardReason = nil
 			toSend[idx] = item
@@ -548,21 +662,75 @@ function Session:SetPreAward(idx, winnerGuid, reason)
 	self:notifySessionFrame()
 end
 
--- Local removal only, never synced -- only safe while nothing's been broadcast about this item
--- yet (state ~= "active"; there's no wire command to retract an already-broadcast item from a
--- candidate's copy). UI/SessionFrame.lua only ever offers this while that holds true.
+-- Removes not-yet-awarded items. Outside a review pass this is local only (nothing was broadcast
+-- yet); during one, only the holder can do it and the removal is broadcast (item_remove) so every
+-- candidate's Loot Response window and every council grid drop the item too.
+local function removeItems(idxs)
+	local removed = {}
+	for _, idx in ipairs(idxs) do
+		local item = Session.items[idx]
+		if item and not item.awarded then
+			Session.items[idx] = nil
+			Session.responses[idx] = nil
+			table.insert(removed, idx)
+		end
+	end
+	return removed
+end
+
+function Session:CanRemoveItems()
+	return self.state ~= "active" or self:IsHolder()
+end
+
 function Session:RemoveItem(idx)
-	if self.state == "active" then
-		return
+	self:RemoveItems({ idx })
+end
+
+function Session:RemoveItems(idxs)
+	if not self:CanRemoveItems() then
+		print(L["CHAT_PREFIX"] .. L["SESSION_NOT_HOLDER"])
+		return 0
 	end
-	local item = self.items[idx]
-	if not item or item.awarded then
-		return
+	local removed = removeItems(idxs)
+	if #removed == 0 then
+		return 0
 	end
-	self.items[idx] = nil
 	self.isCollector = next(self.items) ~= nil
+	if self.state == "active" then
+		PLC.Comms.Sync:SendItemRemove(self.sessionId, removed)
+	end
 	persist()
 	self:notifySessionFrame()
+	self:notifyLootFrame()
+	return #removed
+end
+
+-- Every item that hasn't been awarded yet (awarded items stay until they're traded). Ends an active
+-- review pass if that leaves it with nothing to review.
+function Session:RemoveAllItems()
+	local idxs = {}
+	for idx, item in pairs(self.items) do
+		if not item.awarded then
+			table.insert(idxs, idx)
+		end
+	end
+	local count = self:RemoveItems(idxs)
+	if count > 0 then
+		print(L["CHAT_PREFIX"] .. string.format(L["SESSION_REMOVED_ALL"], count))
+		if self:IsHolder() then
+			self:End()
+		end
+	end
+	return count
+end
+
+function Session:OnItemRemoveReceived(data)
+	if not data.sessionId or data.sessionId ~= self.sessionId or type(data.idxs) ~= "table" then
+		return
+	end
+	removeItems(data.idxs)
+	self:notifySessionFrame()
+	self:notifyLootFrame()
 end
 
 -- Commits every item that currently has a staged pre-award, through the exact same path a

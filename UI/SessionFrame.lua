@@ -41,10 +41,23 @@ local votingPanel
 local startButton
 local endButton
 local awardAllButton
+local removeAllButton
 local selectedIdx -- which session item's response grid is currently shown in the detail area
 local refresh -- forward-declared: onRemoveClick (defined before it) calls it
 local showDetailFor -- forward-declared: iconColumn's OnClick (defined before it) calls it
 local tickerHandle
+
+-- Item name plus its trade status ("Tradable for 1h 52m", Loot/BagTracker.lua) in the detail header.
+local function setDetailLabel(item)
+	local tradeText, tradeColor = PLC.Loot.BagTracker:StatusText(item)
+	if tradeText then
+		local r, g, b = Primitives.color(tradeColor)
+		detailItemLabel:SetText(string.format("%s  |cff%02x%02x%02x%s|r", item.link or "?",
+			math.floor(r * 255), math.floor(g * 255), math.floor(b * 255), tradeText))
+	else
+		detailItemLabel:SetText(item.link or "?")
+	end
+end
 
 -- Mirrors UI/LootFrame.lua's ticker -- this window has no per-second updates driving it
 -- otherwise (unlike LootFrame, nothing re-renders it on a timer), so without this the sidebar's
@@ -57,6 +70,10 @@ local function startTicker()
 	tickerHandle = PLC:ScheduleRepeatingTimer(function()
 		if dataTable then
 			dataTable:Refresh()
+		end
+		local item = selectedIdx and PLC.Session.items[selectedIdx]
+		if item and detailItemLabel then
+			setDetailLabel(item)
 		end
 	end, 1)
 end
@@ -76,8 +93,32 @@ local function hasLiveCountdown(rows)
 		if not row.awarded and row.deadlineAt and now < row.deadlineAt then
 			return true
 		end
+		-- Trade-window timers (Loot/BagTracker.lua) count down too.
+		local item = PLC.Session.items[row.idx]
+		if item and item.tradeExpiresAt and now < item.tradeExpiresAt then
+			return true
+		end
 	end
 	return false
+end
+
+-- Remaining trade time on an icon: "1h 52m" / "45m" (colored by urgency), "BoE", or "exp".
+local function applyTradeBadge(holder, item)
+	local BagTracker = PLC.Loot.BagTracker
+	local left = BagTracker:SecondsLeft(item)
+	if left == 0 then
+		holder.tradeBadge:SetText(L["TRADETIME_SHORT_EXPIRED"])
+		holder.tradeBadge:SetTextColor(Primitives.color("warning", 1))
+	elseif left then
+		local text = left >= 3600 and string.format("%dh", math.floor(left / 3600)) or BagTracker.FormatShort(left)
+		holder.tradeBadge:SetText(text)
+		holder.tradeBadge:SetTextColor(Primitives.color(BagTracker.ColorFor(left)))
+	elseif item and item.boe then
+		holder.tradeBadge:SetText(L["TRADETIME_SHORT_BOE"])
+		holder.tradeBadge:SetTextColor(Primitives.color("dim"))
+	else
+		holder.tradeBadge:SetText("")
+	end
 end
 
 -- Two icons per sidebar row instead of one -- a raid can easily bag a dozen+ items over a few
@@ -151,6 +192,16 @@ local function iconColumn(suffix)
 			holder.selectionGlow:SetAllPoints()
 			holder.selectionGlow:Hide()
 
+			-- Remaining trade time, bottom-right on the icon (see applyTradeBadge). Its own frame
+			-- level above the icon so the text draws over the texture.
+			local badgeFrame = CreateFrame("Frame", nil, holder.iconFrame)
+			badgeFrame:SetAllPoints()
+			badgeFrame:SetFrameLevel(holder.iconFrame:GetFrameLevel() + 2)
+			holder.tradeBadge = Primitives.createText(badgeFrame, "", 10)
+			holder.tradeBadge:SetPoint("BOTTOMRIGHT", -1, 1)
+			holder.tradeBadge:SetShadowColor(0, 0, 0, 1)
+			holder.tradeBadge:SetShadowOffset(1, -1)
+
 			-- Depleting bar directly beneath the icon -- a full-strength colored fill on its own
 			-- small track reads far more clearly at a glance than a faint tint behind an icon that
 			-- already covers almost the entire cell (the previous row-background approach).
@@ -181,8 +232,13 @@ local function iconColumn(suffix)
 				if holder.tooltipRemaining then
 					GameTooltip:AddLine(holder.tooltipRemaining, 0.6, 0.6, 0.6)
 				end
-				-- Who already received this item (UI/HistoryFrame.lua).
 				local item = holder.itemIdx and PLC.Session.items[holder.itemIdx]
+				local tradeText, tradeColor = PLC.Loot.BagTracker:StatusText(item)
+				if tradeText then
+					local r, g, b = Primitives.color(tradeColor)
+					GameTooltip:AddLine(tradeText, r, g, b)
+				end
+				-- Who already received this item (UI/HistoryFrame.lua).
 				PLC.UI.HistoryFrame.AddItemLines(GameTooltip, item and item.link)
 				GameTooltip:Show()
 			end)
@@ -259,6 +315,12 @@ local function iconColumn(suffix)
 			-- the background too (CollectDetectedItems/AddManualItem never clear it just because a
 			-- decision was staged), so the bar/tooltip line only show while still actually counting
 			-- down for someone to respond to.
+			local item = PLC.Session.items[idx]
+			applyTradeBadge(holder, item)
+			if item and (item.untradable or PLC.Loot.BagTracker:SecondsLeft(item) == 0) and not awarded then
+				Primitives.setBorderColor(holder.border, "warning")
+			end
+
 			holder.deadlineAt = deadlineAt
 			holder.awardedState = awarded
 			if not awarded and deadlineAt and time() < deadlineAt then
@@ -348,7 +410,7 @@ function showDetailFor(idx)
 	selectedIdx = idx
 	local item = idx and PLC.Session.items[idx]
 	if item then
-		detailItemLabel:SetText(item.link or "?")
+		setDetailLabel(item)
 		detailItemHover.itemLink = item.link
 		local showRemove = PLC.Session.state ~= "active" and not item.awarded
 		detailRemoveButton:SetShown(showRemove)
@@ -366,7 +428,7 @@ function showDetailFor(idx)
 	end
 end
 
-local function updateButtons()
+local function updateButtons(flat)
 	if PLC.Session.state == "active" then
 		startButton:Hide()
 		endButton:Show()
@@ -376,6 +438,7 @@ local function updateButtons()
 		endButton:Hide()
 		awardAllButton:Hide()
 	end
+	removeAllButton:SetShown(#flat > 0 and PLC.Session:CanRemoveItems())
 end
 
 -- Shows who holds the current review pass directly in the window's own title bar (previously
@@ -459,7 +522,7 @@ function refresh()
 	dataTable:SetRows(pairItemRows(flat))
 	showDetailFor(selectedIdx)
 
-	updateButtons()
+	updateButtons(flat)
 	updateHeaderOwner()
 	updateEnchanterDropdown()
 
@@ -508,6 +571,26 @@ end
 local function onEndClick()
 	PLC.Session:End()
 	refresh()
+end
+
+StaticPopupDialogs["PIXLLOOTCOUNCIL_REMOVE_ALL"] = {
+	text = L["SESSIONFRAME_REMOVE_ALL_CONFIRM"],
+	button1 = YES,
+	button2 = NO,
+	OnAccept = function()
+		PLC.Session:RemoveAllItems()
+		refresh()
+	end,
+	timeout = 0,
+	whileDead = true,
+	hideOnEscape = true,
+}
+
+local function onRemoveAllClick()
+	local count = #flatItemRows()
+	if count > 0 then
+		StaticPopup_Show("PIXLLOOTCOUNCIL_REMOVE_ALL", count)
+	end
 end
 
 local function onAwardAllClick()
@@ -619,6 +702,11 @@ local function ensureFrame()
 	awardAllButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_AWARDALL"], 140)
 	awardAllButton:SetPoint("BOTTOM", -90, 12)
 	awardAllButton:SetScript("OnClick", onAwardAllClick)
+
+	-- Bottom-left, away from the main actions: clears every not-yet-awarded item (confirmed first).
+	removeAllButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_REMOVE_ALL"], 100)
+	removeAllButton:SetPoint("BOTTOMLEFT", 10, 12)
+	removeAllButton:SetScript("OnClick", onRemoveAllClick)
 
 	-- Anchored to frame's actual corners, not a button's position -- see git history for why
 	-- this matters (a prior version anchored to a centered button's TOPRIGHT and silently

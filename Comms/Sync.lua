@@ -140,6 +140,15 @@ function Sync:SendHistory(name, entry)
 	Protocol:Send("history", { name = name, entry = entry }, ch)
 end
 
+-- Holder-only: items taken back out of an active review pass (Remove / Remove All).
+function Sync:SendItemRemove(sessionId, idxs)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("item_remove", { sessionId = sessionId, idxs = idxs }, ch)
+end
+
 function Sync:SendTradeComplete(sessionId, idx)
 	local ch = channel()
 	if not ch then
@@ -150,6 +159,7 @@ end
 
 Protocol:RegisterHandler("session_start", function(data) PLC.Session:OnSessionStartReceived(data) end)
 Protocol:RegisterHandler("item_add", function(data) PLC.Session:OnItemAddReceived(data) end)
+Protocol:RegisterHandler("item_remove", function(data) PLC.Session:OnItemRemoveReceived(data) end)
 Protocol:RegisterHandler("response", function(data) PLC.Session:OnResponseReceived(data) end)
 Protocol:RegisterHandler("award", function(data) PLC.Session:OnAwardReceived(data) end)
 Protocol:RegisterHandler("session_heartbeat", function(data) PLC.Session:OnHeartbeatReceived(data) end)

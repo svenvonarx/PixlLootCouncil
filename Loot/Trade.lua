@@ -173,46 +173,26 @@ local function containerInfo(bag, slot)
 	return itemID, count or 1, locked
 end
 
--- RC's GetContainerItemTradeTimeRemaining, reduced to a yes/no: tradable unless soulbound, and a
--- soulbound item still is while its "You may trade this item with players that were also eligible
--- to loot this item for the next ..." line (BIND_TRADE_TIME_REMAINING) is on the tooltip.
-local scanTooltip
-local tradeTimePattern
-
-local function isTradable(bag, slot)
-	if not scanTooltip then
-		scanTooltip = CreateFrame("GameTooltip", "PixlLootCouncilScanTooltip", nil, "GameTooltipTemplate")
-		tradeTimePattern = BIND_TRADE_TIME_REMAINING
-			and BIND_TRADE_TIME_REMAINING:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1"):gsub("%%s", ".+")
-	end
-	scanTooltip:SetOwner(UIParent, "ANCHOR_NONE")
-	scanTooltip:SetBagItem(bag, slot)
-	local bound = false
-	for i = 1, scanTooltip:NumLines() or 0 do
-		local line = _G["PixlLootCouncilScanTooltipTextLeft" .. i]
-		local text = line and line:GetText()
-		if text then
-			if text == ITEM_SOULBOUND or text == ITEM_ACCOUNTBOUND or text == ITEM_BIND_QUEST then
-				bound = true
-			elseif tradeTimePattern and text:match(tradeTimePattern) then
-				scanTooltip:Hide()
-				return true
+-- The first unlocked, tradable stack of itemID not already in this trade -- preferring the exact
+-- copies the session tracked (guids, from Loot/BagTracker.lua), then one big enough to cover
+-- `needed` on its own. Returns bag, slot, stackCount.
+local function findTradableStack(itemID, needed, guids)
+	local BagTracker = PLC.Loot.BagTracker
+	for guid in pairs(guids or {}) do
+		local bag, slot = BagTracker:FindByGUID(guid)
+		if bag and not usedSlots[bag .. ":" .. slot] then
+			local id, count, locked = containerInfo(bag, slot)
+			if id == itemID and not locked and BagTracker:IsTradable(bag, slot) then
+				return bag, slot, count
 			end
 		end
 	end
-	scanTooltip:Hide()
-	return not bound
-end
-
--- The first unlocked, tradable stack of itemID not already in this trade -- preferring one big
--- enough to cover `needed` on its own. Returns bag, slot, stackCount.
-local function findTradableStack(itemID, needed)
 	local getNumSlots = getContainerFns()
 	local fallbackBag, fallbackSlot, fallbackCount
 	for bag = 0, NUM_BAG_SLOTS do
 		for slot = 1, getNumSlots(bag) or 0 do
 			local id, count, locked = containerInfo(bag, slot)
-			if id == itemID and not locked and not usedSlots[bag .. ":" .. slot] and isTradable(bag, slot) then
+			if id == itemID and not locked and not usedSlots[bag .. ":" .. slot] and BagTracker:IsTradable(bag, slot) then
 				if count >= needed then
 					return bag, slot, count
 				end
@@ -237,7 +217,7 @@ local function placeNext()
 	end
 	local entry = table.remove(placeQueue, 1)
 	local needed = #entry.idxs
-	local bag, slot, count = findTradableStack(entry.itemID, needed)
+	local bag, slot, count = findTradableStack(entry.itemID, needed, entry.guids)
 	if not bag then
 		print(L["CHAT_PREFIX"] .. string.format(L["TRADE_NO_TRADABLE"], itemLabel(entry.itemID)))
 	else
@@ -259,7 +239,7 @@ local function placeNext()
 			for i = amount + 1, needed do
 				table.insert(rest, entry.idxs[i])
 			end
-			table.insert(placeQueue, 1, { itemID = entry.itemID, idxs = rest })
+			table.insert(placeQueue, 1, { itemID = entry.itemID, idxs = rest, guids = entry.guids })
 		end
 	end
 	if #placeQueue > 0 then
@@ -289,10 +269,13 @@ local function onTradeShow()
 		local itemID = itemIDFromItemString(item.itemString)
 		if itemID and item.awarded == tradePartnerGuid and not item.traded then
 			if not byItem[itemID] then
-				byItem[itemID] = { itemID = itemID, idxs = {} }
+				byItem[itemID] = { itemID = itemID, idxs = {}, guids = {} }
 				table.insert(order, byItem[itemID])
 			end
 			table.insert(byItem[itemID].idxs, idx)
+			if item.itemGUID then
+				byItem[itemID].guids[item.itemGUID] = true
+			end
 		end
 	end
 	for _, entry in ipairs(order) do

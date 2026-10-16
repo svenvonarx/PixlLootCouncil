@@ -28,6 +28,7 @@ Comms\Sync.lua
 
 Loot\Detection.lua
 Loot\Award.lua
+Loot\BagTracker.lua
 Loot\Trade.lua
 Loot\Announce.lua
 

@@ -545,3 +545,24 @@ addon's own existing taint capture, and the fastest signal if a protected-functi
   response plus their 6 most recent items, and a warning line if they already received the item
   being reviewed. Hover a sidebar item icon or the item name above the grid → who already
   received that item (newest first).
+
+### 2.11 Trade-time tracking, auto-start, Remove All (`Loot/BagTracker.lua`)
+- **Baseline:** first login with this version records what's already in your bags — nothing you
+  already owned (old recipes etc.) is ever pulled into a session.
+- **Raid loot in bags:** as master looter in a raid, loot a BoP item by hand (or receive one) —
+  within ~1s it appears in the Loot Session list. Same for a BoE recipe (uncommon or better). A
+  non-recipe BoE item picked up by hand is *not* added. Outside a raid nothing new is added.
+- **Timers:** each icon shows the remaining trade time bottom-right (green ≥ 1h, accent < 1h,
+  red < 20 min, "BoE" for unbound items, red "exp" + red border once the window is over). The
+  icon tooltip and the item name above the grid say "Tradable for 1h 52m". Loot Trades shows the
+  same instead of "Awarded Xm ago". Values refresh every ~30s from the item tooltip.
+- **Reminders:** an untraded item dropping under 20 min, and again under 5 min, prints one chat
+  line each (RC's low-trade-time reminder).
+- **Expired items** are not put up for review by Start Session; remove them with Remove All.
+- **Auto-start** (Options → General, on by default): as master looter in a group, collecting loot
+  starts a session ~3s later and opens the Loot Session window; more drops while it runs are added
+  to it. Off → nothing starts by itself.
+- **Remove All** (bottom-left, confirm popup): removes every not-yet-awarded item. During an
+  active session (holder only) the removal is broadcast — candidates' Loot Response windows drop
+  the items — and the session ends. Awarded-but-untraded items stay in Loot Trades.
+- **Trading** picks the exact tracked copy (by item GUID) when one is known.

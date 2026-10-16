@@ -67,6 +67,7 @@ local function buildRows()
 				isSelf = kind == "self",
 				partnerName = partnerName,
 				awardedAt = item.awardedAt,
+				item = item,
 			})
 		end
 	end
@@ -133,9 +134,16 @@ local COLUMNS = {
 		end,
 	},
 	{
-		width = 90,
+		-- Remaining trade time (Loot/BagTracker.lua) when it's known -- that's the deadline that
+		-- actually matters here -- otherwise how long ago it was awarded.
+		width = 110,
 		justify = "LEFT",
 		render = function(rowData)
+			local tradeText, tradeColor = PLC.Loot.BagTracker:StatusText(rowData.item)
+			if tradeText and (rowData.item.tradeExpiresAt or rowData.item.untradable) then
+				local r, g, b = Primitives.color(tradeColor)
+				return tradeText, r, g, b
+			end
 			local elapsed = time() - (rowData.awardedAt or time())
 			local minutes = math.floor(elapsed / 60)
 			local text = minutes <= 0 and L["TRADEFRAME_AWARDED_JUST_NOW"] or string.format(L["TRADEFRAME_AWARDED_AGO"], minutes)

@@ -44,8 +44,12 @@ PLC.Defaults = {
 		-- Store the loot history an RCLootCouncil master looter broadcasts to the group (see
 		-- Data/HistoryImport.lua) -- lets a raider who isn't the loot master keep the full history.
 		historyMirrorRC = true,
+		-- RCLootCouncil's autoStart: collecting loot as master looter starts a review pass by itself
+		-- (Data/Session.lua:ScheduleAutoStart).
+		autoStartSession = true,
 	},
 	char = {
 		activeSession = nil, -- Data/Session.lua persists the held session here; nil = not currently a holder
+		knownBagGuids = nil, -- Loot/BagTracker.lua: item GUIDs in the bags at the last scan (nil = no baseline yet)
 	},
 }
