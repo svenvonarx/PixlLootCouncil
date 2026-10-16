@@ -175,16 +175,18 @@ end
 --
 -- `multiline`, when true, lets text word-wrap onto a second line instead of running past the
 -- box's right edge (UI/LootFrame.lua's note field -- a fixed single-line box let typed text
--- overflow visibly past its own border, into whatever sat to its right). Capped at a short
--- length so it can't grow past the ~2 lines the box is actually sized for.
+-- overflow visibly past its own border, into whatever sat to its right). The box itself stays a
+-- single line tall -- a second wrapped line scrolls into view as you type past the first, same
+-- as a normal EditBox already scrolls horizontally to keep the cursor visible, rather than
+-- growing the row's own height. Capped at roughly two lines' worth of characters.
 function Primitives.createEditBox(parent, width, height, placeholder, multiline)
 	local box = CreateFrame("EditBox", nil, parent)
 	box:SetSize(width, height or 20)
 	box:SetAutoFocus(false)
 	if multiline then
 		box:SetMultiLine(true)
-		box:SetMaxLetters(60)
-		box:SetTextInsets(6, 6, 4, 4)
+		box:SetMaxLetters(120)
+		box:SetTextInsets(6, 6, 2, 2)
 		box:SetJustifyV("TOP")
 	else
 		box:SetTextInsets(6, 6, 0, 0)

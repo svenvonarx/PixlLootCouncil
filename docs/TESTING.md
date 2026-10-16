@@ -60,12 +60,18 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
 - Confirm the sidebar shows the item's icon with a hairline border, auto-selects it, and the
   content area on the right shows the item's name + a Remove button above the "N out of M have
   voted" line + the candidate/role/response/Award/Pre-Award grid.
-- Two-column layout (new this round): with only one item total, confirm it renders as a single
-  icon (no empty second slot look). Seed a second item (`/plc additem <itemID>`) and confirm the
-  two icons sit side by side on the same row, flush against the left edge of the window and
-  tight against each other (no large gap) — a third item should start a new row below, not a
-  third column. Confirm clicking **either** icon in a two-icon row selects that specific item
-  (not always the left one) — each icon is its own independent click target now, not a
+- Two-column layout, flush and tight (refined this round): with only one item total, confirm it
+  renders as a single icon (no empty second slot look). Seed a second item (`/plc additem
+  <itemID>`) and confirm the two icons sit side by side on the same row, flush against the left
+  edge of the window (no left-edge gap above/beside the first icon) with only a small, tight gap
+  between the two icons — a third item should start a new row below, not a third column.
+  Adjacent rows should sit directly against each other too (no visible gap top/bottom around an
+  icon) — if you still see a few px of padding on any edge of an icon, that's the bug this round
+  specifically fixed (icons were being centered within slightly oversized cells instead of
+  flush-anchored). The sidebar's scrollbar (only visible once there are enough items to scroll)
+  should show up in the gap between the icon list and the detail area on the right, not inside
+  the icon list itself. Confirm clicking **either** icon in a two-icon row selects that specific
+  item (not always the left one) — each icon is its own independent click target now, not a
   whole-row click.
 - Hover an icon: confirm a tooltip shows the item name and its current status
   (Pending/Pre-awarded: X/Awarded: X/Expired). Seed a third test item and confirm its icon's
@@ -119,12 +125,12 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
 
 ### 1.6 Candidate response window (whole-row timer background + new response set this round)
 - `UI/LootFrame.lua` pops up for you as a candidate once a review session starts (`Session:Start`
-  broadcasts the backlog), showing one row per item: an icon, a compact countdown number, then a
-  response row of 5 buttons (BiS/Upgrade/PvP/OS/Pass by default — replacing the old
-  Need/Greed/Pass set) with a note field stacked directly beneath them, separated by a thin
-  horizontal divider. `/plc lootframe` reopens it manually. Rows are noticeably taller than
-  before to fit the stacked note field — confirm the window's default size and its resize-down
-  minimum both still show a complete row without clipping the note box.
+  broadcasts the backlog), showing one row per item, same single-row-per-item layout as before:
+  an icon, a compact countdown number, then 5 response buttons (BiS/Upgrade/PvP/OS/Pass by
+  default — replacing the old Need/Greed/Pass set) with the note field right beside them on the
+  *same* row (a stacked buttons-then-note layout was tried in an earlier pass and made every row
+  far too tall — this round reverted to side-by-side). `/plc lootframe` reopens it manually. Row
+  height should look close to what it always was, not noticeably taller.
 - The old per-item column with its own small progress bar is gone — the countdown is now a
   depleting **background across the whole row** (full-row tint at broadcast, shrinking
   right-to-left to nothing as `profile.responseTimeoutSeconds` runs out), with the standalone
@@ -137,11 +143,14 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   same fixed width — short labels like "OS" should hug their text with modest padding, while
   "Upgrade" is visibly wider to fit its longer label, and none of them look cramped or overly
   padded next to each other.
-- Confirm the note field directly below the buttons is as wide as the full button row (not a
-  narrow fixed box), separated from the buttons by a thin horizontal divider so it reads as its
-  own grouped element. Confirm it shows "Optional Note..." as placeholder text (gray, cleared on
-  real input). Type a longer note (40+ characters): confirm the text **wraps onto a second line
-  inside the box** instead of running past the box's right edge/border — this was the "overlap"
+- Note field sizing (refined this round): confirm the note box is the same height as the response
+  buttons next to it (no visible size mismatch), and that it stretches to use essentially all the
+  remaining width in the row rather than a small fixed box — resize the window wider and confirm
+  the note box visibly grows with it (recalculated on every resize, not fixed at window-open
+  time). Confirm it shows "Optional Note..." as placeholder text (gray, cleared on real input).
+  Type a longer note (~40+ characters): confirm the text **wraps onto a second line inside the
+  box** (scrolling to follow the cursor as you keep typing) instead of running past the box's
+  right edge/border — this was the "overlap"
   bug from the previous fixed-width single-line box.
 - Type something in an item's note field, then click a response button: the whole row disappears
   immediately (not a "you voted" label) — other items in the list are unaffected.

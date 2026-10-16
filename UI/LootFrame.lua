@@ -18,13 +18,17 @@ local frame
 local dataTable
 local tickerHandle
 
--- Response buttons sit on their own row now, with the note field stacked directly beneath them
--- at the same width (previously side-by-side, which forced a fixed, too-narrow note box that
--- let typed text run straight past its own border -- see Primitives.createEditBox's multiline
--- support).
-local NOTE_BOX_HEIGHT = 30
-local NOTE_BOX_GAP = 4
-local ROW_HEIGHT = Theme.LAYOUT.buttonHeight + NOTE_BOX_GAP + NOTE_BOX_HEIGHT + 8
+-- Response buttons and the note field share one row, same as the original layout -- a stacked
+-- (buttons-then-note) layout was tried and made every row much taller than before for no real
+-- gain; the note box instead matches the buttons' own height exactly (no extra vertical padding)
+-- and stretches to use whatever width is actually left in the row, maximizing how much typed
+-- text is visible without widening the row itself.
+local ICON_COLUMN_WIDTH = 28
+local NAME_COLUMN_WIDTH = 170
+local COUNTDOWN_COLUMN_WIDTH = 40
+local RESPONSE_COLUMN_X = ICON_COLUMN_WIDTH + NAME_COLUMN_WIDTH + COUNTDOWN_COLUMN_WIDTH
+local ROW_RIGHT_MARGIN = 6
+local ROW_HEIGHT = Theme.LAYOUT.buttonHeight + 6
 
 local function myResponse(idx)
 	local responses = PLC.Session.responses[idx]
@@ -69,7 +73,7 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
-	frame:SetSize(600, 320)
+	frame:SetSize(600, 260)
 	frame:SetPoint("CENTER", 0, -80)
 	-- Top of the three main windows on purpose -- one tier above UI/SessionFrame.lua's "DIALOG"
 	-- (itself one tier above UI/OptionsFrame.lua's "HIGH") -- responding to loot always needs to
@@ -82,10 +86,7 @@ local function ensureFrame()
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilLootFrame")
-	-- Taller minimum than before -- the response row is now two stacked sub-rows (buttons, then
-	-- the note field beneath), so it needs noticeably more vertical room per item than the old
-	-- single-line layout did.
-	Primitives.makeResizable(frame, 480, 220, 900, 600)
+	Primitives.makeResizable(frame, 480, 180, 900, 600)
 
 	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
 	frame.bg:SetAllPoints()
@@ -175,31 +176,41 @@ local function ensureFrame()
 					-- UI/Widgets/Button.lua) -- a shared fixed width left short labels like "OS"
 					-- swimming in padding while "Upgrade" looked cramped against its own border.
 					local button = ButtonWidget.createButton(container, resp.text)
-					button:SetPoint("TOPLEFT", x, 0)
+					button:SetPoint("LEFT", x, 0)
 					x = x + button:GetWidth() + BUTTON_GAP
 					container.buttons[resp.key] = button
 				end
-				local buttonsWidth = x - BUTTON_GAP
+				container.buttonsWidth = x - BUTTON_GAP
 
-				-- Same width as the button row above it, not a separate fixed width -- stacked
-				-- below instead of squeezed in beside the buttons, with its own thin divider so
-				-- it reads as its own grouped element rather than floating in space.
 				container.divider = Primitives.createTexture(container, "ARTWORK", "borderDim")
-				container.divider:SetPoint("TOPLEFT", 0, -(Theme.LAYOUT.buttonHeight + 1))
-				container.divider:SetPoint("TOPRIGHT", container, "TOPLEFT", buttonsWidth, -(Theme.LAYOUT.buttonHeight + 1))
-				container.divider:SetHeight(1)
+				container.divider:SetPoint("TOP", container.buttonsWidth + 6, -2)
+				container.divider:SetPoint("BOTTOM", container.buttonsWidth + 6, 2)
+				container.divider:SetWidth(1)
 
+				-- Width is resolved in update() below, against the row's actual current width --
+				-- a fixed width here either wasted space on a wide window or, worse, overflowed
+				-- past the row on a narrow one (the "overlap" bug from a previous round). Height
+				-- matches the buttons exactly, no extra inset -- same row, not a separate one.
 				container.noteBox = Primitives.createEditBox(
-					container, buttonsWidth, NOTE_BOX_HEIGHT, L["LOOTFRAME_NOTE_PLACEHOLDER"], true)
-				container.noteBox:SetPoint("TOPLEFT", 0, -(Theme.LAYOUT.buttonHeight + NOTE_BOX_GAP))
+					container, 10, Theme.LAYOUT.buttonHeight, L["LOOTFRAME_NOTE_PLACEHOLDER"], true)
+				container.noteBox:SetPoint("LEFT", container.buttonsWidth + 14, 0)
 
-				container:SetSize(buttonsWidth, Theme.LAYOUT.buttonHeight + NOTE_BOX_GAP + NOTE_BOX_HEIGHT)
 				return container
 			end,
 			-- Only resets the note box when this row-pool slot gets rebound to a DIFFERENT item
 			-- (container.idx changes) -- not on every refresh/tick for the same still-pending
 			-- item, which would otherwise wipe out whatever the player is actively typing.
 			update = function(container, rowData)
+				-- Stretches the note box to use every pixel actually available in the row, so
+				-- the maximum amount of typed text stays visible without wrapping -- recalculated
+				-- on every render (including on window resize, which re-renders all visible rows
+				-- via UI/Widgets/DataTable.lua:Layout), not just once at creation.
+				local row = container:GetParent()
+				local available = math.max(container.buttonsWidth + 40, (row:GetWidth() or 0) - RESPONSE_COLUMN_X - ROW_RIGHT_MARGIN)
+				local noteWidth = available - container.buttonsWidth - 14
+				container.noteBox:SetWidth(noteWidth)
+				container:SetSize(available, Theme.LAYOUT.buttonHeight)
+
 				if container.idx ~= rowData.idx then
 					container.idx = rowData.idx
 					container.noteBox:SetText(container.noteBox.placeholder)
