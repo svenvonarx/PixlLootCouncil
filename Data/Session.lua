@@ -97,10 +97,56 @@ local function reconstructItemVisuals(itemString)
 	return link, icon
 end
 
+-- If the receiving client has never seen this item before, GetItemInfo returns nothing on the
+-- first call -- it has to ask the server and comes back later (the exact same "not cached yet"
+-- case Loot/Detection.lua's scanLootSlots already retries for the holder's own loot window; this
+-- is the equivalent for a RECEIVED item, which was missing entirely before). pendingVisuals
+-- tracks which items are still waiting; a single watcher frame resolves all of them whenever
+-- Blizzard's GET_ITEM_INFO_RECEIVED fires, rather than polling.
+local pendingVisuals = {} -- [idx] = true
+local itemInfoWatcher
+
+local function resolvePendingVisuals()
+	local resolvedAny = false
+	for idx in pairs(pendingVisuals) do
+		local entry = Session.items[idx]
+		if not entry then
+			pendingVisuals[idx] = nil
+		else
+			local link, icon = reconstructItemVisuals(entry.itemString)
+			if link then
+				entry.link = link
+				entry.icon = icon
+				pendingVisuals[idx] = nil
+				resolvedAny = true
+			end
+		end
+	end
+	if resolvedAny then
+		Session:notifyLootFrame()
+		Session:notifySessionFrame()
+	end
+end
+
+local function ensureItemInfoWatcher()
+	if itemInfoWatcher then
+		return
+	end
+	itemInfoWatcher = CreateFrame("Frame")
+	itemInfoWatcher:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+	itemInfoWatcher:SetScript("OnEvent", resolvePendingVisuals)
+end
+
 local function applyReceivedItems(items)
 	for idx, entry in pairs(items) do
 		entry.link, entry.icon = reconstructItemVisuals(entry.itemString)
 		Session.items[idx] = entry
+		if not entry.link then
+			pendingVisuals[idx] = true
+		end
+	end
+	if next(pendingVisuals) then
+		ensureItemInfoWatcher()
 	end
 end
 

@@ -164,6 +164,13 @@ All three with the holder actually holding an active session with at least one i
   seconds (`/plc session sync` to trigger manually if you want to test the debug path too) and
   ends up with the identical item/response state the holder has — not just the messages sent
   since it joined.
+- **Uncached item on the receiving side (fixed this round):** the candidate needs to actually
+  not have the item cached client-side yet for this to be meaningful — pick something they've
+  genuinely never seen before (a rarer item works better than something common like Soul Shard,
+  which may already be cached from a prior pickup). Confirm their Loot Frame/Session Frame show
+  the real icon and name within a second or two, not a permanent "?" — `Data/Session.lua` now
+  listens for `GET_ITEM_INFO_RECEIVED` and resolves it once Blizzard's own client actually has
+  the data, instead of giving up after one failed lookup.
 
 ### 2.3 Embedded response grid live refresh + notes (Stages 4-5)
 - With a real session item, have the council member select that item in their
