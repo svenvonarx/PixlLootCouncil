@@ -5,6 +5,7 @@ local Primitives = PLC.UI.Widgets.Primitives
 local ButtonWidget = PLC.UI.Widgets.Button
 local DropdownWidget = PLC.UI.Widgets.Dropdown
 local DataTable = PLC.UI.Widgets.DataTable
+local PopupMenu = PLC.UI.Widgets.PopupMenu
 local Theme = PLC.UI.Theme
 
 -- Loot history browser, modeled on RCLootCouncil's (lootHistory.lua GetFrame/BuildData): a date
@@ -17,8 +18,8 @@ PLC.UI.HistoryFrame = HistoryFrame
 local frame
 local dateTable, nameTable, mainTable
 local headerButtons = {}
-local countText, emptyText, formatDropdown
-local exportFrame
+local countText, emptyText, formatDropdown, filterButton
+local exportFrame, importFrame
 local selectedDate, selectedName
 local sortKey, sortDesc = "time", true
 local infoEntry -- entry whose details tooltip is currently shown
@@ -48,12 +49,6 @@ local function classColor(class)
 		return c.r, c.g, c.b
 	end
 	return Primitives.color("text")
-end
-
--- RC's DateTimeSort key: the epoch and counter encoded in the entry id ("<serverTime>-<counter>").
-local function idParts(entry)
-	local t, c = strsplit("-", entry.id or "")
-	return tonumber(t) or 0, tonumber(c) or 0
 end
 
 local function itemName(link)
@@ -204,7 +199,7 @@ local function refresh()
 	for name, entries in pairs(PLC.History:GetFilteredDB(selectedDate, selectedName)) do
 		local short = PLC.Roster:ShortName(name)
 		for _, e in ipairs(entries) do
-			local epoch, counter = idParts(e)
+			local epoch, counter = PLC.History.EntryEpoch(e)
 			table.insert(rows, {
 				name = name,
 				short = short,
@@ -225,6 +220,85 @@ local function refresh()
 	countText:SetText(string.format(L["HISTORY_COUNT"], #rows))
 	emptyText:SetShown(#rows == 0)
 	updateHeaders()
+	-- RC colors its Filter button orange while any filter is active.
+	local r, g, b = Primitives.color(PLC.History:IsFiltering() and "accent" or "text")
+	filterButton.label:SetTextColor(r, g, b)
+end
+
+-- RC's filter menu, flattened into one list (the popup has no submenus): classes, then responses.
+-- Both lists only offer values that actually occur in the stored history.
+local function openFilterMenu()
+	local f = PLC.db.profile.historyFilters
+	local classes, responses, seenClass, seenResponse = {}, {}, {}, {}
+	for _, list in pairs(PLC.History:GetDB()) do
+		if type(list) == "table" then
+			for _, e in ipairs(list) do
+				if e.class and not seenClass[e.class] then
+					seenClass[e.class] = true
+					table.insert(classes, e.class)
+				end
+				local key = PLC.History:ResponseKey(e)
+				if not seenResponse[key] then
+					seenResponse[key] = e.color
+					table.insert(responses, key)
+				end
+			end
+		end
+	end
+	table.sort(classes, function(a, b)
+		return (LOCALIZED_CLASS_NAMES_MALE[a] or a) < (LOCALIZED_CLASS_NAMES_MALE[b] or b)
+	end)
+	table.sort(responses)
+
+	local entries = {}
+	local classEntries = {}
+	table.insert(entries, { text = L["HISTORY_FILTER_CLASS"], header = true })
+	for _, class in ipairs(classes) do
+		local r, g, b = classColor(class)
+		local entry = {
+			text = LOCALIZED_CLASS_NAMES_MALE[class] or class,
+			color = { r = r, g = g, b = b },
+			checked = f.class[class] or false,
+			keepOpen = true,
+		}
+		entry.onClick = function()
+			f.class[class] = not f.class[class] or nil
+			entry.checked = f.class[class] or false
+			refresh()
+		end
+		table.insert(entries, entry)
+		table.insert(classEntries, entry)
+	end
+	table.insert(entries, {
+		text = L["HISTORY_FILTER_ALL_CLASSES"],
+		keepOpen = true,
+		onClick = function()
+			wipe(f.class)
+			for _, entry in ipairs(classEntries) do
+				entry.checked = false
+			end
+			refresh()
+		end,
+	})
+
+	table.insert(entries, { text = L["HISTORY_FILTER_RESPONSES"], header = true })
+	for _, key in ipairs(responses) do
+		local c = seenResponse[key]
+		local entry = {
+			text = key ~= "" and key or _G.UNKNOWN,
+			color = type(c) == "table" and type(c[1]) == "number" and { r = c[1], g = c[2], b = c[3] } or nil,
+			checked = not f.hiddenResponses[key],
+			keepOpen = true,
+		}
+		entry.onClick = function()
+			f.hiddenResponses[key] = not f.hiddenResponses[key] or nil
+			entry.checked = not f.hiddenResponses[key]
+			refresh()
+		end
+		table.insert(entries, entry)
+	end
+
+	PopupMenu.Open(filterButton, entries, { width = 200, maxRows = 18 })
 end
 
 -- Export popup: a read-only, auto-selected text box. Above HUGE_EXPORT_LENGTH characters it uses a
@@ -331,6 +405,107 @@ local function showExport(text)
 	f:Show()
 	box:SetFocus()
 	box:HighlightText()
+end
+
+-- Import popup: paste RC's "Player Export" string, or pull straight from RCLootCouncil's own saved
+-- data when RC is installed on this character. The in-game paths (RC's /rc sync, and mirroring an
+-- RC master looter's awards) need no window at all -- see Data/HistoryImport.lua.
+local function ensureImportFrame()
+	if importFrame then
+		return importFrame
+	end
+	local width, height = 560, 340
+	importFrame = CreateFrame("Frame", "PixlLootCouncilHistoryImportFrame", UIParent)
+	importFrame:SetSize(width, height)
+	importFrame:SetPoint("CENTER")
+	importFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+	importFrame:SetMovable(true)
+	importFrame:EnableMouse(true)
+	importFrame:RegisterForDrag("LeftButton")
+	importFrame:SetScript("OnDragStart", importFrame.StartMoving)
+	importFrame:SetScript("OnDragStop", importFrame.StopMovingOrSizing)
+	tinsert(UISpecialFrames, "PixlLootCouncilHistoryImportFrame")
+
+	importFrame.bg = Primitives.createTexture(importFrame, "BACKGROUND", "frame")
+	importFrame.bg:SetAllPoints()
+	importFrame.border = Primitives.createBorder(importFrame)
+
+	local header = CreateFrame("Frame", nil, importFrame)
+	header:SetHeight(Theme.LAYOUT.headerHeight)
+	header:SetPoint("TOPLEFT")
+	header:SetPoint("TOPRIGHT")
+	header.bg = Primitives.createTexture(header, "BACKGROUND", "header")
+	header.bg:SetAllPoints()
+	header.title = Primitives.createText(header, L["HISTORY_IMPORT_TITLE"], 14, "title")
+	header.title:SetPoint("LEFT", 10, 0)
+	header.close = Primitives.createCloseButton(header, 20)
+	header.close:SetPoint("RIGHT", -6, 0)
+	header.close:SetScript("OnClick", function()
+		importFrame:Hide()
+	end)
+
+	local content = CreateFrame("Frame", nil, importFrame)
+	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
+	content:SetPoint("BOTTOMRIGHT", -10, 10)
+
+	local help = Primitives.createText(content, L["HISTORY_IMPORT_HELP"], 11, "dim")
+	help:SetPoint("TOPLEFT")
+	help:SetPoint("TOPRIGHT")
+	help:SetJustifyH("LEFT")
+	help:SetWordWrap(true)
+
+	local importButton = ButtonWidget.createButton(content, L["HISTORY_IMPORT_BUTTON"], 100)
+	importButton:SetPoint("BOTTOMRIGHT")
+
+	importFrame.localButton = ButtonWidget.createButton(content, L["HISTORY_IMPORT_FROM_RC"], 220)
+	importFrame.localButton:SetPoint("BOTTOMLEFT")
+	importFrame.localButton:SetScript("OnClick", function()
+		if PLC.History:ImportFromLocalRC() then
+			importFrame:Hide()
+		end
+	end)
+
+	local boxHolder = CreateFrame("Frame", nil, content)
+	boxHolder:SetPoint("TOPLEFT", help, "BOTTOMLEFT", 0, -10)
+	boxHolder:SetPoint("BOTTOMRIGHT", importButton, "TOPRIGHT", 0, 10)
+	boxHolder.bg = Primitives.createTexture(boxHolder, "BACKGROUND", "field")
+	boxHolder.bg:SetAllPoints()
+	boxHolder.border = Primitives.createBorder(boxHolder, "borderDim")
+	local scroll = PLC.UI.Widgets.ScrollFrame.createScrollFrame(boxHolder)
+	local box = CreateFrame("EditBox", nil, scroll)
+	box:SetMultiLine(true)
+	box:SetAutoFocus(false)
+	box:SetFontObject(ChatFontNormal)
+	box:SetMaxLetters(0)
+	box:SetWidth(width - 30 - PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH)
+	box:SetHeight(20)
+	box:SetTextInsets(6, 6, 6, 6)
+	box:SetScript("OnEscapePressed", function()
+		importFrame:Hide()
+	end)
+	scroll:SetScrollChild(box)
+	scroll:SetScript("OnMouseDown", function()
+		box:SetFocus()
+	end)
+	importFrame.box = box
+
+	importButton:SetScript("OnClick", function()
+		if PLC.History:ImportPlayerExport(box:GetText()) then
+			box:SetText("")
+			importFrame:Hide()
+		end
+	end)
+
+	importFrame:Hide()
+	return importFrame
+end
+
+local function showImport()
+	local f = ensureImportFrame()
+	f.localButton:SetShown(PLC.History:HasLocalRCData())
+	f.box:SetText("")
+	f:Show()
+	f.box:SetFocus()
 end
 
 local function onExportClick()
@@ -626,6 +801,20 @@ local function ensureFrame()
 		refresh()
 	end)
 
+	filterButton = ButtonWidget.createButton(content, L["HISTORY_FILTER"], 90)
+	filterButton:SetPoint("RIGHT", clearButton, "LEFT", -8, 0)
+	filterButton:SetScript("OnClick", function(self)
+		if PopupMenu.IsOpen(self) then
+			PopupMenu.Close()
+		else
+			openFilterMenu()
+		end
+	end)
+
+	local importButton = ButtonWidget.createButton(content, L["HISTORY_IMPORT"], 90)
+	importButton:SetPoint("RIGHT", filterButton, "LEFT", -8, 0)
+	importButton:SetScript("OnClick", showImport)
+
 	countText = Primitives.createText(content, "", 11, "dim")
 	countText:SetPoint("TOPRIGHT", clearButton, "BOTTOMRIGHT", 0, -10)
 
@@ -667,6 +856,98 @@ local function ensureFrame()
 
 	frame:Hide()
 	return frame
+end
+
+-- Hover helpers for the Loot Session window (UI/VotingFrame.lua candidate names, UI/SessionFrame.lua
+-- item icons): append "what has this player received" / "who already received this item" lines to
+-- an already-owned tooltip. The caller calls tooltip:Show() afterwards.
+local PLAYER_RECENT_LINES = 6
+local ITEM_RECIPIENT_LINES = 8
+
+local function responseColor(entry)
+	local c = entry.color
+	if type(c) == "table" and type(c[1]) == "number" then
+		return c[1], c[2], c[3]
+	end
+	return 1, 1, 1
+end
+
+function HistoryFrame.AddPlayerLines(tooltip, fullName, currentLink)
+	local rows = PLC.History:GetPlayerEntries(fullName)
+	tooltip:AddLine(" ")
+	if #rows == 0 then
+		tooltip:AddLine(L["HISTORY_TIP_NONE"], 0.6, 0.6, 0.6)
+		return
+	end
+
+	local currentID = currentLink and PLC.History.GetItemIDFromLink(currentLink)
+	for _, row in ipairs(rows) do
+		if currentID and PLC.History.GetItemIDFromLink(row.entry.lootWon) == currentID then
+			local r, g, b = Primitives.color("warning")
+			tooltip:AddLine(string.format(L["HISTORY_TIP_ALREADY_HAS"], row.entry.date or "?"), r, g, b)
+			break
+		end
+	end
+
+	-- Per-response totals, most frequent first (RC's "number of items received" summary).
+	local counts, order, colors = {}, {}, {}
+	for _, row in ipairs(rows) do
+		local key = PLC.History:ResponseKey(row.entry)
+		if not counts[key] then
+			counts[key] = 0
+			colors[key] = row.entry
+			table.insert(order, key)
+		end
+		counts[key] = counts[key] + 1
+	end
+	table.sort(order, function(a, b)
+		if counts[a] ~= counts[b] then
+			return counts[a] > counts[b]
+		end
+		return a < b
+	end)
+	local ar, ag, ab = Primitives.color("accent")
+	tooltip:AddLine(string.format(L["HISTORY_TIP_TOTAL"], #rows), ar, ag, ab)
+	for _, key in ipairs(order) do
+		local r, g, b = responseColor(colors[key])
+		tooltip:AddDoubleLine("  " .. (key ~= "" and key or _G.UNKNOWN), tostring(counts[key]), r, g, b, 1, 1, 1)
+	end
+
+	tooltip:AddLine(" ")
+	tooltip:AddLine(L["HISTORY_TIP_RECENT"], ar, ag, ab)
+	for i = 1, math.min(#rows, PLAYER_RECENT_LINES) do
+		local e = rows[i].entry
+		local r, g, b = responseColor(e)
+		tooltip:AddDoubleLine(e.lootWon or "?", (e.response or "") .. "  |cff999999" .. (e.date or "") .. "|r", 1, 1, 1, r, g, b)
+	end
+	if #rows > PLAYER_RECENT_LINES then
+		tooltip:AddLine(string.format(L["HISTORY_TIP_MORE"], #rows - PLAYER_RECENT_LINES), 0.6, 0.6, 0.6)
+	end
+end
+
+function HistoryFrame.AddItemLines(tooltip, link)
+	local itemID = link and PLC.History.GetItemIDFromLink(link)
+	if not itemID then
+		return
+	end
+	local rows = PLC.History:GetItemRecipients(itemID)
+	tooltip:AddLine(" ")
+	if #rows == 0 then
+		tooltip:AddLine(L["HISTORY_TIP_ITEM_NONE"], 0.6, 0.6, 0.6)
+		return
+	end
+	local ar, ag, ab = Primitives.color("accent")
+	tooltip:AddLine(string.format(L["HISTORY_TIP_ITEM_RECIPIENTS"], #rows), ar, ag, ab)
+	for i = 1, math.min(#rows, ITEM_RECIPIENT_LINES) do
+		local row = rows[i]
+		local cr, cg, cb = classColor(row.entry.class)
+		local r, g, b = responseColor(row.entry)
+		tooltip:AddDoubleLine("  " .. PLC.Roster:ShortName(row.name),
+			(row.entry.response or "") .. "  |cff999999" .. (row.entry.date or "") .. "|r", cr, cg, cb, r, g, b)
+	end
+	if #rows > ITEM_RECIPIENT_LINES then
+		tooltip:AddLine(string.format(L["HISTORY_TIP_MORE"], #rows - ITEM_RECIPIENT_LINES), 0.6, 0.6, 0.6)
+	end
 end
 
 function HistoryFrame:Toggle()

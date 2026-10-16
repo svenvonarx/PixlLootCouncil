@@ -103,7 +103,8 @@ function Panel:buildRows()
 		local r = responses and responses[guid]
 		local row = {
 			guid = guid,
-			name = entry.name, -- full "Name-Realm", kept only for the sort below
+			name = entry.name, -- full "Name-Realm", for the sort below and the history hover
+			itemLink = item and item.link,
 			shortName = PLC.Roster:ShortName(entry.name),
 			class = entry.class,
 			role = entry.role,
@@ -361,9 +362,23 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton)
 				holder.classIcon:SetPoint("LEFT", holder.roleIcon, "RIGHT", 4, 0)
 				holder.text = Primitives.createText(holder, "", 11)
 				holder.text:SetPoint("LEFT", holder.classIcon, "RIGHT", 4, 0)
+				-- Hovering the name shows what this candidate has already received (loot history,
+				-- including anything imported from RCLootCouncil) -- see UI/HistoryFrame.lua.
+				holder:EnableMouse(true)
+				holder:SetScript("OnEnter", function(self)
+					GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+					GameTooltip:SetText(self.shortName or "?", classColor(self.class))
+					PLC.UI.HistoryFrame.AddPlayerLines(GameTooltip, self.fullName, self.itemLink)
+					GameTooltip:Show()
+				end)
+				holder:SetScript("OnLeave", function()
+					GameTooltip:Hide()
+				end)
 				return holder
 			end,
 			update = function(holder, rowData)
+				holder.fullName, holder.shortName, holder.class = rowData.name, rowData.shortName, rowData.class
+				holder.itemLink = rowData.itemLink
 				Primitives.setRoleIcon(holder.roleIcon, rowData.role)
 				holder.roleText = ROLE_ABBR[rowData.role]
 				Primitives.setClassIcon(holder.classIcon, rowData.class)

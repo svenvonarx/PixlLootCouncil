@@ -35,6 +35,15 @@ PLC.Defaults = {
 		},
 
 		historyExport = "sheets", -- UI/HistoryFrame.lua export format: "sheets" | "tsv"
+		-- UI/HistoryFrame.lua filter menu (see Data/History.lua:PassesFilters). class: [classFile] =
+		-- true for each selected class (none = all); hiddenResponses: [response text] = true.
+		historyFilters = {
+			class = {},
+			hiddenResponses = {},
+		},
+		-- Store the loot history an RCLootCouncil master looter broadcasts to the group (see
+		-- Data/HistoryImport.lua) -- lets a raider who isn't the loot master keep the full history.
+		historyMirrorRC = true,
 	},
 	char = {
 		activeSession = nil, -- Data/Session.lua persists the held session here; nil = not currently a holder

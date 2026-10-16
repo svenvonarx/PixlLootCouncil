@@ -44,6 +44,7 @@ local function normalizeName(fullName)
 	end
 	return name .. "-" .. realm:gsub("%s", "")
 end
+History.NormalizeName = normalizeName
 
 local function serverTimeLocal()
 	return (C_DateAndTime and C_DateAndTime.GetServerTimeLocal and C_DateAndTime.GetServerTimeLocal()) or time()
@@ -95,6 +96,26 @@ local function insertEntry(name, entry)
 	end
 	table.insert(db[name], entry)
 	return true
+end
+
+-- Inserts unless an entry with the same id is already stored for that name. Returns true if added.
+function History:InsertEntry(name, entry)
+	return insertEntry(name, entry)
+end
+
+-- RC's DateTimeSort key: the epoch and counter encoded in the entry id ("<serverTime>-<counter>").
+function History.EntryEpoch(entry)
+	local t, c = strsplit("-", entry.id or "")
+	return tonumber(t) or 0, tonumber(c) or 0
+end
+
+local function newestFirst(a, b)
+	local ta, ca = History.EntryEpoch(a.entry)
+	local tb, cb = History.EntryEpoch(b.entry)
+	if ta ~= tb then
+		return ta > tb
+	end
+	return ca > cb
 end
 
 function History:notifyFrame()
@@ -184,13 +205,39 @@ function History:DeleteEntry(name, entry)
 	self:notifyFrame()
 end
 
--- RC's GetFilteredDB: { [name] = { entries } } limited to the selected date and/or name.
+-- RC's filter menu (lootHistory.lua FilterMenu/FilterFunc): a class multi-select where nothing
+-- selected means every class, plus per-response toggles. Responses are keyed by their display text,
+-- not RC's numeric responseID -- imported RC entries and this addon's own entries number their
+-- responses differently, but the text is what both show. Persisted like RC's, in the profile.
+local function filters()
+	return PLC.db.profile.historyFilters
+end
+
+function History:ResponseKey(entry)
+	return tostring(entry.response or "")
+end
+
+function History:IsFiltering()
+	local f = filters()
+	return next(f.class) ~= nil or next(f.hiddenResponses) ~= nil
+end
+
+function History:PassesFilters(entry)
+	local f = filters()
+	if next(f.class) and not f.class[entry.class or ""] then
+		return false
+	end
+	return not f.hiddenResponses[self:ResponseKey(entry)]
+end
+
+-- RC's GetFilteredDB: { [name] = { entries } } limited to the selected date and/or name and the
+-- active class/response filters. Both the window and the export go through this, like RC.
 function History:GetFilteredDB(selectedDate, selectedName)
 	local filtered = {}
 	for name, entries in pairs(self:GetDB()) do
 		if type(entries) == "table" and (not selectedName or name == selectedName) then
 			for _, entry in ipairs(entries) do
-				if not selectedDate or entry.date == selectedDate then
+				if (not selectedDate or entry.date == selectedDate) and self:PassesFilters(entry) then
 					filtered[name] = filtered[name] or {}
 					table.insert(filtered[name], entry)
 				end
@@ -198,6 +245,39 @@ function History:GetFilteredDB(selectedDate, selectedName)
 		end
 	end
 	return filtered
+end
+
+-- One player's entries, newest first, as { entry = e } rows. Unfiltered -- the hover tooltips
+-- answer "what has this player received", not "what does the history window currently show".
+function History:GetPlayerEntries(fullName)
+	local rows = {}
+	local list = fullName and self:GetDB()[normalizeName(fullName)]
+	if type(list) == "table" then
+		for _, entry in ipairs(list) do
+			table.insert(rows, { entry = entry })
+		end
+	end
+	table.sort(rows, newestFirst)
+	return rows
+end
+
+-- Everyone who has received this itemID, newest first, as { name = fullName, entry = e } rows.
+function History:GetItemRecipients(itemID)
+	local rows = {}
+	if not itemID then
+		return rows
+	end
+	for name, list in pairs(self:GetDB()) do
+		if type(list) == "table" then
+			for _, entry in ipairs(list) do
+				if History.GetItemIDFromLink(entry.lootWon) == itemID then
+					table.insert(rows, { name = name, entry = entry })
+				end
+			end
+		end
+	end
+	table.sort(rows, newestFirst)
+	return rows
 end
 
 local function hyperlink(link, delimiter)

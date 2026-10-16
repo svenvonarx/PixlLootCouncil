@@ -523,3 +523,25 @@ addon's own existing taint capture, and the fastest signal if a protected-functi
   "items to collect" — the full-session resync (`session_sync_data`) doesn't currently carry
   award/trade status, only the live `award` broadcast does. Pre-existing limitation, not
   introduced this round.
+
+### 2.10 Loot history: filters, RCLootCouncil import, hover summaries (`Data/HistoryImport.lua`)
+- **Filters:** `/plc history` → **Filter**. Lists only classes/responses present in the history.
+  Picking a class shows only that class (several can be picked; "Show all classes" clears it);
+  un-ticking a response hides it. The Filter label turns accent-colored while anything is
+  filtered, the count updates, and **Export** only contains what the table shows. Filters survive
+  `/reload`.
+- **RC sync, in game (receiver doesn't need RC):** the RC user opens `/rc sync`, picks
+  *Loot History* and your character, presses Sync. You get an accept popup → Accept → chat says
+  it's receiving, then "Imported N new loot history entries from X". Declining shows RC's own
+  "declined your sync request" message on the sender's side. Syncing again imports 0 (duplicates
+  skipped by id). If RC is also enabled on *your* character, RC answers the request itself — then
+  use Import → "Import from RCLootCouncil" afterwards.
+- **Paste:** RC History → Export → *Player Export* → copy → PLC Import → paste → Import.
+  A non-export string prints the "isn't a Player Export string" error and imports nothing.
+- **Live mirroring:** in a group whose master looter (or leader) runs RC, every RC award appears
+  in your `/plc history` as it happens. Option: General → "Store loot history from an
+  RCLootCouncil master looter".
+- **Hover:** in the Loot Session window, hover a candidate's name → their history totals per
+  response plus their 6 most recent items, and a warning line if they already received the item
+  being reviewed. Hover a sidebar item icon or the item name above the grid → who already
+  received that item (newest first).

@@ -181,6 +181,9 @@ local function iconColumn(suffix)
 				if holder.tooltipRemaining then
 					GameTooltip:AddLine(holder.tooltipRemaining, 0.6, 0.6, 0.6)
 				end
+				-- Who already received this item (UI/HistoryFrame.lua).
+				local item = holder.itemIdx and PLC.Session.items[holder.itemIdx]
+				PLC.UI.HistoryFrame.AddItemLines(GameTooltip, item and item.link)
 				GameTooltip:Show()
 			end)
 			holder:SetScript("OnLeave", function()
@@ -678,6 +681,13 @@ local function ensureFrame()
 	detailItemHover:SetPoint("RIGHT", detailVoteCountText, "LEFT", -10, 0)
 	detailItemHover:SetHeight(20)
 	Primitives.attachItemTooltip(detailItemHover)
+	-- Appends "who already received this item" below the item's own tooltip (UI/HistoryFrame.lua).
+	detailItemHover:HookScript("OnEnter", function(self)
+		if self.itemLink then
+			PLC.UI.HistoryFrame.AddItemLines(GameTooltip, self.itemLink)
+			GameTooltip:Show()
+		end
+	end)
 
 	detailItemLabel = Primitives.createText(detailItemHover, "", 13, "white")
 	detailItemLabel:SetPoint("LEFT")

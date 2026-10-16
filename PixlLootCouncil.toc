@@ -20,6 +20,7 @@ Data\Presence.lua
 Data\Gear.lua
 Data\Professions.lua
 Data\History.lua
+Data\HistoryImport.lua
 Data\Session.lua
 
 Comms\Protocol.lua
