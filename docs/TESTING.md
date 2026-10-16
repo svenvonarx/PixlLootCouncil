@@ -220,9 +220,14 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   confirm the white title text is noticeably bigger than before, and reads clearly larger than
   the gray "Session started by <name>" subtitle next to it (Options has no subtitle, just the
   bigger title). Confirm the logo, title, and subtitle all look vertically settled in the header
-  bar — specifically, confirm the subtitle's text doesn't look like it's sitting lower than the
-  title (it's now anchored to the title's own baseline rather than centered against its full
-  bounding box, which is what caused that look with the title now this much bigger).
+  bar, roughly centered top-to-bottom in the header strip — specifically: the subtitle shouldn't
+  look like it's sitting lower than the title (it's anchored to the title's own baseline, not
+  centered against its full bounding box), and the title itself shouldn't look like it's sitting
+  a bit above center/too high in the bar (a small manual correction accounts for a FontString's
+  "LEFT" anchor centering its full line box — ascent plus descent — rather than the actual
+  rendered glyphs, which otherwise visibly reads as "too high" at this now-bigger size). This is
+  a visual judgment call with no exact pixel target — if it still looks off after this round,
+  say so and the offset can be tuned further.
 - Close button style (new this round, all three windows): confirm the header's close control is
   now a thin accent-colored "X" (two crossed hairlines) with no background square behind it,
   instead of the old solid-square button with a red "x" glyph — and that it still closes the

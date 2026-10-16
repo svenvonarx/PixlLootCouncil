@@ -122,7 +122,14 @@ local function ensureFrame()
 	-- smaller value would -- there's no more room to shrink it), so widening the gap to make it
 	-- read as "smaller in comparison" means growing the title instead.
 	header.title = Primitives.createText(header, L["LOOTFRAME_TITLE"], 18, "title")
-	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, 0)
+	-- The -2 is an empirical nudge, not 0 like every other "LEFT"-anchored pairing in this
+	-- codebase: a FontString's "LEFT" anchor centers its full ascent+descent line box, not the
+	-- actual rendered glyphs -- most fonts give more room below the baseline (for descenders)
+	-- than above the cap-height, so the visible text sits a bit above true center once the box
+	-- is tightly auto-fit with no slack for WoW's own layout to correct for that. Barely
+	-- noticeable at the old 14pt size; visibly "too high" once bumped to 18pt, since the
+	-- asymmetry scales with font size.
+	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, -2)
 
 	-- Anchored BOTTOMLEFT-to-BOTTOMRIGHT (baseline-ish), not the LEFT-to-RIGHT (box-center)
 	-- anchor every other text pairing in this codebase uses -- box-centering a much smaller

@@ -50,7 +50,14 @@ function PanelLayout.Create(opts)
 	header.logo:SetPoint("LEFT", 10, 0)
 
 	header.title = Primitives.createText(header, opts.title or "", 18, "title")
-	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, 0)
+	-- The -2 is an empirical nudge, not 0 like every other "LEFT"-anchored pairing in this
+	-- codebase: a FontString's "LEFT" anchor centers its full ascent+descent line box, not the
+	-- actual rendered glyphs -- most fonts give more room below the baseline (for descenders)
+	-- than above the cap-height, so the visible text sits a bit above true center once the box
+	-- is tightly auto-fit with no slack for WoW's own layout to correct for that. Barely
+	-- noticeable at the old 14pt size; visibly "too high" once bumped to 18pt, since the
+	-- asymmetry scales with font size.
+	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, -2)
 
 	header.close = Primitives.createCloseButton(header, 20)
 	header.close:SetPoint("RIGHT", -6, 0)
