@@ -691,6 +691,29 @@ local function ensureFrame()
 	enchanterDropdown:SetSize(180, Theme.LAYOUT.fieldHeight)
 	enchanterDropdown:SetPoint("LEFT", enchanterRow.label, "RIGHT", 8, 0)
 
+	-- Shortcuts to every other window, right-aligned in the same toolbar row (built right to left).
+	-- Each window's own Open() prints a short note instead when there's nothing to show. Fixed
+	-- widths, not label-sized: on a cold start the font may not be loaded yet when this is built, so
+	-- measuring the label would come out too narrow (see Primitives.RefreshFonts).
+	local shortcuts = {
+		{ L["SESSIONFRAME_OPEN_OPTIONS"], 66, function() PLC.UI.OptionsFrame:Open() end },
+		{ L["SESSIONFRAME_OPEN_HISTORY"], 66, function() PLC.UI.HistoryFrame:Open() end },
+		{ L["SESSIONFRAME_OPEN_TRADES"], 62, function() PLC.UI.TradeFrame:OpenOrNotify() end },
+		{ L["SESSIONFRAME_OPEN_LOOT"], 50, function() PLC.UI.LootFrame:Open() end },
+	}
+	local anchor
+	for _, shortcut in ipairs(shortcuts) do
+		local button = ButtonWidget.createButton(enchanterRow, shortcut[1], shortcut[2])
+		button:SetHeight(Theme.LAYOUT.fieldHeight)
+		if anchor then
+			button:SetPoint("RIGHT", anchor, "LEFT", -4, 0)
+		else
+			button:SetPoint("RIGHT")
+		end
+		button:SetScript("OnClick", shortcut[3])
+		anchor = button
+	end
+
 	startButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_START"], 160)
 	startButton:SetPoint("BOTTOM", 0, 12)
 	startButton:SetScript("OnClick", onStartClick)

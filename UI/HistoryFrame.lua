@@ -953,6 +953,12 @@ function HistoryFrame.AddItemLines(tooltip, link)
 	end
 end
 
+function HistoryFrame:Open()
+	local f = ensureFrame()
+	f:Show()
+	refresh()
+end
+
 function HistoryFrame:Toggle()
 	local f = ensureFrame()
 	if f:IsShown() then

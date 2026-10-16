@@ -203,6 +203,10 @@ local function ensurePanel()
 	return panel
 end
 
-PLC:RegisterSlashCommand("options", "Open the options window", function()
+function OptionsFrame:Open()
 	ensurePanel():Show()
+end
+
+PLC:RegisterSlashCommand("options", "Open the options window", function()
+	OptionsFrame:Open()
 end)

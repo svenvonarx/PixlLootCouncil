@@ -361,12 +361,16 @@ function LootFrame:Refresh()
 	startTicker()
 end
 
--- Manual reopen, in case the candidate closed it mid-session -- Refresh() only re-shows it
--- reactively, on an actual item/response/tick event.
-PLC:RegisterSlashCommand("loot", "Reopen the Loot Response window", function()
+-- Manual reopen (slash command, Loot Session toolbar), in case the candidate closed it
+-- mid-session -- Refresh() only re-shows it reactively, on an actual item/response/tick event.
+function LootFrame:Open()
 	if PLC.Session.state ~= "active" or #buildRows() == 0 then
 		print(L["CHAT_PREFIX"] .. L["LOOTFRAME_NOTHING"])
 		return
 	end
-	LootFrame:Refresh()
+	self:Refresh()
+end
+
+PLC:RegisterSlashCommand("loot", "Reopen the Loot Response window", function()
+	LootFrame:Open()
 end)

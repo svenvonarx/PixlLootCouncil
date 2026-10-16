@@ -360,10 +360,15 @@ function TradeFrame:Open()
 	self:Refresh()
 end
 
-PLC:RegisterSlashCommand("trades", "Reopen the Loot Trades window", function()
+-- Manual reopen (slash command, Loot Session toolbar): says so instead of silently doing nothing.
+function TradeFrame:OpenOrNotify()
 	if #buildRows() == 0 then
 		print(L["CHAT_PREFIX"] .. L["TRADEFRAME_NO_ITEMS"])
 		return
 	end
-	TradeFrame:Open()
+	self:Open()
+end
+
+PLC:RegisterSlashCommand("trades", "Reopen the Loot Trades window", function()
+	TradeFrame:OpenOrNotify()
 end)
