@@ -27,6 +27,7 @@ local itemListContainer
 local dataTable
 local detailArea
 local detailItemLabel
+local detailItemHover
 local detailRemoveButton
 local detailContainer
 local votingPanel
@@ -311,11 +312,13 @@ function showDetailFor(idx)
 	local item = idx and PLC.Session.items[idx]
 	if item then
 		detailItemLabel:SetText(item.link or "?")
+		detailItemHover.itemLink = item.link
 		detailRemoveButton:SetShown(PLC.Session.state ~= "active" and not item.awarded)
 		detailContainer:Show()
 		votingPanel:ShowItem(idx)
 	else
 		detailItemLabel:SetText(L["SESSIONFRAME_NO_ITEMS"])
+		detailItemHover.itemLink = nil
 		detailRemoveButton:Hide()
 		detailContainer:Hide()
 	end
@@ -492,9 +495,16 @@ local function ensureFrame()
 	detailArea:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT", 8, 0)
 	detailArea:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
 
-	detailItemLabel = Primitives.createText(detailArea, "", 13, "white")
-	detailItemLabel:SetPoint("TOPLEFT")
-	detailItemLabel:SetPoint("RIGHT", detailArea, "RIGHT", -80, 0)
+	-- A Frame wrapping the label, not the label itself -- a FontString has no SetScript, so
+	-- showing a tooltip on hover needs an actual Frame to own OnEnter/OnLeave.
+	detailItemHover = CreateFrame("Frame", nil, detailArea)
+	detailItemHover:SetPoint("TOPLEFT")
+	detailItemHover:SetPoint("RIGHT", detailArea, "RIGHT", -80, 0)
+	detailItemHover:SetHeight(20)
+	Primitives.attachItemTooltip(detailItemHover)
+
+	detailItemLabel = Primitives.createText(detailItemHover, "", 13, "white")
+	detailItemLabel:SetPoint("LEFT")
 	detailItemLabel:SetJustifyH("LEFT")
 
 	-- Only ever meaningful pre-Start()/post-End() for a not-yet-awarded item -- there's no wire

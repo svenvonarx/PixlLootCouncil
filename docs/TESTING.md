@@ -60,6 +60,10 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
 - Confirm the sidebar shows the item's icon with a hairline border, auto-selects it, and the
   content area on the right shows the item's name + a Remove button above the "N out of M have
   voted" line + the candidate/role/response/Award/Pre-Award grid.
+- Hover the item name text at the top of the detail area (new this round): confirm the game's
+  normal item tooltip appears, same as hovering the item link anywhere else. Switch to a
+  different item (click another icon, or End/Start a session) and confirm the tooltip now shows
+  for the newly-selected item, not the old one.
 - Two-column layout, flush and tight (refined this round): with only one item total, confirm it
   renders as a single icon (no empty second slot look). Seed a second item (`/plc additem
   <itemID>`) and confirm the two icons sit side by side on the same row, flush against the left
@@ -164,15 +168,25 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   buttons' own centered labels right next to it — it previously sat pinned near the box's top
   edge, which (even though the box's own border/frame was already the exact same height and
   position as the buttons) read as the whole field being misaligned with them.
-- Scrollbar behavior (reworked this round, shared by every scrollable list in the addon — this
-  window, `UI/SessionFrame.lua`'s icon sidebar, and the embedded candidate grid inside it): seed
-  enough items that the list actually overflows and needs to scroll. Confirm the scrollbar thumb
-  is fully visible **inside** the window's own border — it previously extended several pixels
-  past the window's right edge, visible against the game world behind it. Confirm the thumb's
-  position reflects where the list actually is **immediately**, without needing to click/drag it
-  first (it previously stayed at a stale position after the list content changed size — e.g.
-  after an item was added — until manually dragged). Confirm the scrollbar is **completely
-  hidden** when the list fits without scrolling (e.g. only 1-2 items), not shown empty/inert.
+- Scrollbar behavior (shared by every scrollable list in the addon — this window,
+  `UI/SessionFrame.lua`'s icon sidebar, and the embedded candidate grid inside it): seed enough
+  items that the list actually overflows and needs to scroll. Confirm the scrollbar thumb is
+  fully visible **inside** the window's own border — it previously extended several pixels past
+  the window's right edge, visible against the game world behind it. Confirm the thumb's position
+  reflects where the list actually is **immediately**, without needing to click/drag it first (it
+  previously stayed at a stale position after the list content changed size — e.g. after an item
+  was added — until manually dragged). Confirm the scrollbar is **completely hidden** when the
+  list fits without scrolling (e.g. only 1-2 items), not shown empty/inert. **Scroll with the
+  mouse wheel** over the list (not by dragging the thumb): confirm the thumb moves to track the
+  new position — it previously stayed frozen in place on wheel-scroll specifically (dragging the
+  thumb directly worked fine; `UI/Widgets/DataTable.lua`'s own `OnVerticalScroll` handler was
+  silently replacing the scrollbar widget's one that kept the thumb in sync, since
+  `SetScript` replaces rather than stacks — fixed by hooking the underlying method instead of the
+  script event, so the two no longer compete for the same slot).
+- Item tooltips on hover (new this round): hover the icon in a row — confirm the game's normal
+  item tooltip appears (name, stats, everything, the same as hovering it anywhere else), not just
+  a name label. Hover the item name/link text next to it — same tooltip. Move off either and the
+  tooltip disappears.
 - Type something in an item's note field, then click a response button: the whole row disappears
   immediately (not a "you voted" label) — other items in the list are unaffected.
 - Leave an item unanswered and watch it run out: once `profile.responseTimeoutSeconds` passes

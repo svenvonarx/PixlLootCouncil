@@ -66,7 +66,15 @@ function ScrollFrame.createScrollFrame(parent)
 		-- position until you click it" bug).
 		bar:SetValue(current)
 	end)
-	scroll:SetScript("OnVerticalScroll", function(_, value)
+	-- A post-hook on the method itself, not `scroll:SetScript("OnVerticalScroll", ...)` -- every
+	-- caller of this widget (UI/Widgets/DataTable.lua included) sets its own OnVerticalScroll
+	-- script to re-render visible rows on scroll, and SetScript REPLACES whatever script was
+	-- there before rather than stacking with it. That silently ate this thumb-sync entirely
+	-- (confirmed: DataTable.lua's own OnVerticalScroll handler was overwriting this one), so the
+	-- thumb stopped tracking the mouse wheel. hooksecurefunc runs alongside any OnVerticalScroll
+	-- script a caller sets, regardless of order, since it hooks the method call itself rather
+	-- than competing for the same script slot.
+	hooksecurefunc(scroll, "SetVerticalScroll", function(_, value)
 		if bar:GetValue() ~= value then
 			bar:SetValue(value)
 		end

@@ -130,16 +130,31 @@ local function ensureFrame()
 				holder:SetSize(24, 24)
 				holder.texture = holder:CreateTexture(nil, "ARTWORK")
 				holder.texture:SetAllPoints()
+				Primitives.attachItemTooltip(holder)
 				return holder
 			end,
 			update = function(holder, rowData)
 				holder.texture:SetTexture(rowData.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+				holder.itemLink = rowData.link
 			end,
 		},
 		{
+			-- A widget column now, not a plain text one -- a FontString has no SetScript, so
+			-- showing a tooltip on hover needs an actual Frame wrapping the text.
 			width = 170,
-			render = function(row)
-				return row.link or "?"
+			isWidget = true,
+			create = function(row)
+				local holder = CreateFrame("Frame", nil, row)
+				holder:SetSize(170, 24)
+				holder.text = Primitives.createText(holder, "", 11)
+				holder.text:SetPoint("LEFT")
+				holder.text:SetJustifyH("LEFT")
+				Primitives.attachItemTooltip(holder)
+				return holder
+			end,
+			update = function(holder, rowData)
+				holder.text:SetText(rowData.link or "?")
+				holder.itemLink = rowData.link
 			end,
 		},
 		{

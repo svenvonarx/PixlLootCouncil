@@ -17,6 +17,30 @@ function Primitives.color(name, alpha)
 	return Theme:Color(name, alpha)
 end
 
+-- Standard "hover to see this item's real tooltip" handler -- the full native tooltip (name,
+-- stats, everything), via SetHyperlink, not a hand-built text-only one. `frame` must be a real
+-- Frame (a FontString/Texture region has no SetScript -- wrap it in a Frame first if the visual
+-- element itself can't host this directly, see UI/SessionFrame.lua's detail item label).
+--
+-- Reads `frame.itemLink` fresh on every hover rather than taking the link as a parameter here,
+-- since the main use case is a pooled/recycled row-cell widget (UI/Widgets/DataTable.lua) that
+-- gets rebound to a different item on every render -- the caller just updates
+-- `frame.itemLink` in its own update() and this always shows whatever that currently is. A nil
+-- itemLink suppresses the tooltip entirely (e.g. a cell not yet bound to any row).
+function Primitives.attachItemTooltip(frame, anchor)
+	frame:EnableMouse(true)
+	frame:SetScript("OnEnter", function(self)
+		if self.itemLink then
+			GameTooltip:SetOwner(self, anchor or "ANCHOR_RIGHT")
+			GameTooltip:SetHyperlink(self.itemLink)
+			GameTooltip:Show()
+		end
+	end)
+	frame:SetScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+end
+
 function Primitives.createTexture(parent, layer, colorName, alpha)
 	local texture = parent:CreateTexture(nil, layer)
 	texture:SetColorTexture(Primitives.color(colorName, alpha))
