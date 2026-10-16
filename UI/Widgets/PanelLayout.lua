@@ -49,7 +49,7 @@ function PanelLayout.Create(opts)
 	header.logo = Primitives.createLogo(header, 20)
 	header.logo:SetPoint("LEFT", 10, 0)
 
-	header.title = Primitives.createText(header, opts.title or "", 14, "title")
+	header.title = Primitives.createText(header, opts.title or "", 18, "title")
 	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, 0)
 
 	header.close = Primitives.createCloseButton(header, 20)

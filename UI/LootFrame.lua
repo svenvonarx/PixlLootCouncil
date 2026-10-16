@@ -117,11 +117,20 @@ local function ensureFrame()
 	header.logo = Primitives.createLogo(header, 20)
 	header.logo:SetPoint("LEFT", 10, 0)
 
-	header.title = Primitives.createText(header, L["LOOTFRAME_TITLE"], 14, "title")
+	-- Bigger than before, and centered on the logo same as always. The subtitle below is already
+	-- at Primitives.createText's hard minimum render size (11 floors to the same 9px as a
+	-- smaller value would -- there's no more room to shrink it), so widening the gap to make it
+	-- read as "smaller in comparison" means growing the title instead.
+	header.title = Primitives.createText(header, L["LOOTFRAME_TITLE"], 18, "title")
 	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, 0)
 
+	-- Anchored BOTTOMLEFT-to-BOTTOMRIGHT (baseline-ish), not the LEFT-to-RIGHT (box-center)
+	-- anchor every other text pairing in this codebase uses -- box-centering a much smaller
+	-- subtitle against a much bigger title left it looking like it was sitting too low, since
+	-- the two texts' vertical centers matched but their baselines didn't. The +1 is a small
+	-- empirical nudge for the smaller font's own baseline sitting a touch higher in its line box.
 	header.ownerLabel = Primitives.createText(header, "", 11, "dim")
-	header.ownerLabel:SetPoint("LEFT", header.title, "RIGHT", 10, 0)
+	header.ownerLabel:SetPoint("BOTTOMLEFT", header.title, "BOTTOMRIGHT", 10, 1)
 	header.ownerLabel:Hide()
 
 	header.close = Primitives.createCloseButton(header, 20)
