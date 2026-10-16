@@ -33,6 +33,8 @@ PLC.Defaults = {
 			sessionStart = true,
 			award = true,
 		},
+
+		historyExport = "sheets", -- UI/HistoryFrame.lua export format: "sheets" | "tsv"
 	},
 	char = {
 		activeSession = nil, -- Data/Session.lua persists the held session here; nil = not currently a holder

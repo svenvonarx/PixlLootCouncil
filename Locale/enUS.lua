@@ -1,26 +1,17 @@
 local L = LibStub("AceLocale-3.0"):NewLocale("PixlLootCouncil", "enUS", true)
 if not L then return end
 
-L["ADDON_NAME"] = "PixlLootCouncil"
 L["CHAT_PREFIX"] = "|cffE8A33D[PixlLootCouncil]|r "
 
 L["CMD_HELP_HEADER"] = "PixlLootCouncil slash commands:"
-L["CMD_UNKNOWN"] = "Unknown command: %s. Type /plc for help."
+L["CMD_UNKNOWN"] = "Unknown command: %s. Type /plc help for a list."
 
 L["ERROR_LOG_EMPTY"] = "No errors recorded."
 L["ERROR_LOG_ENTRY"] = "[%s] %s"
-L["ERROR_LOG_CAPTURED"] = "An error was captured and logged (%s). Use /plc errors to review."
-L["TEST_ERROR_TRIGGERED"] = "Test error triggered and logged."
 
 L["TAINT_BLOCKED"] = "Blocked action captured: %s"
 L["TAINT_FORBIDDEN"] = "Forbidden action captured: %s"
 
-L["ROSTER_EMPTY"] = "Roster is empty (not in a group?)."
-L["ROSTER_ENTRY"] = "%s (%s) role=%s online=%s council=%s"
-
-L["PROFESSIONS_EMPTY"] = "No profession data synced yet."
-L["PROFESSIONS_ENTRY"] = "%s: %s"
-L["PROFESSIONS_NONE"] = "none synced"
 -- Matched directly against GetSkillLineInfo's localized skill name (see Data/Professions.lua --
 -- Classic/TBC Classic has no numeric skill-line ID API to key on instead) -- a locale file that
 -- doesn't override this falls back to the English "Enchanting" via AceLocale, which then simply
@@ -28,9 +19,6 @@ L["PROFESSIONS_NONE"] = "none synced"
 L["PROFESSION_ENCHANTING"] = "Enchanting"
 
 L["LOOT_METHOD_NOT_MASTER"] = "This group's loot method isn't Master Loot -- PixlLootCouncil can't run a session until it is."
-L["DEBUG_ON"] = "Debug logging enabled."
-L["DEBUG_OFF"] = "Debug logging disabled."
-L["DETECTED_SLOT"] = "Detected loot slot %d: %s (quality %s)"
 
 L["AWARD_SUCCESS"] = "Awarded %s to %s."
 L["AWARD_FAILED"] = "Could not award %s to %s: %s"
@@ -58,7 +46,6 @@ L["SESSION_FORCE_ENDED"] = "Loot session force-ended."
 L["SESSION_FORCE_ENDED_BY"] = "%s force-ended the loot session (holder unresponsive)."
 L["SESSION_SYNCED"] = "Loot session synced from the holder."
 L["SESSION_RESTORED"] = "Restored your active loot session."
-L["SESSION_USAGE"] = "Usage: /plc session forceend|sync"
 L["SESSION_ADDITEM_USAGE"] = "Usage: /plc additem <itemID or itemLink>"
 L["SESSION_ADDITEM_UNKNOWN"] = "Could not resolve that item -- check the itemID/link, or try again once it's cached."
 L["SESSION_ADDITEM_SUCCESS"] = "Added %s to the session."
@@ -98,15 +85,42 @@ L["SESSIONFRAME_NO_ITEMS"] = "No items yet -- loot something above the quality t
 
 L["LOOTFRAME_TITLE"] = "Loot Response"
 L["LOOTFRAME_NOTE_PLACEHOLDER"] = "Optional Note..."
+L["LOOTFRAME_NOTHING"] = "No items waiting for your response."
 
 L["TRADEFRAME_TITLE"] = "Loot Trades"
-L["TRADEFRAME_HANDOUT_SECTION"] = "Items to hand out"
-L["TRADEFRAME_COLLECT_SECTION"] = "Items to collect"
+L["TRADEFRAME_TO"] = "To: %s"
+L["TRADEFRAME_FROM"] = "From: %s"
 L["TRADEFRAME_TRADE"] = "Trade"
 L["TRADEFRAME_FOLLOW"] = "Follow"
 L["TRADEFRAME_AWARDED_JUST_NOW"] = "Awarded just now"
 L["TRADEFRAME_AWARDED_AGO"] = "Awarded %dm ago"
 L["TRADEFRAME_NO_ITEMS"] = "Nothing to trade right now."
+L["TRADEFRAME_SELF"] = "Yourself"
+
+L["HISTORY_TITLE"] = "Loot History"
+L["HISTORY_COL_DATE"] = "Date"
+L["HISTORY_COL_NAME"] = "Name"
+L["HISTORY_COL_TIME"] = "Time"
+L["HISTORY_COL_ITEM"] = "Item"
+L["HISTORY_COL_REASON"] = "Reason"
+L["HISTORY_CLEAR_SELECTION"] = "Clear Selection"
+L["HISTORY_EXPORT"] = "Export"
+L["HISTORY_EXPORT_SHEETS"] = "TSV (Google Sheets & English Excel)"
+L["HISTORY_EXPORT_TSV"] = "TSV (International Excel)"
+L["HISTORY_EXPORT_TITLE"] = "Loot History Export"
+L["HISTORY_HUGE_EXPORT"] = "Huge export -- only the first line is shown to avoid freezing the game. Ctrl+C still copies everything."
+L["HISTORY_DELETE_TIP"] = "Double click to delete this entry."
+L["HISTORY_EMPTY"] = "No loot history recorded yet."
+L["HISTORY_COUNT"] = "%d entries"
+L["HISTORY_UNKNOWN_DATE"] = "Unknown date"
+L["HISTORY_INFO_TIME"] = "Time:"
+L["HISTORY_INFO_LOOT"] = "Loot won:"
+L["HISTORY_INFO_REPLACED"] = "Item(s) replaced:"
+L["HISTORY_INFO_BOSS"] = "Dropped by:"
+L["HISTORY_INFO_INSTANCE"] = "From:"
+L["HISTORY_INFO_OWNER"] = "Original owner:"
+L["HISTORY_INFO_VOTES"] = "Votes:"
+L["HISTORY_INFO_NOTE"] = "Note:"
 
 L["OPTIONS_TITLE"] = "PixlLootCouncil Options"
 L["OPTIONS_SECTION_RAID"] = "RAID TOOLS"

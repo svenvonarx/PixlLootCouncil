@@ -63,69 +63,6 @@ local function findRowIndexByGuid(rowsData, guid)
 	end
 end
 
--- Which inventory slot(s) a loot item's own equipLoc competes against for the gear-comparison
--- columns, for every equipLoc EXCEPT the weapon/offhand types -- those need a per-candidate
--- check (see DUAL_WEAPON_SLOT_TYPES/slotsForCandidate below), since whether a given candidate
--- has an offhand slot in use at all depends on what they personally have equipped, not on the
--- loot item alone. Items with no entry here and not in DUAL_WEAPON_SLOT_TYPES (non-equippable
--- loot) simply show nothing in those columns -- not an error case, just not applicable.
-local EQUIP_SLOTS = {
-	INVTYPE_HEAD = { 1 },
-	INVTYPE_NECK = { 2 },
-	INVTYPE_SHOULDER = { 3 },
-	INVTYPE_CHEST = { 5 },
-	INVTYPE_ROBE = { 5 },
-	INVTYPE_WAIST = { 6 },
-	INVTYPE_LEGS = { 7 },
-	INVTYPE_FEET = { 8 },
-	INVTYPE_WRIST = { 9 },
-	INVTYPE_HAND = { 10 },
-	INVTYPE_FINGER = { 11, 12 },
-	INVTYPE_TRINKET = { 13, 14 },
-	INVTYPE_CLOAK = { 15 },
-	-- A two-handed loot item always competes against both weapon slots regardless of what the
-	-- candidate currently has -- equipping it gives up whatever's in both, 1h+offhand or another
-	-- 2h alike, so both are always worth seeing.
-	INVTYPE_2HWEAPON = { 16, 17 },
-	INVTYPE_RANGED = { 18 },
-	INVTYPE_RANGEDRIGHT = { 18 },
-	INVTYPE_THROWN = { 18 },
-	INVTYPE_RELIC = { 18 },
-}
-
--- An offhand item or a one-handed weapon always competes against BOTH weapon slots by default --
--- either could be the one that actually gets replaced -- EXCEPT when this specific candidate
--- currently has a two-handed weapon equipped, where there's no real offhand slot in use (it's
--- empty), so only the mainhand (16, where the 2H weapon sits) is shown. This has to be resolved
--- per CANDIDATE, not once per item (unlike everything in EQUIP_SLOTS above) -- two different
--- candidates being compared against the same loot item can have different weapon setups.
-local DUAL_WEAPON_SLOT_TYPES = {
-	INVTYPE_WEAPON = true,
-	INVTYPE_WEAPONMAINHAND = true,
-	INVTYPE_WEAPONOFFHAND = true,
-	INVTYPE_SHIELD = true,
-	INVTYPE_HOLDABLE = true,
-}
-
-local function slotsForCandidate(guid, equipLoc)
-	if not DUAL_WEAPON_SLOT_TYPES[equipLoc] then
-		return EQUIP_SLOTS[equipLoc]
-	end
-	local mainhandItemID = PLC.Gear:GetEquipped(guid, 16)
-	if mainhandItemID then
-		-- Only checking what TYPE of weapon this is, not resolving it for display (that still
-		-- goes through PLC.Gear:ResolveItem below, which handles "not cached yet" with its own
-		-- retry) -- if this particular GetItemInfo call happens to return nothing yet, the
-		-- fallback below (showing both slots) is harmless and self-corrects once the mainhand's
-		-- own gear-icon resolution lands and triggers a re-render anyway.
-		local _, _, _, _, _, _, _, _, mainhandEquipLoc = C_Item.GetItemInfo(mainhandItemID)
-		if mainhandEquipLoc == "INVTYPE_2HWEAPON" then
-			return { 16 }
-		end
-	end
-	return { 16, 17 }
-end
-
 -- nil, nil, nil (not yet synced, or not yet resolved client-side) is a normal, expected result
 -- here, not an error -- see Data/Gear.lua.
 local function resolveEquippedSlot(guid, slotID)
@@ -148,9 +85,9 @@ function Panel:buildRows()
 	local responses = PLC.Session.responses[self.currentIdx]
 
 	-- Computed once per shown item, not once per candidate row -- the new item's own ilvl is the
-	-- same for every candidate being compared. equipLoc feeds into slotsForCandidate below, which
-	-- (for weapon/offhand types) still needs a per-candidate check, so it stays as the raw
-	-- equipLoc string here rather than being resolved to actual slot IDs yet.
+	-- same for every candidate being compared. equipLoc feeds into PLC.Gear:SlotsForEquipLoc
+	-- below, which (for weapon/offhand types) still needs a per-candidate check, so it stays as
+	-- the raw equipLoc string here rather than being resolved to actual slot IDs yet.
 	local newItemLevel, equipLoc
 	if item and item.link then
 		-- item.link is already resolved/synced reliably by the time an item is visible in this
@@ -180,7 +117,7 @@ function Panel:buildRows()
 			staged = item ~= nil and item.preAwardGuid == guid and item.preAwardReason ~= "disenchant",
 		}
 
-		local slotIDs = equipLoc and slotsForCandidate(guid, equipLoc)
+		local slotIDs = equipLoc and PLC.Gear:SlotsForEquipLoc(guid, equipLoc)
 		if slotIDs then
 			local link1, icon1, ilvl1 = resolveEquippedSlot(guid, slotIDs[1])
 			local link2, icon2, ilvl2 = resolveEquippedSlot(guid, slotIDs[2])

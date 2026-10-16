@@ -37,9 +37,23 @@ Session.responseTimeoutSeconds = 60 -- the holder's db.profile.responseTimeoutSe
 Session.isCollector = false -- true once this client has silently bagged at least one item -- see persist()
 
 local heartbeatTimerHandle
+local persist -- forward-declared: SetEnchanter (above its definition) calls it
 
 function Session:IsHolder()
 	return self.state == "active" and self.owner ~= nil and self.owner.guid == UnitGUID("player")
+end
+
+-- Same identity check as IsHolder, WITHOUT the state == "active" requirement -- for post-commit
+-- bookkeeping (Loot/Trade.lua's trade-placement/bag-watching, UI/TradeFrame.lua's "items to hand
+-- out") that has to keep working for as long as items are still physically outstanding, which is
+-- routinely AFTER the review pass itself has ended (Award All now ends the session the moment it
+-- commits -- see AwardAllPreAwarded below -- so anything gated on IsHolder() instead of this would
+-- have silently stopped working at exactly the moment it's needed most: right as the holder goes
+-- to actually hand everything out). Session.owner itself is never cleared by End() -- only
+-- Start()'s brand-new session claims a different owner -- so this stays correct for exactly as
+-- long as it needs to: until the NEXT review pass starts under a (possibly different) holder.
+function Session:IsOwner()
+	return self.owner ~= nil and self.owner.guid == UnitGUID("player")
 end
 
 -- Strictly a known Enchanter or nothing -- NEVER a random roster member picked by alphabetical
@@ -107,10 +121,11 @@ end
 -- (isCollector). Whichever of those is true, this saves the full current picture (items already
 -- carry their own bagged/awarded/preAwardGuid state, so nothing extra is needed); when neither
 -- is true, it explicitly clears the saved slot instead of leaving a stale value behind.
-local function persist()
+function persist()
 	if Session:IsHolder() or Session.isCollector then
 		PLC.db.char.activeSession = {
 			sessionId = Session.sessionId,
+			state = Session.state,
 			owner = Session.owner,
 			enchanterGuid = Session.enchanterGuid,
 			items = Session.items,
@@ -274,6 +289,15 @@ function Session:CollectDetectedItems(lootSlotInfo)
 					quality = info.quality,
 					link = info.link,
 					icon = info.icon,
+					-- Collection-time only, local to this client, never sent over the wire (not in
+					-- stripForTransmit below) -- purely for Data/History.lua's own recording on
+					-- whichever client actually ends up holding/awarding the item.
+					bossName = info.bossName,
+					instance = info.instance,
+					difficultyName = info.difficultyName,
+					mapID = info.mapID,
+					difficultyID = info.difficultyID,
+					groupSize = info.groupSize,
 				}
 				self.items[idx] = entry
 				newlyCollected[idx] = entry
@@ -483,6 +507,20 @@ function Session:AwardBaggedItem(idx, winnerGuid, reason)
 	if PLC.Loot.Announce and PLC.Loot.Announce.AnnounceAward then
 		PLC.Loot.Announce:AnnounceAward({ link = item.link, winnerName = winnerEntry.name, reason = reason })
 	end
+	if PLC.History and PLC.History.RecordAward then
+		PLC.History:RecordAward(item, winnerGuid, reason)
+	end
+	-- A genuine self-AWARD (not disenchant) -- the item's already sitting right where it needs to
+	-- be, so there's nothing left to do at all; auto-complete it so UI/TradeFrame.lua never shows
+	-- it in both "items to hand out" and "items to collect" forever, and clicking Trade on it never
+	-- tries to InitiateTrade with yourself. A self-DISENCHANT is deliberately NOT included here --
+	-- the item is in the holder's bags, yes, but disenchanting it is a real action this addon
+	-- doesn't perform for them (no "auto-cast Disenchant" feature), so it still needs to show up as
+	-- a reminder. Loot/Trade.lua's own bag-watch picks it up automatically once they actually
+	-- disenchant it, the same way a real trade's completion is detected.
+	if reason == "award" and winnerGuid == UnitGUID("player") then
+		self:MarkItemTraded(idx)
+	end
 	self:notifyVotingFrame(item.idx)
 	self:notifySessionFrame()
 	self:notifyTradeFrame()
@@ -543,6 +581,14 @@ function Session:AwardAllPreAwarded()
 		end
 	end
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_AWARD_ALL_RESULT"], count))
+	-- Award All is now also the deliberate "I'm done reviewing" signal, not just a bulk-commit --
+	-- confirmed explicitly (the alternative, leaving End Session as a separate step so voting
+	-- could keep going on other items, was declined). End() already handles broadcasting
+	-- session_end, stopping the heartbeat, and pruning -- nothing else here needs to change.
+	self:End()
+	if PLC.UI and PLC.UI.TradeFrame and PLC.UI.TradeFrame.Open then
+		PLC.UI.TradeFrame:Open()
+	end
 end
 
 function Session:OnSessionStartReceived(data)
@@ -650,17 +696,24 @@ function Session:OnAwardReceived(data)
 	end
 	self:notifyVotingFrame(data.idx)
 	self:notifySessionFrame()
-	self:notifyTradeFrame()
+	if data.winnerGuid == UnitGUID("player") and PLC.UI and PLC.UI.TradeFrame and PLC.UI.TradeFrame.Open then
+		-- Awarded to me: reopen the trade window even if I closed it earlier.
+		PLC.UI.TradeFrame:Open()
+	else
+		self:notifyTradeFrame()
+	end
 end
 
--- Holder-only, called from Loot/Trade.lua once it's confirmed (by actually re-checking its own
+-- Session owner only (IsOwner, not IsHolder -- this keeps working after the session has ended,
+-- which it now always has by the time most items actually get traded, since Award All ends it
+-- immediately), called from Loot/Trade.lua once it's confirmed (by actually re-checking its own
 -- bags after a trade closes, never just assumed) that an item genuinely left the holder's hands --
 -- see Loot/Trade.lua:OnTradeClosed. Every other client only ever learns this via the broadcast
 -- below (OnTradeCompleteReceived), never by guessing from their own BAG_UPDATE -- a recipient who
 -- already owned a stack of the same item would be a false positive for that, so the holder's own
 -- bags are kept the one source of truth.
 function Session:MarkItemTraded(idx)
-	if not self:IsHolder() then
+	if not self:IsOwner() then
 		return
 	end
 	local item = self.items[idx]
@@ -703,13 +756,22 @@ function Session:End()
 	stopHeartbeat()
 	self.state = "ended"
 
-	-- Prune already-awarded items -- not-yet-awarded ones carry forward to the next Start()
-	-- instead of this review pass's leftovers vanishing. preAwardGuid/preAwardReason are this
-	-- review pass's own scratch state (Session:SetPreAward) -- clear them here too, not just in
-	-- Start(), so a pick staged but never committed doesn't keep showing as "Staged" even during
-	-- the inactive gap before the next review starts.
+	-- Prune fully TRADED items -- not item.awarded. This used to prune on item.awarded, back when
+	-- End() was always pressed well after Award All, by which point everything awarded had
+	-- already been physically traded too. Now that Award All ends the session itself, immediately
+	-- after committing (see AwardAllPreAwarded), item.awarded is true for everything the instant
+	-- End() runs here -- pruning on that condition would have deleted every just-awarded item from
+	-- Session.items before UI/TradeFrame.lua ever got a chance to show it, and before
+	-- Loot/Trade.lua had any record left to mark traded once it actually happened. item.traded is
+	-- the real "nothing left to do" signal; an awarded-but-not-yet-traded item now correctly
+	-- survives End() (and persists across a reload -- see persist()'s own isCollector check below)
+	-- for as long as it takes to actually hand it off, exactly like UI/TradeFrame.lua's "items to
+	-- hand out"/"items to collect" sections need. Not-yet-awarded items still carry forward to the
+	-- next Start() same as before; preAwardGuid/preAwardReason (this review pass's own scratch
+	-- state, Session:SetPreAward) are still cleared here too, not just in Start(), so a pick
+	-- staged but never committed doesn't keep showing as "Staged" during the inactive gap.
 	for idx, item in pairs(self.items) do
-		if item.awarded then
+		if item.traded then
 			self.items[idx] = nil
 		else
 			item.preAwardGuid = nil
@@ -719,6 +781,8 @@ function Session:End()
 	self.isCollector = next(self.items) ~= nil
 	persist()
 	self:notifySessionFrame()
+	self:notifyLootFrame()
+	self:notifyTradeFrame()
 
 	print(L["CHAT_PREFIX"] .. L["SESSION_ENDED"])
 end
@@ -728,6 +792,9 @@ function Session:OnSessionEndReceived(data)
 		return
 	end
 	self.state = "ended"
+	self:notifySessionFrame()
+	self:notifyLootFrame()
+	self:notifyTradeFrame()
 end
 
 -- The stuck-session escape hatch (spec §5.1/§9): any council member CAN force-end once the
@@ -761,6 +828,8 @@ function Session:OnForceEndReceived(data, sender)
 	end
 	local byEntry = data.byGuid and PLC.Roster:Get(data.byGuid)
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_FORCE_ENDED_BY"], (byEntry and byEntry.name) or sender or "?"))
+	self:notifySessionFrame()
+	self:notifyLootFrame()
 end
 
 -- Resync, not replay (spec §5.1): a client that missed messages (reconnected, zoned back in
@@ -821,12 +890,20 @@ local function restoreFromSaved()
 	Session.responseTimeoutSeconds = saved.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
 	Session.isCollector = saved.isCollector or false
 
-	if saved.owner and saved.sessionId and saved.owner.guid == UnitGUID("player") then
+	local isOwner = saved.owner and saved.owner.guid == UnitGUID("player")
+	-- Only a save explicitly marked active resumes. Saves from before state was persisted
+	-- (state == nil) used to be treated as active, which resurrected long-dead sessions on every
+	-- reload and made that client ignore everyone else's session_start as the "holder."
+	if isOwner and saved.sessionId and saved.state == "active" then
 		-- A formal review pass was active -- resume it fully, heartbeat included.
 		Session.state = "active"
 		Session.sentFirstBatch = true
 		startHeartbeat()
 		print(L["CHAT_PREFIX"] .. L["SESSION_RESTORED"])
+	elseif isOwner and saved.state then
+		-- Ended, but items may still be awaiting trade/disenchant -- keep owner (IsOwner) without
+		-- resuming the review pass or its heartbeat.
+		Session.state = saved.state
 	else
 		-- Collector-only: items were silently bagged but no review pass had started yet.
 		-- Restore the backlog locally without claiming formal session ownership -- Start()
@@ -845,23 +922,19 @@ PLC:RegisterOnEnable(function()
 	end
 end)
 
--- Debug entry point for the two lifecycle actions that still have no real UI anywhere in the
--- Phase 1 plan: force-end (spec §5.1's stuck-session escape hatch is a user action, but no stage
--- builds it a button) and a manual sync request.
-PLC:RegisterSlashCommand("session", "Debug: forceend|sync the loot session", function(args)
-	local sub = args:match("^(%S*)") or ""
-	if sub == "forceend" then
-		Session:ForceEnd()
-	elseif sub == "sync" then
-		Session:RequestSync()
-	else
-		print(L["CHAT_PREFIX"] .. L["SESSION_USAGE"])
-	end
+-- The two session lifecycle actions without a button: resync from the holder, and the
+-- stuck-session escape hatch (spec §5.1).
+PLC:RegisterSlashCommand("sync", "Resync the current loot session from its holder", function()
+	Session:RequestSync()
+end)
+
+PLC:RegisterSlashCommand("forceend", "Force-end a session whose holder stopped responding", function()
+	Session:ForceEnd()
 end)
 
 -- Real utility command, not a debug stub -- lets the ML add an item that didn't come through
 -- their own loot window (a world drop someone already picked up, etc).
-PLC:RegisterSlashCommand("additem", "Manually add an item to the session by itemID or link", function(args)
+PLC:RegisterSlashCommand("additem", "Add an item to the session by item link or ID", function(args)
 	local itemArg = args:match("^%s*(.-)%s*$")
 	if itemArg == "" then
 		print(L["CHAT_PREFIX"] .. L["SESSION_ADDITEM_USAGE"])

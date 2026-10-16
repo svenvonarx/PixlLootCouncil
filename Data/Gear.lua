@@ -23,6 +23,70 @@ function Gear:GetEquipped(guid, slotID)
 	return g and g[slotID]
 end
 
+-- Which inventory slot(s) a loot item's own equipLoc competes against -- shared by
+-- UI/VotingFrame.lua's gear-comparison columns and Data/History.lua's itemReplaced1/2 history
+-- recording, moved here (not duplicated in both) since it's really a property of gear/slots, not
+-- of either caller. Covers every equipLoc EXCEPT the weapon/offhand types directly -- those need a
+-- per-candidate check (see DUAL_WEAPON_SLOT_TYPES/SlotsForEquipLoc below), since whether a given
+-- candidate has an offhand slot in use at all depends on what they personally have equipped, not
+-- on the loot item alone. An equipLoc with no entry here and not in DUAL_WEAPON_SLOT_TYPES
+-- (non-equippable loot) simply has nothing to compare against -- not an error case.
+local EQUIP_SLOTS = {
+	INVTYPE_HEAD = { 1 },
+	INVTYPE_NECK = { 2 },
+	INVTYPE_SHOULDER = { 3 },
+	INVTYPE_CHEST = { 5 },
+	INVTYPE_ROBE = { 5 },
+	INVTYPE_WAIST = { 6 },
+	INVTYPE_LEGS = { 7 },
+	INVTYPE_FEET = { 8 },
+	INVTYPE_WRIST = { 9 },
+	INVTYPE_HAND = { 10 },
+	INVTYPE_FINGER = { 11, 12 },
+	INVTYPE_TRINKET = { 13, 14 },
+	INVTYPE_CLOAK = { 15 },
+	-- A two-handed loot item always competes against both weapon slots regardless of what the
+	-- candidate currently has -- equipping it gives up whatever's in both, 1h+offhand or another
+	-- 2h alike, so both are always worth seeing.
+	INVTYPE_2HWEAPON = { 16, 17 },
+	INVTYPE_RANGED = { 18 },
+	INVTYPE_RANGEDRIGHT = { 18 },
+	INVTYPE_THROWN = { 18 },
+	INVTYPE_RELIC = { 18 },
+}
+
+-- An offhand item or a one-handed weapon always competes against BOTH weapon slots by default --
+-- either could be the one that actually gets replaced -- EXCEPT when this specific candidate
+-- currently has a two-handed weapon equipped, where there's no real offhand slot in use (it's
+-- empty), so only the mainhand (16, where the 2H weapon sits) is shown. This has to be resolved
+-- per CANDIDATE, not once per item (unlike everything in EQUIP_SLOTS above) -- two different
+-- candidates being compared against the same loot item can have different weapon setups.
+local DUAL_WEAPON_SLOT_TYPES = {
+	INVTYPE_WEAPON = true,
+	INVTYPE_WEAPONMAINHAND = true,
+	INVTYPE_WEAPONOFFHAND = true,
+	INVTYPE_SHIELD = true,
+	INVTYPE_HOLDABLE = true,
+}
+
+function Gear:SlotsForEquipLoc(guid, equipLoc)
+	if not DUAL_WEAPON_SLOT_TYPES[equipLoc] then
+		return EQUIP_SLOTS[equipLoc]
+	end
+	local mainhandItemID = self:GetEquipped(guid, 16)
+	if mainhandItemID then
+		-- Only checking what TYPE of weapon this is, not resolving it for display (that's
+		-- ResolveItem below, which handles "not cached yet" with its own retry) -- if this
+		-- particular GetItemInfo call happens to return nothing yet, the fallback below (showing
+		-- both slots) is harmless and self-corrects once the mainhand's own resolution lands.
+		local _, _, _, _, _, _, _, _, mainhandEquipLoc = C_Item.GetItemInfo(mainhandItemID)
+		if mainhandEquipLoc == "INVTYPE_2HWEAPON" then
+			return { 16 }
+		end
+	end
+	return { 16, 17 }
+end
+
 -- Mirrors Presence:notifyVotingFrame (Data/Presence.lua) exactly -- only the currently-shown
 -- item's rows need a nudge; a full rebuild re-evaluates every row's gear lookup, which is cheap
 -- at normal roster sizes.

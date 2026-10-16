@@ -130,6 +130,16 @@ end
 -- assumed) that an item left the holder's hands -- see Data/Session.lua:MarkItemTraded. Everyone
 -- else trusts this broadcast rather than guessing from their own bags, since a recipient who
 -- already owned a stack of the same item would be a false positive for that.
+-- Not session-scoped: a history entry is permanent once written, and every client keeps its own
+-- copy (RCLootCouncil's default sendHistory behavior) -- see Data/History.lua.
+function Sync:SendHistory(name, entry)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("history", { name = name, entry = entry }, ch)
+end
+
 function Sync:SendTradeComplete(sessionId, idx)
 	local ch = channel()
 	if not ch then
@@ -152,3 +162,4 @@ Protocol:RegisterHandler("gear", function(data) PLC.Gear:OnGearReceived(data) en
 Protocol:RegisterHandler("profession", function(data) PLC.Professions:OnProfessionReceived(data) end)
 Protocol:RegisterHandler("set_enchanter", function(data) PLC.Session:OnEnchanterReceived(data) end)
 Protocol:RegisterHandler("trade_complete", function(data) PLC.Session:OnTradeCompleteReceived(data) end)
+Protocol:RegisterHandler("history", function(data) PLC.History:OnHistoryReceived(data) end)

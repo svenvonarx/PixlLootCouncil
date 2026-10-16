@@ -16,9 +16,7 @@ PLC.UI.Widgets.Button = Button
 local BUTTON_PADDING_X = 20
 local MIN_BUTTON_WIDTH = 36
 
-function Button.createButton(parent, text, width)
-	local button = CreateFrame("Button", nil, parent)
-
+local function styleButton(button, text, width)
 	button.bg = Primitives.createTexture(button, "BACKGROUND", "button")
 	button.bg:SetAllPoints()
 
@@ -43,5 +41,25 @@ function Button.createButton(parent, text, width)
 		Primitives.setBorderColor(self.border, "border")
 	end)
 
+	return button
+end
+
+function Button.createButton(parent, text, width)
+	return styleButton(CreateFrame("Button", nil, parent), text, width)
+end
+
+-- A secure, macro-driven button -- for an action that has to cast a protected spell (right now:
+-- Disenchant, see Loot/Trade.lua) rather than call a protected API directly from insecure Lua,
+-- which risks ADDON_ACTION_BLOCKED/taint (docs/SPECIFICATION.md principles 2/7 -- this addon has
+-- avoided secure templates everywhere else precisely to not need this, but spell-casting is the
+-- one action class that genuinely requires it; Blizzard's own macro engine is the taint-safe way
+-- to do it, not a workaround). Same visual styling as createButton -- only the underlying frame
+-- type and click behavior differ. Caller sets the actual action via
+-- :SetAttribute("macrotext", "...") after creation, and must never do so during combat lockdown
+-- (InCombatLockdown()) -- secure-frame attribute changes aren't allowed then.
+function Button.createActionButton(parent, text, width)
+	local button = styleButton(CreateFrame("Button", nil, parent, "SecureActionButtonTemplate"), text, width)
+	button:SetAttribute("type", "macro")
+	button:RegisterForClicks("AnyUp", "AnyDown")
 	return button
 end

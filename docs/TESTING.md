@@ -11,12 +11,14 @@ instead of being silently swallowed.
 
 ### 1.1 Load & bootstrap (Stage 0)
 - `/reload` with the addon enabled. No Lua error toast appears.
-- `/plc` with no arguments prints the full command list (alphabetical).
-- `/plc errortest` logs a test entry; `/plc errors` shows it with a timestamp.
+- `/plc` with no arguments opens the Loot Session window; `/plc help` prints the full command
+  list (alphabetical).
+- `/plc errors` lists any captured Lua errors with timestamps ("No errors recorded." on a clean
+  install).
 
 ### 1.2 Roster (Stage 1)
-- `/plc roster` solo shows just yourself, with your own class/role/online=true, and
-  `council=true` or `false` depending on the default `raidAssist` mode and your current
+- Solo, the Loot Session window's candidate grid shows just yourself, with your own class/role
+  icon. Council membership follows the default `raidAssist` mode and your current
   group-leader/assistant/ML status.
 
 ### 1.3 Silent background loot collection (Stage 2, reworked for the bagged-item workflow)
@@ -25,13 +27,11 @@ and silently self-loots every qualifying item the moment it drops (items are BoP
 2h, so review/award happens later, not live at the corpse) — there is no more "vote live at this
 corpse's loot window" flow.
 - Set loot method to Master Loot (works solo, party of 1), enter any instance, loot a trash mob
-  whose drop meets `profile.lootThreshold` (Rare+ by default). `/plc debug` toggles verbose
-  Detection logging (prints every detected slot regardless of quality); confirm separately that
-  the item actually lands in **your own bags** with no window popping up at all — collection is
+  whose drop meets `profile.lootThreshold` (Rare+ by default). Confirm the item actually lands in **your own bags** with no window popping up at all — collection is
   deliberately silent (see `Loot/Detection.lua`'s `onLootReady`).
 - Loot something *below* `profile.lootThreshold` (a gray/green): confirm it's left alone —
   normal Blizzard looting, untouched by the addon, not self-looted or tracked.
-- `/plc sessionframe` any time afterward shows it in the list with a Pending status, confirming
+- `/plc` any time afterward shows it in the list with a Pending status, confirming
   it was tracked even though no review session has been started yet.
 - **Live update while inactive (fixed this round):** with `UI/SessionFrame.lua` already open and
   no review started yet, loot another qualifying item (or run `/plc additem`) *without* closing
@@ -52,11 +52,10 @@ than one item (driven directly by `PLC.Session.items` — items are already bagg
 anyone could react to them, see 1.3), plus a content area on the right. `UI/VotingFrame.lua` is
 an embedded panel in that content area, not its own popup — click an icon, its full
 candidate/response/Award/Pre-Award grid loads next to it, not below a row list anymore.
-- `/plc sessionframe` any time opens it — there's no more automatic popup on loot (that was pure
+- `/plc` any time opens it — there's no more automatic popup on loot (that was pure
   spam across a multi-hour raid; see 1.3's rework note).
-- `/plc testdata` adds one real test item (Hearthstone, itemID 6948 — always cached, so it
-  resolves instantly with a real name/icon/link, not placeholder text) via the same
-  `Session:AddManualItem` path `/plc additem` uses, and opens the window.
+- `/plc additem 6948` adds one real test item (Hearthstone — always cached, so it resolves
+  instantly with a real name/icon/link, not placeholder text) via `Session:AddManualItem`.
 - Confirm the sidebar shows the item's icon with a hairline border, auto-selects it, and the
   content area on the right shows the item's name + a Remove button above the "N out of M have
   voted" line + the candidate/role/response/Award/Pre-Award grid.
@@ -122,7 +121,7 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   anything or changing the item's real Awarded state yet. Click Award All: confirm every
   pre-awarded (not-yet-awarded) item commits in one pass, each printing its own trade
   instruction.
-- Response column states (needs a second client or `/plc testdata` on one with yourself as the
+- Response column states (needs a second client or `/plc additem 6948` on one with yourself as the
   only "candidate" — see 2.7 for the full presence-timeout version): confirm it reads an actual
   response (BiS/Upgrade/etc.) once voted, "Waiting for response..." for a roster member who has
   the addon but hasn't voted, or "No addon detected" for one who's never checked in at all.
@@ -168,7 +167,7 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   dual-wielding, one with a 2H weapon), confirm both show correctly on the SAME loot item at the
   same time — this is resolved per candidate, not once for the whole item.
 - **Late-joiner gear sync:** with a session already active, join the group (or `/reload`) on the
-  second client, then trigger a resync (`/plc session sync` or just wait for the automatic one on
+  second client, then trigger a resync (`/plc sync` or just wait for the automatic one on
   join) — confirm that client's own gear eventually shows up in the OTHER client's candidate grid
   too, not just clients who were present at the original Start().
 
@@ -178,7 +177,7 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   an icon, a compact countdown number, then 5 response buttons (BiS/Upgrade/PvP/OS/Pass by
   default — replacing the old Need/Greed/Pass set) with the note field right beside them on the
   *same* row (a stacked buttons-then-note layout was tried in an earlier pass and made every row
-  far too tall — this round reverted to side-by-side). `/plc lootframe` reopens it manually. Row
+  far too tall — this round reverted to side-by-side). `/plc loot` reopens it manually (or prints that nothing is waiting). Row
   height should look close to what it always was, not noticeably taller.
 - The old per-item column with its own small progress bar is gone — the countdown is now a
   depleting **background across the whole row** (full-row tint at broadcast, shrinking
@@ -334,12 +333,12 @@ All three with the holder actually holding an active session with at least one i
   prompt, no reset, no desync.
 - **(c) Disconnect triggers the escape hatch:** fully disconnect the holder's client (not just
   `/reload`). On the council-member client, wait past `profile.sessionForceEndMinutes` worth of
-  missed heartbeats, then confirm `/plc session forceend` becomes available (no error print) and
+  missed heartbeats, then confirm `/plc forceend` becomes available (no error print) and
   correctly force-ends the session for that client. Also confirm it correctly *refuses*
   (`SESSION_CANNOT_FORCE_END`) if attempted before the threshold has actually passed.
 - **Resync:** have a candidate client join the group (or reload) *after* a session has already
   started with items in it. Confirm it auto-requests and receives a full sync within a couple of
-  seconds (`/plc session sync` to trigger manually if you want to test the debug path too) and
+  seconds (`/plc sync` to trigger manually) and
   ends up with the identical item/response state the holder has — not just the messages sent
   since it joined.
 - **Uncached item on the receiving side (fixed this round):** the candidate needs to actually
@@ -480,8 +479,8 @@ Award still just means "record the decision and tell the holder who to trade it 
   primary profession (e.g. Tailoring) or none at all should never appear in the list.
 - With nobody's Enchanting synced yet, the dropdown shows "No Enchanter known" rather than
   defaulting to anyone — and `Session:GetEnchanterGuid()` returns nil in that state, not a random
-  roster member. `/plc professions` dumps exactly what each client currently has synced if this
-  doesn't match expectations.
+  roster member. Each client re-broadcasts its Enchanting skill whenever its
+  skill lines change, so learning/leveling the profession updates the dropdown live.
 
 ### 2.9 Trade automation (new this round, `Loot/Trade.lua` + `UI/TradeFrame.lua`)
 This is the one round whose core claim (auto-placing an item into a real trade window) genuinely
@@ -512,8 +511,8 @@ addon's own existing taint capture, and the fastest signal if a protected-functi
 - Close the trade window manually while an item is still pending, then award a *different* item:
   confirm the window does **not** reopen just from a tick (unlike `UI/LootFrame.lua`, this one is
   meant to respect a manual close) — but a genuinely new item becoming pending while the window is
-  still empty-and-hidden should still pop it open again. `/plc tradeframe` always force-reopens it
-  regardless.
+  still empty-and-hidden should still pop it open again. `/plc trades` always force-reopens it
+  regardless (or prints that there is nothing to trade).
 - On the recipient's row, click **Follow**: confirm it actually starts following the holder (same
   hardware-event requirement as Trade — must be a direct click, not something scheduled).
 - A council member owed two different items by the same holder in the same review pass: confirm

@@ -1,7 +1,5 @@
 local ADDON_NAME, PLC = ...
 
-local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
-
 -- SINGLE source of truth for who's in the group and who's council (see
 -- docs/SPECIFICATION.md §3 principle 2). Rebuild() wholesale-replaces `members` -- nothing else
 -- in the addon ever writes to this table, and no other module keeps its own parallel roster copy;
@@ -100,16 +98,4 @@ end
 
 PLC:RegisterOnEnable(function()
 	Roster:Enable()
-end)
-
-PLC:RegisterSlashCommand("roster", "Dump the current roster (debug)", function()
-	local count = 0
-	for _, entry in pairs(Roster.members) do
-		count = count + 1
-		print(L["CHAT_PREFIX"] .. string.format(L["ROSTER_ENTRY"], entry.name, entry.class,
-			tostring(entry.role), tostring(entry.online), tostring(entry.council)))
-	end
-	if count == 0 then
-		print(L["CHAT_PREFIX"] .. L["ROSTER_EMPTY"])
-	end
 end)

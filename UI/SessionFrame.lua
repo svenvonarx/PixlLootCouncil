@@ -271,16 +271,20 @@ local ICON_COLUMNS = { iconColumn("1"), iconColumn("2") }
 local function flatItemRows()
 	local rows = {}
 	for idx, item in pairs(PLC.Session.items) do
-		table.insert(rows, {
-			idx = idx,
-			link = item.link,
-			icon = item.icon,
-			awarded = item.awarded,
-			awardReason = item.awardReason,
-			preAwardGuid = item.preAwardGuid,
-			preAwardReason = item.preAwardReason,
-			deadlineAt = item.deadlineAt,
-		})
+		-- Awarded items stay in Session.items until traded (so UI/TradeFrame.lua can track them),
+		-- but they're never shown here -- otherwise they'd reappear in the next review pass.
+		if not item.awarded then
+			table.insert(rows, {
+				idx = idx,
+				link = item.link,
+				icon = item.icon,
+				awarded = item.awarded,
+				awardReason = item.awardReason,
+				preAwardGuid = item.preAwardGuid,
+				preAwardReason = item.preAwardReason,
+				deadlineAt = item.deadlineAt,
+			})
+		end
 	end
 	table.sort(rows, function(a, b) return a.idx < b.idx end)
 	return rows
@@ -732,24 +736,15 @@ function SessionFrame:OnSessionUpdated()
 	refresh()
 end
 
--- Manual open -- there's no automatic popup on loot anymore (collection is deliberately silent
--- across the whole raid, see Loot/Detection.lua); any council member, not just the live ML, can
--- use this to check progress or reach the controls for a session already running.
-PLC:RegisterSlashCommand("sessionframe", "Open the loot session window", function()
+-- Plain `/plc` -- the main entry point. There's no automatic popup on loot (collection is
+-- deliberately silent across the whole raid, see Loot/Detection.lua); any council member, not just
+-- the live ML, can use this to check progress or reach the controls for a running session.
+function SessionFrame:Open()
 	local f = ensureFrame()
 	refresh()
 	f:Show()
-end)
+end
 
--- Debug seed: adds a real item -- Hearthstone (itemID 6948), always cached client-side since
--- every character starts with one, so C_Item.GetItemInfo resolves it instantly -- via the same
--- Session:AddManualItem path /plc additem uses, so the layout's scrolling/selection/row-
--- recycling can be exercised solo with real resolved item data (name/icon/link), not a
--- hand-typed placeholder string. See docs/TESTING.md.
-PLC:RegisterSlashCommand("testdata", "Debug: seed a real test item and open the session window", function()
-	PLC.Session:AddManualItem(6948)
-
-	local f = ensureFrame()
-	refresh()
-	f:Show()
+PLC:SetDefaultSlashHandler(function()
+	SessionFrame:Open()
 end)

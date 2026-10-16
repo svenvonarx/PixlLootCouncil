@@ -173,14 +173,21 @@ function Primitives.createText(parent, text, size, colorName)
 	-- very first SetText until the font is truly ready -- observed as: every label that gets
 	-- SetText called again shortly after creation (DataTable cells, re-rendered on every refresh/
 	-- update) always shows correctly, while a label set exactly once at creation time (e.g. a
-	-- static button's text, set here and never touched again) sometimes stays blank forever. A
-	-- single next-tick retry was enough on a plain /reload but not reliably on a real first login
-	-- (far more addons/textures/fonts all loading at once, so the font can still not be ready a
-	-- tick later) -- several retries spread out over the following ~1.5s instead of just one,
-	-- cheap and self-terminating, covers both. Each one reads font:GetText() at fire time (not the
-	-- `text` parameter) so it can never clobber a legitimate SetText call that lands in between.
-	for _, delay in ipairs({ 0, 0.2, 0.5, 1.5 }) do
+	-- static button's text, set here and never touched again) sometimes stays blank forever.
+	-- WoW exposes no actual "is this custom font ready yet" signal to key off of instead, so this
+	-- stays a retry -- but a ~1.5s window of retries (this addon's first attempt at a fix) still
+	-- wasn't long enough on a real cold login (far more addons/textures/fonts all loading at once
+	-- than a plain /reload ever has, and apparently further out than 1.5s on some systems) -- a
+	-- second report of the exact same symptom. Widened substantially (now out to 15s) rather than
+	-- nudged again, and now also re-applies SetFont, not just SetText -- if the actual delay is the
+	-- custom font FILE itself not being ready yet (a real alternative explanation this addon hadn't
+	-- ruled out), re-sending SetText alone would never have fixed anything regardless of the
+	-- retry window's length. Still cheap and self-terminating either way -- a few dozen trivial
+	-- calls spread across 15s, not an ongoing cost. Each one reads font:GetText() at fire time (not
+	-- the `text` parameter) so it can never clobber a legitimate SetText call that lands in between.
+	for _, delay in ipairs({ 0, 0.3, 0.75, 1.5, 3, 6, 10, 15 }) do
 		PLC:ScheduleTimer(function()
+			font:SetFont(FONT, pixelSize, "")
 			font:SetText(font:GetText() or "")
 		end, delay)
 	end

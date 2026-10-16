@@ -12,7 +12,6 @@ PLC.Loot.Detection = Detection
 
 Detection.lootSlotInfo = {} -- [slotIndex] = { link, icon, quantity, quality, boss, looted }
 Detection.lootOpen = false
-Detection.debug = false
 
 local warnedThisSession = false
 
@@ -27,6 +26,14 @@ local function scanLootSlots()
 		return
 	end
 
+	-- Captured once per scan (the same for every item looted together), not re-derived per item --
+	-- purely for Data/History.lua's loot-history recording later (matching RCLootCouncil_Classic's
+	-- own instance/mapID/difficultyID/groupSize columns), nothing else in this addon reads these.
+	-- instanceID (8th return) is RCLootCouncil's "mapID"; instanceGroupSize (9th) is its
+	-- "groupSize" -- NOT maxPlayers (5th), which is the instance's fixed capacity for its
+	-- difficulty, not how many are actually in the group right now.
+	local instanceName, _, difficultyID, difficultyName, _, _, _, mapID, groupSize = GetInstanceInfo()
+
 	local pendingRetry = false
 	for i = 1, numItems do
 		if LootSlotHasItem(i) then
@@ -39,17 +46,28 @@ local function scanLootSlots()
 			else
 				local link = GetLootSlotLink(i)
 				local sourceGUID = GetLootSourceInfo(i)
+				-- Resolved only when the loot source is also the player's current target (the
+				-- overwhelmingly common case -- you loot what you just killed/targeted); falls
+				-- back to the raw GUID otherwise rather than leaving it blank. Only used for
+				-- Data/History.lua's "boss" column -- nothing else in this addon reads a boss name.
+				local bossName = sourceGUID
+				if sourceGUID and UnitGUID("target") == sourceGUID then
+					bossName = UnitName("target") or sourceGUID
+				end
 				Detection.lootSlotInfo[i] = {
 					link = link,
 					icon = icon,
 					quantity = quantity,
 					quality = quality,
 					boss = sourceGUID,
+					bossName = bossName,
+					instance = instanceName,
+					difficultyName = difficultyName,
+					mapID = mapID,
+					difficultyID = difficultyID,
+					groupSize = groupSize,
 					looted = false,
 				}
-				if Detection.debug then
-					print(L["CHAT_PREFIX"] .. string.format(L["DETECTED_SLOT"], i, link or name or "?", tostring(quality)))
-				end
 			end
 		end
 	end
@@ -109,8 +127,3 @@ PLC.Events:RegisterHandler("LOOT_READY", onLootReady)
 PLC.Events:RegisterHandler("LOOT_SLOT_CLEARED", onLootSlotCleared)
 PLC.Events:RegisterHandler("LOOT_CLOSED", onLootClosed)
 PLC.Events:RegisterHandler("START_LOOT_ROLL", onStartLootRoll)
-
-PLC:RegisterSlashCommand("debug", "Toggle verbose loot-detection logging", function()
-	Detection.debug = not Detection.debug
-	print(L["CHAT_PREFIX"] .. (Detection.debug and L["DEBUG_ON"] or L["DEBUG_OFF"]))
-end)

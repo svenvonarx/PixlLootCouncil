@@ -37,7 +37,7 @@ local function buildRows()
 	local now = time()
 	for idx, item in pairs(PLC.Session.items) do
 		local expired = item.deadlineAt and now > item.deadlineAt
-		if not myResponse(idx) and not expired then
+		if not item.awarded and not myResponse(idx) and not expired then
 			table.insert(rows, { idx = idx, link = item.link, icon = item.icon, deadlineAt = item.deadlineAt })
 		end
 	end
@@ -362,6 +362,10 @@ end
 
 -- Manual reopen, in case the candidate closed it mid-session -- Refresh() only re-shows it
 -- reactively, on an actual item/response/tick event.
-PLC:RegisterSlashCommand("lootframe", "Reopen the loot response window", function()
+PLC:RegisterSlashCommand("loot", "Reopen the Loot Response window", function()
+	if PLC.Session.state ~= "active" or #buildRows() == 0 then
+		print(L["CHAT_PREFIX"] .. L["LOOTFRAME_NOTHING"])
+		return
+	end
 	LootFrame:Refresh()
 end)

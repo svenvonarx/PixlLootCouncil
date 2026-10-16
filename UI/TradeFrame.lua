@@ -6,63 +6,65 @@ local ButtonWidget = PLC.UI.Widgets.Button
 local DataTable = PLC.UI.Widgets.DataTable
 local Theme = PLC.UI.Theme
 
--- One window, two sections -- not two separate windows -- since the common case of a holder who
--- also won something themselves needs both visible at once anyway (see docs/analysis notes from
--- planning this round). "Items to hand out" is the holder's own un-traded awards; "items to
--- collect" is whatever's been awarded to the local player, from anyone's session. Both sections
--- disappear row-by-row as Loot/Trade.lua confirms each trade, and the whole window hides itself
--- once both are empty.
+-- Every awarded item this client still has to deal with, in one list: items the session owner
+-- has to hand out (or disenchant themselves), and items awarded to this player that they still
+-- have to collect. Rows disappear as Loot/Trade.lua confirms each handoff; the window hides itself
+-- once the list is empty. Layout deliberately mirrors UI/LootFrame.lua (one DataTable filling the
+-- content area) -- an earlier two-section version with stacked labels/containers anchored its
+-- tables outside the window, so rows never rendered.
 local TradeFrame = {}
 PLC.UI.TradeFrame = TradeFrame
 
 local frame
-local header
-local handoutLabel
-local handoutTable
-local collectLabel
-local collectTable
+local dataTable
 local tickerHandle
 local userClosed = false -- true once manually closed while something was still pending
-local wasEmpty = true -- tracks the previous refresh's total-row-emptiness, see refresh() below
+local wasEmpty = true -- previous refresh had no rows; see Refresh()
 
-local ROW_HEIGHT = Theme.LAYOUT.buttonHeight + 6 -- same formula every other grid in this addon uses
+local ROW_HEIGHT = Theme.LAYOUT.buttonHeight + 6
 local TRADE_BUTTON_WIDTH = 54
 local FOLLOW_BUTTON_WIDTH = 54
-local OVERDUE_SECONDS = 180 -- flat constant, not configurable this round -- see the plan's "known
--- limitations" -- past this, the elapsed-time text turns `warning`-colored. Informational only:
--- nothing times out or auto-cancels, there's just no real deadline to enforce here.
+local OVERDUE_SECONDS = 180 -- elapsed text turns warning-colored past this; informational only
 
-local function buildHandoutRows()
-	local rows = {}
-	if not PLC.Session:IsHolder() then
-		return rows
+-- kind: "handout" (I own the session, item goes to someone else), "self" (I own the session and
+-- awarded it to myself -- only reachable for disenchant, a self-award auto-completes), or
+-- "collect" (someone else's session awarded it to me).
+local function classify(item, myGuid)
+	if not item.awarded or item.traded then
+		return nil
 	end
-	for idx, item in pairs(PLC.Session.items) do
-		if item.awarded and not item.traded then
-			local entry = PLC.Roster:Get(item.awarded)
-			table.insert(rows, {
-				idx = idx,
-				link = item.link,
-				icon = item.icon,
-				partnerName = (entry and PLC.Roster:ShortName(entry.name)) or "?",
-				awardedAt = item.awardedAt,
-			})
-		end
+	if PLC.Session:IsOwner() then
+		return item.awarded == myGuid and "self" or "handout"
 	end
-	table.sort(rows, function(a, b) return a.idx < b.idx end)
-	return rows
+	if item.awarded == myGuid then
+		return "collect"
+	end
+	return nil
 end
 
-local function buildCollectRows()
+local function buildRows()
 	local rows = {}
 	local myGuid = UnitGUID("player")
 	for idx, item in pairs(PLC.Session.items) do
-		if item.awarded == myGuid and not item.traded then
+		local kind = classify(item, myGuid)
+		if kind then
+			local partnerName
+			if kind == "handout" then
+				local entry = PLC.Roster:Get(item.awarded)
+				partnerName = string.format(L["TRADEFRAME_TO"], (entry and PLC.Roster:ShortName(entry.name)) or "?")
+			elseif kind == "collect" then
+				local owner = PLC.Session.owner
+				partnerName = string.format(L["TRADEFRAME_FROM"], (owner and PLC.Roster:ShortName(owner.name)) or "?")
+			else
+				partnerName = L["TRADEFRAME_SELF"]
+			end
 			table.insert(rows, {
 				idx = idx,
 				link = item.link,
 				icon = item.icon,
-				partnerName = (PLC.Session.owner and PLC.Roster:ShortName(PLC.Session.owner.name)) or "?",
+				kind = kind,
+				isSelf = kind == "self",
+				partnerName = partnerName,
 				awardedAt = item.awardedAt,
 			})
 		end
@@ -87,10 +89,8 @@ local function stopTicker()
 	end
 end
 
--- Shared by both sections' icon column -- same pattern UI/LootFrame.lua's own icon column already
--- uses (a Frame wrapper, not a bare texture, since a hover tooltip needs SetScript).
-local function iconColumn()
-	return {
+local COLUMNS = {
+	{
 		width = 28,
 		isWidget = true,
 		create = function(row)
@@ -105,11 +105,8 @@ local function iconColumn()
 			holder.texture:SetTexture(rowData.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
 			holder.itemLink = rowData.link
 		end,
-	}
-end
-
-local function nameColumn()
-	return {
+	},
+	{
 		width = 140,
 		isWidget = true,
 		create = function(row)
@@ -117,6 +114,7 @@ local function nameColumn()
 			holder:SetSize(140, 24)
 			holder.text = Primitives.createText(holder, "", 11)
 			holder.text:SetPoint("LEFT")
+			holder.text:SetPoint("RIGHT")
 			holder.text:SetJustifyH("LEFT")
 			Primitives.attachItemTooltip(holder)
 			return holder
@@ -125,23 +123,15 @@ local function nameColumn()
 			holder.text:SetText(rowData.link or "?")
 			holder.itemLink = rowData.link
 		end,
-	}
-end
-
-local function partnerColumn()
-	return {
-		width = 90,
+	},
+	{
+		width = 110,
 		justify = "LEFT",
 		render = function(rowData)
 			return rowData.partnerName
 		end,
-	}
-end
-
--- "Awarded Xm ago", turning `warning`-colored past OVERDUE_SECONDS -- informational only, see the
--- constant's own comment above.
-local function elapsedColumn()
-	return {
+	},
+	{
 		width = 90,
 		justify = "LEFT",
 		render = function(rowData)
@@ -151,68 +141,64 @@ local function elapsedColumn()
 			local r, g, b = Primitives.color(elapsed >= OVERDUE_SECONDS and "warning" or "dim")
 			return text, r, g, b
 		end,
-	}
-end
-
-local function tradeColumn(isLast)
-	return {
-		width = TRADE_BUTTON_WIDTH + (isLast and 0 or 6),
+	},
+	{
+		-- One slot, two buttons: Trade for a normal row, a secure macro-driven Disenchant for a
+		-- self-disenchant row (casting a spell must go through Blizzard's macro engine -- see
+		-- UI/Widgets/Button.lua:createActionButton -- so it never gets a Lua OnClick).
+		width = TRADE_BUTTON_WIDTH + 6,
 		isWidget = true,
 		create = function(row)
-			return ButtonWidget.createButton(row, L["TRADEFRAME_TRADE"], TRADE_BUTTON_WIDTH)
+			local holder = CreateFrame("Frame", nil, row)
+			holder:SetSize(TRADE_BUTTON_WIDTH, Theme.LAYOUT.buttonHeight)
+			holder.tradeButton = ButtonWidget.createButton(holder, L["TRADEFRAME_TRADE"], TRADE_BUTTON_WIDTH)
+			holder.tradeButton:SetPoint("LEFT")
+			holder.disenchantButton = ButtonWidget.createActionButton(holder, L["VOTINGFRAME_DISENCHANT"], TRADE_BUTTON_WIDTH)
+			holder.disenchantButton:SetPoint("LEFT")
+			return holder
 		end,
-		update = function(button, rowData)
-			button:SetScript("OnClick", function()
+		update = function(holder, rowData)
+			holder.tradeButton:SetShown(not rowData.isSelf)
+			holder.tradeButton:SetScript("OnClick", function()
 				PLC.Loot.Trade:StartTrade(rowData.idx)
 			end)
+			holder.disenchantButton:SetShown(rowData.isSelf)
+			if rowData.isSelf then
+				PLC.Loot.Trade:ConfigureDisenchantButton(holder.disenchantButton, rowData.idx)
+			end
 		end,
-	}
-end
-
--- Collect-section only -- there's nothing for the holder to "follow" on their own hand-out rows.
--- Calls FollowUnit directly from OnClick, synchronously, same hardware-event requirement
--- InitiateTrade has (see Loot/Trade.lua's own file comment).
-local function followColumn()
-	return {
+	},
+	{
 		width = FOLLOW_BUTTON_WIDTH,
 		isWidget = true,
 		create = function(row)
 			return ButtonWidget.createButton(row, L["TRADEFRAME_FOLLOW"], FOLLOW_BUTTON_WIDTH)
 		end,
-		update = function(button)
+		update = function(button, rowData)
+			button:SetShown(not rowData.isSelf)
 			button:SetScript("OnClick", function()
-				local ownerGuid = PLC.Session.owner and PLC.Session.owner.guid
-				local unit = ownerGuid and PLC.Loot.Trade:ResolveUnitToken(ownerGuid)
-				if unit then
-					FollowUnit(unit)
-				end
+				PLC.Loot.Trade:FollowPartner(rowData.idx)
 			end)
 		end,
-	}
-end
+	},
+}
 
 local function ensureFrame()
 	if frame then
 		return frame
 	end
 
-	-- Width derived from the collect section's own real column widths (the wider of the two
-	-- sections, since it has one more button than the handout section) -- same "measure the real
-	-- columns, don't hand-pick a window width" discipline UI/SessionFrame.lua and UI/LootFrame.lua
-	-- already had to learn the hard way (a stale hardcoded number silently drifted and clipped
-	-- content in both of those before it was caught).
-	local collectContentWidth = 28 + 140 + 90 + 90 + TRADE_BUTTON_WIDTH + 6 + FOLLOW_BUTTON_WIDTH
-	local contentWidth = collectContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + 10
-	local frameWidth = contentWidth + 20 -- content's own 10px left + 10px right insets, see below
+	-- Width from the real column widths, same discipline as UI/LootFrame.lua/UI/SessionFrame.lua.
+	local rowContentWidth = 0
+	for _, col in ipairs(COLUMNS) do
+		rowContentWidth = rowContentWidth + col.width
+	end
+	local frameWidth = rowContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + 10 + 20
 
 	frame = CreateFrame("Frame", "PixlLootCouncilTradeFrame", UIParent)
-	frame:SetSize(frameWidth, 340)
+	frame:SetSize(frameWidth, 220)
 	frame:SetPoint("CENTER", 0, 120)
-	-- The literal ceiling strata -- the one other thing already at this tier is
-	-- UI/Widgets/PopupMenu.lua's dropdown popup (itself transient, closed on the next outside
-	-- click), so this is effectively the highest anything in the addon can sit. Trading is
-	-- genuinely time-sensitive the way reviewing loot isn't, which is also why this window (unlike
-	-- every other one) auto-shows itself -- see refresh() below.
+	-- Highest strata, per the explicit "highest prio" ask.
 	frame:SetFrameStrata("TOOLTIP")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
@@ -220,7 +206,7 @@ local function ensureFrame()
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilTradeFrame")
-	Primitives.makeResizable(frame, frameWidth, 260, frameWidth, 600)
+	Primitives.makeResizable(frame, frameWidth, 140, frameWidth, 600)
 	frame:SetScript("OnHide", function()
 		stopTicker()
 	end)
@@ -229,7 +215,7 @@ local function ensureFrame()
 	frame.bg:SetAllPoints()
 	frame.border = Primitives.createBorder(frame)
 
-	header = CreateFrame("Frame", nil, frame)
+	local header = CreateFrame("Frame", nil, frame)
 	header:SetHeight(Theme.LAYOUT.headerHeight)
 	header:SetPoint("TOPLEFT")
 	header:SetPoint("TOPRIGHT")
@@ -255,52 +241,20 @@ local function ensureFrame()
 	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
 	content:SetPoint("BOTTOMRIGHT", -10, 10)
 
-	-- Explicit RIGHT point (not just TOPLEFT) on both labels below -- a FontString with no RIGHT
-	-- point auto-sizes to its own (left-aligned) text width, which would make each section's
-	-- *table* container below it (anchored off the label's BOTTOMRIGHT) only as wide as the label
-	-- text itself instead of the full content width.
-	handoutLabel = Primitives.createText(content, L["TRADEFRAME_HANDOUT_SECTION"], 12, "white")
-	handoutLabel:SetPoint("TOPLEFT")
-	handoutLabel:SetPoint("RIGHT", content, "RIGHT")
-
-	local handoutContainer = CreateFrame("Frame", nil, content)
-	handoutContainer:SetPoint("TOPLEFT", handoutLabel, "BOTTOMLEFT", 0, -6)
-	handoutContainer:SetPoint("TOPRIGHT", handoutLabel, "BOTTOMRIGHT", 0, -6)
-	handoutContainer:SetHeight(ROW_HEIGHT * 3)
-	handoutTable = DataTable.Create(handoutContainer, ROW_HEIGHT)
-	handoutTable:SetColumns({ iconColumn(), nameColumn(), partnerColumn(), elapsedColumn(), tradeColumn(true) })
-
-	collectLabel = Primitives.createText(content, L["TRADEFRAME_COLLECT_SECTION"], 12, "white")
-	collectLabel:SetPoint("TOPLEFT", handoutContainer, "BOTTOMLEFT", 0, -14)
-	collectLabel:SetPoint("RIGHT", content, "RIGHT")
-
-	local collectContainer = CreateFrame("Frame", nil, content)
-	collectContainer:SetPoint("TOPLEFT", collectLabel, "BOTTOMLEFT", 0, -6)
-	collectContainer:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
-	collectTable = DataTable.Create(collectContainer, ROW_HEIGHT)
-	collectTable:SetColumns({ iconColumn(), nameColumn(), partnerColumn(), elapsedColumn(), tradeColumn(false), followColumn() })
+	dataTable = DataTable.Create(content, ROW_HEIGHT)
+	dataTable:SetColumns(COLUMNS)
 
 	frame:Hide()
 	return frame
 end
 
--- Called from Data/Session.lua's notifyTradeFrame forward-hook on every relevant change (an award
--- committing, a trade completing locally or via the trade_complete broadcast), and once a second
--- while shown (see startTicker) -- same "just rebuild from scratch every time, it's cheap enough"
--- approach UI/LootFrame.lua already uses for an almost identical shape of window.
---
--- Auto-shows itself the moment total rows go from 0 to >0 -- a deliberate, narrow exception to the
--- addon's usual "no reactive popups" principle, since trading has real time pressure review
--- doesn't. Does NOT force itself back open on every subsequent refresh while the player has
--- manually closed it (userClosed) -- unlike UI/LootFrame.lua's own window, which intentionally
--- keeps nagging about an unanswered vote, there's no comparable reason to override a trade window
--- someone deliberately dismissed.
+-- Called from Data/Session.lua's notifyTradeFrame on every award/trade/session change, and once a
+-- second while shown. Auto-shows when the list goes from empty to non-empty, but never reopens
+-- itself after a manual close while items are still pending (unlike UI/LootFrame.lua, which
+-- deliberately keeps nagging about an unanswered vote).
 function TradeFrame:Refresh()
-	local handoutRows = buildHandoutRows()
-	local collectRows = buildCollectRows()
-	local total = #handoutRows + #collectRows
-
-	if total == 0 then
+	local rows = buildRows()
+	if #rows == 0 then
 		stopTicker()
 		if frame then
 			frame:Hide()
@@ -310,13 +264,7 @@ function TradeFrame:Refresh()
 	end
 
 	local f = ensureFrame()
-	handoutTable:SetRows(handoutRows)
-	handoutLabel:SetShown(#handoutRows > 0)
-	handoutTable.scroll:SetShown(#handoutRows > 0)
-
-	collectTable:SetRows(collectRows)
-	collectLabel:SetShown(#collectRows > 0)
-	collectTable.scroll:SetShown(#collectRows > 0)
+	dataTable:SetRows(rows)
 
 	if wasEmpty then
 		userClosed = false
@@ -329,16 +277,21 @@ function TradeFrame:Refresh()
 	startTicker()
 end
 
--- Forward-hook target from Data/Session.lua -- same naming convention as OnSessionUpdated on
--- every other window in this addon, even though this one's trigger set is a little different
--- (award/trade changes, not just the item set).
 function TradeFrame:OnSessionUpdated()
 	self:Refresh()
 end
 
--- Manual reopen, in case the player closed it mid-trade -- overrides userClosed explicitly, unlike
--- Refresh()'s own reactive auto-show.
-PLC:RegisterSlashCommand("tradeframe", "Reopen the loot trade window", function()
+-- Forces the window open even if it was manually closed (still hides itself if there's nothing to
+-- trade). Called on Award All and when an award for this player arrives.
+function TradeFrame:Open()
 	userClosed = false
-	TradeFrame:Refresh()
+	self:Refresh()
+end
+
+PLC:RegisterSlashCommand("trades", "Reopen the Loot Trades window", function()
+	if #buildRows() == 0 then
+		print(L["CHAT_PREFIX"] .. L["TRADEFRAME_NO_ITEMS"])
+		return
+	end
+	TradeFrame:Open()
 end)

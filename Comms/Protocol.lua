@@ -35,8 +35,27 @@ function Protocol:Send(cmd, data, distribution, target)
 	PLC:SendCommMessage(PREFIX, encoded, distribution or "RAID", target)
 end
 
+-- WoW echoes our own PARTY/RAID addon messages back to us. Every sender updates its local state
+-- before sending, so the echo is never needed -- and processing it was actively harmful (e.g. the
+-- holder's own item_add overwrote its local items with the stripped wire copy, and a late
+-- session_start echo could reactivate a session the holder had already ended).
+local function isSelf(sender)
+	if not sender then
+		return false
+	end
+	local name, realm = strsplit("-", sender, 2)
+	if name ~= UnitName("player") then
+		return false
+	end
+	if not realm or realm == "" then
+		return true
+	end
+	local myRealm = (GetNormalizedRealmName and GetNormalizedRealmName()) or (GetRealmName():gsub("[%s%-]", ""))
+	return realm == myRealm
+end
+
 local function onCommReceived(prefix, message, distribution, sender)
-	if prefix ~= PREFIX then
+	if prefix ~= PREFIX or isSelf(sender) then
 		return
 	end
 

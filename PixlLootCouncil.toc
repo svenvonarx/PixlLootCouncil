@@ -3,7 +3,7 @@
 ## Notes: Master-looter-driven, council-voted loot distribution for TBC Anniversary Classic
 ## Author: Pixl
 ## Version: 0.1.0
-## SavedVariables: PixlLootCouncilDB
+## SavedVariables: PixlLootCouncilDB, PixlLootCouncilLootDB
 ## DefaultState: enabled
 
 embeds.xml
@@ -19,6 +19,7 @@ Data\CouncilRules.lua
 Data\Presence.lua
 Data\Gear.lua
 Data\Professions.lua
+Data\History.lua
 Data\Session.lua
 
 Comms\Protocol.lua
@@ -44,4 +45,5 @@ UI\LootFrame.lua
 UI\SessionFrame.lua
 UI\VotingFrame.lua
 UI\TradeFrame.lua
+UI\HistoryFrame.lua
 UI\OptionsFrame.lua

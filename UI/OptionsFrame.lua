@@ -189,6 +189,6 @@ local function ensurePanel()
 	return panel
 end
 
-PLC:RegisterSlashCommand("options", "Open the PixlLootCouncil options window", function()
+PLC:RegisterSlashCommand("options", "Open the options window", function()
 	ensurePanel():Show()
 end)
