@@ -280,6 +280,34 @@ local function ensureFrame()
 	dataTable = DataTable.Create(content, ROW_HEIGHT)
 	dataTable:SetColumns(COLUMNS)
 
+	-- This window sits on the TOOLTIP strata (the "highest prio" ask), the same strata as
+	-- GameTooltip -- so a tooltip shown from inside it (remove button, item icons) rendered
+	-- underneath the window. Raise any tooltip owned by something in this window above it.
+	local function isInFrame(owner)
+		-- Item comparison tooltips are owned by GameTooltip itself; follow it to its owner.
+		if owner == GameTooltip then
+			owner = GameTooltip:GetOwner()
+		end
+		while owner do
+			if owner == frame then
+				return true
+			end
+			owner = owner.GetParent and owner:GetParent()
+		end
+		return false
+	end
+	local function raiseTooltip(tooltip)
+		if frame:IsShown() and isInFrame(tooltip:GetOwner()) then
+			tooltip:SetFrameStrata("TOOLTIP")
+			tooltip:SetFrameLevel(frame:GetFrameLevel() + 100)
+		end
+	end
+	for _, tooltip in ipairs({ GameTooltip, ShoppingTooltip1, ShoppingTooltip2 }) do
+		if tooltip then
+			tooltip:HookScript("OnShow", raiseTooltip)
+		end
+	end
+
 	frame:Hide()
 	return frame
 end
