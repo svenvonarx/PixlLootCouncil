@@ -4,6 +4,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 local Primitives = PLC.UI.Widgets.Primitives
 local CheckboxWidget = PLC.UI.Widgets.Checkbox
 local ButtonWidget = PLC.UI.Widgets.Button
+local DropdownWidget = PLC.UI.Widgets.Dropdown
 local SliderWidget = PLC.UI.Widgets.Slider
 local PanelLayout = PLC.UI.Widgets.PanelLayout
 local Theme = PLC.UI.Theme
@@ -260,6 +261,231 @@ local function buildResponsesPage(page)
 	refreshRows()
 end
 
+-- An auto loot target (Loot/AutoLoot.lua) as a dropdown plus, for "Players...", a box for the names.
+-- picker:Set(target) shows a target; picker:Get() returns the chosen one, nil if no names are typed
+-- yet. onChange(target) runs when a complete choice is made.
+local function createTargetPicker(parent, dropdownWidth, boxWidth, onChange)
+	local AutoLoot = PLC.Loot.AutoLoot
+	local PLAYERS = "players"
+	local mode = AutoLoot.SELF
+	local picker = {}
+
+	picker.dropdown = DropdownWidget.createDropdownButton(parent)
+	picker.dropdown:SetSize(dropdownWidth, Theme.LAYOUT.fieldHeight)
+	picker.box = Primitives.createEditBox(parent, boxWidth, Theme.LAYOUT.fieldHeight)
+	picker.box:SetPoint("LEFT", picker.dropdown, "RIGHT", 4, 0)
+
+	local function names()
+		return strtrim((picker.box:GetValue() or ""))
+	end
+
+	function picker:Get()
+		if mode ~= PLAYERS then
+			return mode
+		end
+		return names() ~= "" and names() or nil
+	end
+
+	local function changed()
+		local target = picker:Get()
+		if onChange and target then
+			onChange(target)
+		end
+	end
+
+	local function selectMode(newMode)
+		mode = newMode
+		picker.box:SetShown(mode == PLAYERS)
+		local labels = {
+			[AutoLoot.SELF] = L["OPTIONS_AUTOLOOT_SELF"],
+			[AutoLoot.LEAVE] = L["OPTIONS_AUTOLOOT_LEAVE"],
+			[PLAYERS] = L["OPTIONS_AUTOLOOT_PLAYERS"],
+		}
+		local entries = {}
+		for _, value in ipairs({ AutoLoot.SELF, AutoLoot.LEAVE, PLAYERS }) do
+			table.insert(entries, {
+				text = labels[value],
+				checked = value == mode,
+				onClick = function()
+					selectMode(value)
+					changed()
+					if value == PLAYERS then
+						picker.box:SetFocus()
+					end
+				end,
+			})
+		end
+		DropdownWidget.setEntries(picker.dropdown, labels[mode], entries)
+	end
+
+	function picker:Set(target)
+		if target == AutoLoot.SELF or target == AutoLoot.LEAVE then
+			picker.box:SetText("")
+			selectMode(target)
+		else
+			picker.box:SetText(target or "")
+			selectMode(PLAYERS)
+		end
+	end
+
+	picker.box:HookScript("OnEditFocusLost", changed)
+	picker:Set(AutoLoot.SELF)
+	return picker
+end
+
+local function buildAutoLootPage(page)
+	local AutoLoot = PLC.Loot.AutoLoot
+	local settings = PLC.db.profile.autoLoot
+	local PICKER_DROPDOWN = 150
+	local PICKER_BOX = 200
+
+	local enabled = CheckboxWidget.createCheckbox(page, L["OPTIONS_AUTOLOOT_ENABLED"], function(checked)
+		settings.enabled = checked
+	end)
+	enabled:SetPoint("TOPLEFT", 0, 0)
+
+	local gold = CheckboxWidget.createCheckbox(page, L["OPTIONS_AUTOLOOT_GOLD"], function(checked)
+		settings.lootGold = checked
+	end)
+	gold:SetPoint("TOPLEFT", 0, -26)
+
+	local outside = CheckboxWidget.createCheckbox(page, L["OPTIONS_AUTOLOOT_OUTSIDE"], function(checked)
+		settings.outsideInstances = checked
+	end)
+	outside:SetPoint("TOPLEFT", 0, -52)
+
+	local reviewLabel = Primitives.createText(page, L["OPTIONS_AUTOLOOT_REVIEW"], 13, "white")
+	reviewLabel:SetPoint("TOPLEFT", 0, -86)
+	local review = createTargetPicker(page, PICKER_DROPDOWN, PICKER_BOX, function(target)
+		settings.reviewTarget = target
+	end)
+	review.dropdown:SetPoint("TOPLEFT", reviewLabel, "BOTTOMLEFT", 0, -6)
+
+	local otherLabel = Primitives.createText(page, L["OPTIONS_AUTOLOOT_OTHER"], 13, "white")
+	otherLabel:SetPoint("TOPLEFT", 0, -142)
+	local other = createTargetPicker(page, PICKER_DROPDOWN, PICKER_BOX, function(target)
+		settings.otherTarget = target
+	end)
+	other.dropdown:SetPoint("TOPLEFT", otherLabel, "BOTTOMLEFT", 0, -6)
+
+	local exceptionLabel = Primitives.createText(page, L["OPTIONS_AUTOLOOT_EXCEPTIONS"], 13, "white")
+	exceptionLabel:SetPoint("TOPLEFT", 0, -198)
+
+	local itemBox = Primitives.createEditBox(page, 110, Theme.LAYOUT.fieldHeight)
+	itemBox:SetPoint("TOPLEFT", exceptionLabel, "BOTTOMLEFT", 0, -6)
+	local exceptionTarget = createTargetPicker(page, 120, 90)
+	exceptionTarget.dropdown:SetPoint("LEFT", itemBox, "RIGHT", 4, 0)
+	exceptionTarget:Set(AutoLoot.LEAVE)
+	local addButton = ButtonWidget.createButton(page, L["OPTIONS_AUTOLOOT_ADD"], 52)
+	addButton:SetHeight(Theme.LAYOUT.fieldHeight)
+	addButton:SetPoint("LEFT", exceptionTarget.box, "RIGHT", 4, 0)
+
+	-- Shift-clicking an item inserts its link into the box while it has focus.
+	if ChatFrameUtil and ChatFrameUtil.InsertLink then
+		hooksecurefunc(ChatFrameUtil, "InsertLink", function(text)
+			if itemBox:HasFocus() then
+				itemBox:SetText(text or "")
+			end
+		end)
+	end
+
+	local hint = Primitives.createText(page, L["OPTIONS_AUTOLOOT_HINT"], 11, "dim")
+	hint:SetPoint("BOTTOMLEFT")
+	hint:SetPoint("BOTTOMRIGHT")
+	hint:SetJustifyH("LEFT")
+	hint:SetWordWrap(true)
+
+	local listHolder = CreateFrame("Frame", nil, page)
+	listHolder:SetPoint("TOPLEFT", itemBox, "BOTTOMLEFT", 0, -8)
+	listHolder:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 62)
+	listHolder.border = Primitives.createBorder(listHolder, "borderDim")
+	local exceptionTable = PLC.UI.Widgets.DataTable.Create(listHolder, NAME_ROW_HEIGHT)
+
+	local function targetLabel(target)
+		if target == AutoLoot.SELF then
+			return L["OPTIONS_AUTOLOOT_SELF"]
+		elseif target == AutoLoot.LEAVE then
+			return L["OPTIONS_AUTOLOOT_LEAVE"]
+		end
+		return target
+	end
+
+	local refreshExceptions
+	exceptionTable:SetColumns({
+		{
+			width = 200,
+			render = function(rowData)
+				return "  " .. rowData.name
+			end,
+		},
+		{
+			width = 140,
+			render = function(rowData)
+				return targetLabel(rowData.target)
+			end,
+		},
+		{
+			width = 24,
+			isWidget = true,
+			create = function(row)
+				return Primitives.createCloseButton(row, 14)
+			end,
+			update = function(button, rowData)
+				button:SetShown(not rowData.builtIn)
+				button:SetScript("OnClick", function()
+					settings.exceptions[rowData.itemID] = nil
+					refreshExceptions()
+				end)
+			end,
+		},
+	})
+
+	-- Everyone's own exceptions, then the curated list (Data/ExcludedItems.lua) for whatever they
+	-- didn't override. The curated entries can be overridden but not removed.
+	function refreshExceptions()
+		local rows = {}
+		for itemID, target in pairs(settings.exceptions) do
+			table.insert(rows, { itemID = itemID, target = target, name = C_Item.GetItemInfo(itemID) or ("item:" .. itemID) })
+		end
+		for itemID in pairs(PLC.ExcludedItems) do
+			if not settings.exceptions[itemID] then
+				table.insert(rows, { itemID = itemID, target = AutoLoot.LEAVE, builtIn = true, name = C_Item.GetItemInfo(itemID) or ("item:" .. itemID) })
+			end
+		end
+		table.sort(rows, function(a, b) return a.name < b.name end)
+		exceptionTable:SetRows(rows)
+	end
+
+	local function addException()
+		local text = strtrim(itemBox:GetValue() or "")
+		local itemID = tonumber(text) or tonumber(text:match("item:(%d+)")) or C_Item.GetItemInfoInstant(text)
+		if not itemID then
+			print(L["CHAT_PREFIX"] .. L["OPTIONS_AUTOLOOT_UNKNOWN_ITEM"])
+			return
+		end
+		local target = exceptionTarget:Get()
+		if target then
+			settings.exceptions[itemID] = target
+			itemBox:SetText("")
+			itemBox:ClearFocus()
+			refreshExceptions()
+		end
+	end
+	addButton:SetScript("OnClick", addException)
+	itemBox:SetScript("OnEnterPressed", addException)
+
+	local function refreshPage()
+		enabled:SetChecked(settings.enabled)
+		gold:SetChecked(settings.lootGold)
+		outside:SetChecked(settings.outsideInstances)
+		review:Set(settings.reviewTarget)
+		other:Set(settings.otherTarget)
+		refreshExceptions()
+	end
+	page:HookScript("OnShow", refreshPage)
+	refreshPage()
+end
+
 -- Who's on the loot council (Data/CouncilRules.lua:Evaluate). The master looter is always on it
 -- and runs the session; these settings add members. While a session runs, the HOLDER's settings
 -- decide the council for everyone. Any change rebuilds the roster, which re-broadcasts the council
@@ -453,6 +679,8 @@ local function ensurePanel()
 	panel:AddSidebarHeader(L["OPTIONS_SECTION_COUNCIL"])
 	buildGeneralPage(panel:AddTab("general", L["OPTIONS_TAB_GENERAL"],
 		{ icon = "nav_general.png", description = L["OPTIONS_DESC_GENERAL"] }))
+	buildAutoLootPage(panel:AddTab("autoloot", L["OPTIONS_TAB_AUTOLOOT"],
+		{ icon = "nav_general.png", description = L["OPTIONS_DESC_AUTOLOOT"] }))
 	buildResponsesPage(panel:AddTab("responses", L["OPTIONS_TAB_RESPONSES"],
 		{ icon = "nav_responses.png", description = L["OPTIONS_DESC_RESPONSES"] }))
 	buildCouncilPage(panel:AddTab("council", L["OPTIONS_TAB_COUNCIL"],

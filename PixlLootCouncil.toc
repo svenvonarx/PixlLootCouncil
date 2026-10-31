@@ -23,6 +23,7 @@ Data\Presence.lua
 Data\Gear.lua
 Data\Professions.lua
 Data\Responses.lua
+Data\ExcludedItems.lua
 Data\History.lua
 Data\HistoryImport.lua
 Data\Session.lua
@@ -32,6 +33,7 @@ Comms\Sync.lua
 
 Loot\Detection.lua
 Loot\Award.lua
+Loot\AutoLoot.lua
 Loot\BagTracker.lua
 Loot\Trade.lua
 Loot\Announce.lua

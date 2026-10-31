@@ -11,14 +11,33 @@ PLC.Loot.Detection = Detection
 -- buttons (see docs/SPECIFICATION.md §2/§3 principle 3).
 
 Detection.lootSlotInfo = {} -- [slotIndex] = { link, icon, quantity, quality, boss, looted }
-Detection.lootOpen = false
+
+Detection.RECIPE_CLASS_ID = (Enum and Enum.ItemClass and Enum.ItemClass.Recipe) or 9
+local MIN_RECIPE_QUALITY = 2 -- uncommon
 
 local warnedThisSession = false
+
+-- Good enough to review? Anything at db.profile.lootThreshold or better, plus patterns of any
+-- quality from uncommon up.
+function Detection:IsReviewQuality(link, quality)
+	quality = quality or 0
+	local classID = link and select(6, C_Item.GetItemInfoInstant(link))
+	if classID == self.RECIPE_CLASS_ID then
+		return quality >= MIN_RECIPE_QUALITY
+	end
+	return quality >= PLC.db.profile.lootThreshold
+end
+
+-- Is this item loot the raid reviews? The one rule for both ways an item enters the backlog:
+-- Session:CollectDetectedItems and Loot/BagTracker.lua's bag scan.
+function Detection:IsReviewItem(link, quality)
+	return self:IsReviewQuality(link, quality) and not PLC.Loot.AutoLoot:IsExcludedFromReview(link)
+end
 
 local function scanLootSlots()
 	wipe(Detection.lootSlotInfo)
 
-	if not IsInInstance() then
+	if not IsInInstance() and not PLC.db.profile.autoLoot.outsideInstances then
 		return
 	end
 	local numItems = GetNumLootItems()
@@ -78,15 +97,16 @@ local function scanLootSlots()
 end
 
 local function onLootReady()
-	Detection.lootOpen = true
 	scanLootSlots()
 
-	-- Silent background collection (self-loots every qualifying item into the ML's own bag --
-	-- see Data/Session.lua:CollectDetectedItems) -- not gated on an active review session
-	-- anymore, only on actually being the live master looter. No UI pops up here on purpose:
-	-- across a multi-hour raid this fires constantly, and the whole point of this workflow is
-	-- that review happens once, deliberately, later (/plc sessionframe), not on every drop.
-	if PLC.CouncilRules:AmIMasterLooter() and PLC.Session and PLC.Session.CollectDetectedItems then
+	-- Silent background collection (Loot/AutoLoot.lua) -- not gated on an active review session,
+	-- only on actually being the live master looter. The full Loot Session window stays closed on
+	-- purpose: across a multi-hour raid this fires constantly, and the whole point of this workflow
+	-- is that review happens once, deliberately, later -- not on every drop. The small
+	-- UI/LootTimersFrame.lua list is what shows the ML what was collected and how long it can wait.
+	-- With auto loot off (or Shift held) the ML loots by hand, so what's here is only noted, to be
+	-- matched with its bag copy by Loot/BagTracker.lua when it arrives.
+	if PLC.CouncilRules:AmIMasterLooter() and not PLC.Loot.AutoLoot:Begin() then
 		PLC.Session:CollectDetectedItems(Detection.lootSlotInfo)
 	end
 end
@@ -96,13 +116,11 @@ local function onLootSlotCleared(eventName, slot)
 	if info then
 		info.looted = true
 	end
-	if PLC.Loot.Award then
-		PLC.Loot.Award:OnLootSlotCleared(slot)
-	end
+	PLC.Loot.Award:OnLootSlotCleared(slot)
 end
 
 local function onLootClosed()
-	Detection.lootOpen = false
+		PLC.Loot.AutoLoot:End()
 end
 
 -- Phase 1 intentionally does not port the full auto-pass/auto-roll bitfield logic upstream

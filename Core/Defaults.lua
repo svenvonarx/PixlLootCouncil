@@ -26,7 +26,20 @@ PLC.Defaults = {
 			{ key = "PASS",    text = "Pass",    color = { r = 0.60, g = 0.60, b = 0.60 }, order = 5 },
 		},
 
-		lootThreshold = 3, -- Blizzard item quality enum: 3 = Rare
+		-- Blizzard item quality enum: 4 = Epic. Patterns count regardless (Detection:IsReviewItem).
+		-- Raid materials nobody assigns stay out this way: Mark of the Illidari is green, Heart of
+		-- Darkness and Sunmote are blue.
+		lootThreshold = 4,
+
+		-- Loot/AutoLoot.lua. A target is "self", "leave" or comma-separated player names, tried in order.
+		autoLoot = {
+			enabled = true,
+			lootGold = true,
+			outsideInstances = false, -- world bosses
+			reviewTarget = "self", -- epics, legendaries and patterns
+			otherTarget = "leave", -- anything else the group's loot threshold makes master loot
+			exceptions = {}, -- [itemID] = target
+		},
 
 		sessionForceEndMinutes = 10, -- see docs/SPECIFICATION.md §5.1 "stuck-session escape hatch"
 		sessionHeartbeatSeconds = 60,

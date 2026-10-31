@@ -8,9 +8,9 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- member's force-end after the holder's heartbeat goes stale, changes state. States:
 -- "inactive" -> "active" -> "ended" | "force_ended".
 --
--- Bagged-item workflow: the ML stays on Master Loot and self-loots every qualifying item the
--- moment it drops (CollectDetectedItems below) -- silently, with no review/voting yet, possibly
--- hours before a Start() ever happens. "inactive" therefore does NOT mean "nothing is going on":
+-- Bagged-item workflow: the ML stays on Master Loot and every qualifying item goes into their bags
+-- the moment it drops (Loot/AutoLoot.lua, then CollectDetectedItems below) -- silently, with no
+-- review/voting yet, possibly hours before a Start() ever happens. "inactive" therefore does NOT mean "nothing is going on":
 -- self.items can already be full of bagged loot while state is still "inactive". Start() is the
 -- explicit, deliberate moment the ML opens review on everything collected so far; AwardBaggedItem
 -- records who an item should go to (the ML still has to trade it to them manually -- there is no
@@ -370,33 +370,20 @@ local function stopHeartbeat()
 	end
 end
 
--- Finds the most recently collected, not-yet-bagged item for a live Blizzard loot slot. Searched
--- from the end, matching the established search order in Loot/Award.lua:136 -- the item at this
--- lootSlot right now is always the most recent one collected for it, since an older item for the
--- same numeric slot (from an earlier, now-closed loot window) would already be bagged.
-local function findItemBySlot(lootSlot)
-	for idx = Session.nextIdx - 1, 1, -1 do
-		local item = Session.items[idx]
-		if item and item.lootSlot == lootSlot and not item.bagged then
-			return item
-		end
-	end
-end
-
--- Called (defensively) from Loot/Detection.lua whenever the local player is the live Blizzard
--- master looter -- NOT gated on an active review session: collection is silent background
--- self-looting across the whole raid, independent of whether Start()/End() has ever run yet.
--- Filters to db.profile.lootThreshold so trash doesn't get hoovered into the ML's bags.
-function Session:CollectDetectedItems(lootSlotInfo)
-	local threshold = PLC.db.profile.lootThreshold
+-- Adds review loot to the backlog -- NOT gated on an active review session: collection is silent
+-- background work across the whole raid, independent of whether Start()/End() has ever run yet.
+-- `delivered`: Loot/AutoLoot.lua confirmed these reached this client's bags. Otherwise the ML is
+-- looting by hand, and each entry waits (with its lootSlot) for Loot/BagTracker.lua to find its bag
+-- copy. Filtered by Detection:IsReviewItem so trash doesn't get hoovered into the backlog.
+function Session:CollectDetectedItems(lootSlotInfo, delivered)
 	local newlyCollected = {}
 
 	for lootSlot, info in pairs(lootSlotInfo) do
-		if info.quality and info.quality >= threshold then
+		if PLC.Loot.Detection:IsReviewItem(info.link, info.quality) then
 			local alreadyCollected = false
 			for idx = 1, self.nextIdx - 1 do
 				local existing = self.items[idx]
-				if existing and existing.lootSlot == lootSlot and existing.link == info.link then
+				if not delivered and existing and existing.lootSlot == lootSlot and existing.link == info.link then
 					alreadyCollected = true
 					break
 				end
@@ -406,7 +393,8 @@ function Session:CollectDetectedItems(lootSlotInfo)
 				self.nextIdx = self.nextIdx + 1
 				local entry = {
 					idx = idx,
-					lootSlot = lootSlot,
+					lootSlot = not delivered and lootSlot or nil,
+					bagged = delivered or nil,
 					itemString = itemStringFromLink(info.link),
 					boss = info.boss,
 					quality = info.quality,
@@ -424,10 +412,6 @@ function Session:CollectDetectedItems(lootSlotInfo)
 				}
 				self.items[idx] = entry
 				newlyCollected[idx] = entry
-				-- Self-loot into the ML's own bag through the existing pre-validated funnel.
-				-- reason "collect" is how OnAwardConfirmed below tells this apart from anything
-				-- else that might ever call TryAward.
-				PLC.Loot.Award:TryAward(lootSlot, UnitGUID("player"), "collect")
 			end
 		end
 	end
@@ -546,32 +530,6 @@ function Session:ScheduleAutoStart()
 			end
 		end
 	end, AUTO_START_DELAY)
-end
-
--- Forward-hook target already called (defensively) from Loot/Award.lua, fired once
--- LOOT_SLOT_CLEARED confirms a self-loot actually completed. Award.lua's live-loot-slot funnel is
--- only ever called with the ML's own GUID now (see CollectDetectedItems above) -- a real council
--- award decision goes through AwardBaggedItem instead, which never touches a live slot at all --
--- so this is the only path that reaches here.
-function Session:OnAwardConfirmed(entry)
-	local item = findItemBySlot(entry.slot)
-	if not item then
-		return
-	end
-	item.bagged = true
-	item.lootSlot = nil -- the live slot is gone now; nothing should reference it again
-	self.isCollector = true
-	persist()
-	self:notifySessionFrame()
-end
-
--- Forward-hook target already called (defensively) from Loot/Award.lua. Local-only: a failed/
--- timed-out self-loot just means the item is still sitting in the loot window -- it'll be picked
--- up again next time this slot's corpse (or another) triggers LOOT_READY.
-function Session:OnAwardAttempted(entry)
-end
-
-function Session:OnAwardFailed(entry, reason)
 end
 
 -- Explicit holder action only -- there is no reactive "handle loot?" prompt (see

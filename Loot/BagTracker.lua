@@ -12,14 +12,12 @@ PLC.Loot.BagTracker = BagTracker
 --     was eligible to loot it for 2 hours, shown on its tooltip as BIND_TRADE_TIME_REMAINING
 --   * raid loot that never went through this addon's own loot-window collection (looted by hand,
 --     handed to the ML, below the master-loot threshold...): new items in the ML's bags while in a
---     raid are added to the session backlog if they're still trade-window items (quality >=
---     lootThreshold) or BoE recipes
+--     raid are added to the session backlog if they're review loot (Detection:IsReviewItem) that's
+--     still in its trade window, or a BoE recipe
 --   * RC's low-trade-time reminder in chat, and flagging items whose trade window ran out
 -- Items are told apart by their item GUID (ItemLocation-based, the same API RC uses), so three
 -- copies of the same oil are three separate entries with their own timers.
 
-local RECIPE_CLASS_ID = (Enum and Enum.ItemClass and Enum.ItemClass.Recipe) or 9
-local MIN_RECIPE_QUALITY = 2 -- uncommon
 local REMINDER_THRESHOLDS = { 1200, 300 } -- RC warns at 20 min; a final nudge at 5
 local REFRESH_SECONDS = 30
 BagTracker.TRADE_WINDOW_SECONDS = 7200 -- soulbound raid loot stays tradable for 2 hours
@@ -231,15 +229,15 @@ end
 
 -- Does a newly bagged raid item belong in the loot session backlog?
 local function qualifies(entry, status)
+	local Detection = PLC.Loot.Detection
 	local _, _, quality = C_Item.GetItemInfo(entry.link)
-	local classID = select(6, C_Item.GetItemInfoInstant(entry.link))
-	if status == "timer" then
-		return (quality or 0) >= PLC.db.profile.lootThreshold
+	if not Detection:IsReviewItem(entry.link, quality) then
+		return false
 	end
-	if status == "free" and classID == RECIPE_CLASS_ID then
-		return (quality or 0) >= MIN_RECIPE_QUALITY
+	if status == "free" then
+		return select(6, C_Item.GetItemInfoInstant(entry.link)) == Detection.RECIPE_CLASS_ID
 	end
-	return false
+	return status == "timer"
 end
 
 -- An unlinked session item for this itemID (collected from the loot window, not yet matched to
