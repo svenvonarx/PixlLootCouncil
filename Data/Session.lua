@@ -35,6 +35,7 @@ Session.lastHolderSeenAt = nil
 Session.nextIdx = 1
 Session.sentFirstBatch = false
 Session.responseTimeoutSeconds = 60 -- the holder's db.profile.responseTimeoutSeconds wins for everyone -- see Start()
+Session.responseSet = nil -- the holder's response buttons, fixed at Start() -- see Data/Responses.lua
 Session.isCollector = false -- true once this client has silently bagged at least one item -- see persist()
 -- [guid] = true: the loot council for the current session, decided by the HOLDER's council
 -- settings and broadcast by the holder (session_start, sync, "council" on roster changes), so every
@@ -43,6 +44,8 @@ Session.council = nil
 
 local heartbeatTimerHandle
 local persist -- forward-declared: SetEnchanter (above its definition) calls it
+local restored = false -- restoreFromSaved has run, so IsHolder() can be trusted
+local syncAsked = false -- already asked for a resync since joining this group
 
 function Session:IsHolder()
 	return self.state == "active" and self.owner ~= nil and self.owner.guid == UnitGUID("player")
@@ -125,8 +128,16 @@ local function councilSet(list)
 end
 
 -- Called by Data/Roster.lua after every rebuild (group changes, loot method, guild ranks, council
--- options). The holder re-broadcasts the council when it changed.
+-- options). The holder re-broadcasts the council when it changed. Everyone else uses it to catch
+-- up on a session they weren't there for: logging in, reloading, or joining the group mid-session
+-- all end up here, once the group is actually known -- one request per group membership.
 function Session:OnRosterRebuilt()
+	if not IsInGroup() then
+		syncAsked = false
+	elseif restored and not syncAsked and not self:IsHolder() then
+		syncAsked = true
+		self:RequestSync()
+	end
 	if not self:IsHolder() then
 		return
 	end
@@ -224,6 +235,7 @@ function persist()
 			lastHolderSeenAt = Session.lastHolderSeenAt,
 			nextIdx = Session.nextIdx,
 			responseTimeoutSeconds = Session.responseTimeoutSeconds,
+			responseSet = Session.responseSet,
 			isCollector = Session.isCollector,
 			council = Session.council,
 		}
@@ -580,6 +592,7 @@ function Session:Start()
 	self.sentFirstBatch = false
 	self.lastHolderSeenAt = time()
 	self.responseTimeoutSeconds = PLC.db.profile.responseTimeoutSeconds
+	self.responseSet = PLC.Responses:GetConfigured()
 	self.council = self:ComputeCouncil()
 	startHeartbeat()
 	-- The holder is almost always also a candidate -- announce their own equipped gear and
@@ -621,7 +634,7 @@ end
 function Session:broadcastNewItems(newItems)
 	if not self.sentFirstBatch then
 		self.sentFirstBatch = true
-		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(newItems), self.responseTimeoutSeconds, self.enchanterGuid, councilList(self.council))
+		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(newItems), self.responseTimeoutSeconds, self.enchanterGuid, councilList(self.council), self.responseSet)
 		PLC.Loot.Announce:AnnounceSessionStart(newItems)
 	else
 		PLC.Comms.Sync:SendItemAdd(self.sessionId, stripForTransmit(newItems))
@@ -884,6 +897,8 @@ function Session:OnSessionStartReceived(data)
 	-- The holder's configured timeout wins for everyone, never the receiving client's own
 	-- profile.responseTimeoutSeconds.
 	self.responseTimeoutSeconds = data.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
+	-- The holder's buttons win too. A holder on an older version sends none, and uses the defaults.
+	self.responseSet = PLC.Responses.Sanitize(data.responseSet) or PLC.Responses:GetDefaults()
 	self.council = data.council and councilSet(data.council) or nil
 	applyReceivedItems(data.items)
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_STARTED_BY"], data.owner and data.owner.name or "?"))
@@ -1152,6 +1167,7 @@ function Session:OnSyncRequestReceived(data, sender)
 		responses = self.responses,
 		lastHolderSeenAt = self.lastHolderSeenAt,
 		responseTimeoutSeconds = self.responseTimeoutSeconds,
+		responseSet = self.responseSet,
 		council = councilList(self.council),
 	}, sender)
 end
@@ -1166,6 +1182,7 @@ function Session:OnSyncDataReceived(data)
 	self.state = "active"
 	self.items = {}
 	self.responseTimeoutSeconds = data.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
+	self.responseSet = PLC.Responses.Sanitize(data.responseSet) or PLC.Responses:GetDefaults()
 	applyReceivedItems(data.items)
 	self.responses = data.responses or {}
 	self.lastHolderSeenAt = data.lastHolderSeenAt or time()
@@ -1176,6 +1193,8 @@ function Session:OnSyncDataReceived(data)
 	-- group's data for this session (see Data/Gear.lua, Data/Professions.lua).
 	PLC.Gear:BroadcastOwn()
 	PLC.Professions:BroadcastOwn()
+	self:notifyLootFrame()
+	self:notifySessionFrame()
 end
 
 local function restoreFromSaved()
@@ -1191,6 +1210,7 @@ local function restoreFromSaved()
 	Session.lastHolderSeenAt = saved.lastHolderSeenAt or time()
 	Session.nextIdx = saved.nextIdx or 1
 	Session.responseTimeoutSeconds = saved.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
+	Session.responseSet = PLC.Responses.Sanitize(saved.responseSet)
 	Session.isCollector = saved.isCollector or false
 	Session.council = saved.council
 
@@ -1202,6 +1222,7 @@ local function restoreFromSaved()
 		-- A formal review pass was active -- resume it fully, heartbeat included.
 		Session.state = "active"
 		Session.sentFirstBatch = true
+		Session.responseSet = Session.responseSet or PLC.Responses:GetConfigured()
 		startHeartbeat()
 		print(L["CHAT_PREFIX"] .. L["SESSION_RESTORED"])
 	elseif isOwner and saved.state then
@@ -1216,14 +1237,10 @@ local function restoreFromSaved()
 	end
 end
 
+-- The resync a client needs after logging in or reloading is requested from OnRosterRebuilt.
 PLC:RegisterOnEnable(function()
 	restoreFromSaved()
-	if not Session:IsHolder() then
-		-- One-shot, slightly delayed so Data/Roster.lua has a moment to populate first.
-		PLC:ScheduleTimer(function()
-			Session:RequestSync()
-		end, 2)
-	end
+	restored = true
 end)
 
 -- The two session lifecycle actions without a button: resync from the holder, and the

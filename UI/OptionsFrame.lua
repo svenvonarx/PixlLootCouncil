@@ -91,23 +91,173 @@ local function buildGeneralPage(page)
 	end)
 end
 
--- Read-only: full response customization (add/remove/reorder custom response sets) is Phase 3
--- scope (spec §7) -- this just surfaces what's currently configured.
-local function buildResponsesPage(page)
-	local y = 0
-	for _, resp in ipairs(PLC.db.profile.responses) do
-		-- Not Primitives.createTexture -- these colors come from per-response data, not a named
-		-- theme token, and createTexture's registration would reset them to "text" gray on the
-		-- next Theme:Refresh().
-		local swatch = page:CreateTexture(nil, "ARTWORK")
-		swatch:SetColorTexture(resp.color.r, resp.color.g, resp.color.b)
-		swatch:SetSize(14, 14)
-		swatch:SetPoint("TOPLEFT", 0, y)
-
-		local label = Primitives.createText(page, resp.text, 12)
-		label:SetPoint("LEFT", swatch, "RIGHT", 8, 0)
-		y = y - 24
+-- The game's color picker. Current clients set it up through SetupColorPickerAndShow (the old
+-- ColorPickerFrame.func fields are ignored there, so picks never reached the addon); older ones
+-- still use the fields. onChange(r, g, b) runs live while picking, and with the old color on Cancel.
+local function openColorPicker(r, g, b, onChange)
+	local function onPick()
+		onChange(ColorPickerFrame:GetColorRGB())
 	end
+	local function onCancel()
+		onChange(r, g, b)
+	end
+	if ColorPickerFrame.SetupColorPickerAndShow then
+		ColorPickerFrame:SetupColorPickerAndShow({
+			r = r, g = g, b = b,
+			hasOpacity = false,
+			swatchFunc = onPick,
+			cancelFunc = onCancel,
+		})
+	else
+		ColorPickerFrame.hasOpacity = false
+		ColorPickerFrame.func = onPick
+		ColorPickerFrame.cancelFunc = onCancel
+		ColorPickerFrame:SetColorRGB(r, g, b)
+		ShowUIPanel(ColorPickerFrame)
+	end
+end
+
+-- This character's response buttons (Data/Responses.lua). They apply to sessions this character
+-- starts: a running session keeps the set it started with, and the holder's set wins for everyone.
+local RESPONSE_ROW_HEIGHT = 30
+local NEW_RESPONSE_COLOR = { r = 0.70, g = 0.70, b = 0.70 }
+
+local function buildResponsesPage(page)
+	local Responses = PLC.Responses
+	local rows = {}
+	local refreshRows
+
+	-- Every edit works on a fresh copy of the list and saves the whole result.
+	local function edit(change)
+		local list = Responses:GetConfigured()
+		change(list)
+		Responses:Save(list)
+		refreshRows()
+	end
+
+	local function moveRow(index, offset)
+		edit(function(list)
+			if list[index] and list[index + offset] then
+				list[index], list[index + offset] = list[index + offset], list[index]
+			end
+		end)
+	end
+
+	local function commitText(index, box)
+		local text = strtrim(((box:GetText() or ""):gsub("|", "")))
+		local current = Responses:GetConfigured()[index]
+		if current and text ~= "" and text ~= current.text then
+			edit(function(list)
+				list[index].text = text
+			end)
+		else
+			refreshRows()
+		end
+	end
+
+	for index = 1, Responses.MAX_COUNT do
+		local row = CreateFrame("Frame", nil, page)
+		row:SetSize(360, RESPONSE_ROW_HEIGHT)
+		row:SetPoint("TOPLEFT", 0, -(index - 1) * RESPONSE_ROW_HEIGHT)
+
+		-- A plain texture, not a themed fill: it shows the response's own color.
+		row.swatch = CreateFrame("Button", nil, row)
+		row.swatch:SetSize(22, 22)
+		row.swatch:SetPoint("LEFT")
+		row.swatch.tex = row.swatch:CreateTexture(nil, "ARTWORK")
+		row.swatch.tex:SetPoint("TOPLEFT", 1, -1)
+		row.swatch.tex:SetPoint("BOTTOMRIGHT", -1, 1)
+		row.swatch.border = Primitives.createBorder(row.swatch)
+		row.swatch:SetScript("OnClick", function()
+			local current = Responses:GetConfigured()[index]
+			if not current then
+				return
+			end
+			openColorPicker(current.color.r, current.color.g, current.color.b, function(r, g, b)
+				edit(function(list)
+					if list[index] then
+						list[index].color = { r = r, g = g, b = b }
+					end
+				end)
+			end)
+		end)
+
+		row.box = Primitives.createEditBox(row, 180, 24)
+		row.box:SetMaxLetters(Responses.MAX_TEXT_LETTERS)
+		row.box:SetPoint("LEFT", row.swatch, "RIGHT", 8, 0)
+		row.box:HookScript("OnEditFocusLost", function(self)
+			commitText(index, self)
+		end)
+
+		row.up = ButtonWidget.createButton(row, "^", 24)
+		row.up:SetHeight(24)
+		row.up:SetPoint("LEFT", row.box, "RIGHT", 8, 0)
+		row.up:SetScript("OnClick", function()
+			moveRow(index, -1)
+		end)
+
+		row.down = ButtonWidget.createButton(row, "v", 24)
+		row.down:SetHeight(24)
+		row.down:SetPoint("LEFT", row.up, "RIGHT", 4, 0)
+		row.down:SetScript("OnClick", function()
+			moveRow(index, 1)
+		end)
+
+		row.remove = Primitives.createCloseButton(row, 16)
+		row.remove:SetPoint("LEFT", row.down, "RIGHT", 8, 0)
+		row.remove:SetScript("OnClick", function()
+			edit(function(list)
+				table.remove(list, index)
+			end)
+		end)
+
+		rows[index] = row
+	end
+
+	local buttonsTop = -(Responses.MAX_COUNT * RESPONSE_ROW_HEIGHT + 8)
+	local addButton = ButtonWidget.createButton(page, L["OPTIONS_RESPONSES_ADD"], 130)
+	addButton:SetPoint("TOPLEFT", 0, buttonsTop)
+	addButton:SetScript("OnClick", function()
+		edit(function(list)
+			if #list < Responses.MAX_COUNT then
+				table.insert(list, { key = Responses.NewKey(list), text = L["OPTIONS_RESPONSES_NEW"], color = NEW_RESPONSE_COLOR })
+			end
+		end)
+	end)
+
+	local resetButton = ButtonWidget.createButton(page, L["OPTIONS_ACCENT_RESET"], 130)
+	resetButton:SetPoint("LEFT", addButton, "RIGHT", 8, 0)
+	resetButton:SetScript("OnClick", function()
+		Responses:Reset()
+		refreshRows()
+	end)
+
+	local hint = Primitives.createText(page, L["OPTIONS_RESPONSES_HINT"], 11, "dim")
+	hint:SetPoint("TOPLEFT", addButton, "BOTTOMLEFT", 0, -12)
+	hint:SetPoint("RIGHT", page, "RIGHT")
+	hint:SetJustifyH("LEFT")
+	hint:SetWordWrap(true)
+
+	function refreshRows()
+		local list = Responses:GetConfigured()
+		for index, row in ipairs(rows) do
+			local resp = list[index]
+			row:SetShown(resp ~= nil)
+			if resp then
+				row.swatch.tex:SetColorTexture(resp.color.r, resp.color.g, resp.color.b)
+				if not row.box:HasFocus() then
+					row.box:SetText(resp.text)
+				end
+				row.up:SetShown(index > 1)
+				row.down:SetShown(index < #list)
+				row.remove:SetShown(#list > 1)
+			end
+		end
+		addButton:SetShown(#list < Responses.MAX_COUNT)
+	end
+
+	page:HookScript("OnShow", refreshRows)
+	refreshRows()
 end
 
 -- Who's on the loot council (Data/CouncilRules.lua:Evaluate). The master looter is always on it
@@ -270,31 +420,9 @@ local function buildAppearancePage(page)
 	local hint = Primitives.createText(page, L["OPTIONS_ACCENT_HINT"], 11, "dim")
 	hint:SetPoint("LEFT", swatch, "RIGHT", 12, 0)
 
-	-- The game's color picker. Current clients set it up through SetupColorPickerAndShow (the old
-	-- ColorPickerFrame.func fields are ignored there, so picks never reached the addon); older ones
-	-- still use the fields. Live preview while picking, restored on Cancel.
+	-- Live preview while picking, restored on Cancel.
 	swatch:SetScript("OnClick", function()
-		local before = { r = profile.accent.r, g = profile.accent.g, b = profile.accent.b }
-		local function onPick()
-			setAccent(ColorPickerFrame:GetColorRGB())
-		end
-		local function onCancel()
-			setAccent(before.r, before.g, before.b)
-		end
-		if ColorPickerFrame.SetupColorPickerAndShow then
-			ColorPickerFrame:SetupColorPickerAndShow({
-				r = before.r, g = before.g, b = before.b,
-				hasOpacity = false,
-				swatchFunc = onPick,
-				cancelFunc = onCancel,
-			})
-		else
-			ColorPickerFrame.hasOpacity = false
-			ColorPickerFrame.func = onPick
-			ColorPickerFrame.cancelFunc = onCancel
-			ColorPickerFrame:SetColorRGB(before.r, before.g, before.b)
-			ShowUIPanel(ColorPickerFrame)
-		end
+		openColorPicker(profile.accent.r, profile.accent.g, profile.accent.b, setAccent)
 	end)
 	swatch:SetScript("OnEnter", function(self)
 		Primitives.setBorderColor(self.border, "accent", 0.85)

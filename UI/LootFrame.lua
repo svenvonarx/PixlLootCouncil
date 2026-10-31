@@ -18,6 +18,7 @@ local frame
 local header
 local dataTable
 local tickerHandle
+local builtSignature -- which response set the buttons were built for, see applyResponseSet
 
 -- Response buttons and the note field share one row, same as the original layout -- a stacked
 -- (buttons-then-note) layout was tried and made every row much taller than before for no real
@@ -25,6 +26,7 @@ local tickerHandle
 -- single button -- set once and never recalculated against the window's current width (an
 -- in-between round made it dynamic, which just made its size unpredictable).
 local ROW_HEIGHT = Theme.LAYOUT.buttonHeight + 6
+local MAX_NOTE_WIDTH = 300 -- a long custom response set shouldn't double the window for the note
 
 local function myResponse(idx)
 	local responses = PLC.Session.responses[idx]
@@ -66,8 +68,8 @@ end
 -- Shows who's holding the current review pass directly in this window's title bar too (not just
 -- UI/SessionFrame.lua's) -- a candidate deciding how to respond benefits from knowing who's
 -- actually running the session just as much as the holder does.
--- Each response button sizes itself to its own label (Button.lua), and the label SET itself is
--- user-customizable (profile.responses, via the Options panel) -- so there's no fixed literal to
+-- Each response button sizes itself to its own label (Button.lua), and the label SET itself comes
+-- from the session holder (Data/Responses.lua) -- so there's no fixed literal to
 -- sum the way VotingFrame's fixed-width Award column has for its own window-sizing math. Builds
 -- one throwaway instance purely to read back the real total width, rather than duplicating
 -- Button.lua's own sizing formula a second time just to predict it. A button's width is reliable
@@ -78,7 +80,7 @@ local function measureResponseButtonsWidth()
 	local scratch = CreateFrame("Frame", nil, UIParent)
 	scratch:Hide()
 	local width = 0
-	for _, resp in ipairs(PLC.db.profile.responses) do
+	for _, resp in ipairs(PLC.Responses:GetActive()) do
 		local button = ButtonWidget.createButton(scratch, resp.text)
 		width = width + button:GetWidth() + 6
 	end
@@ -97,103 +99,9 @@ local function updateHeaderOwner()
 	end
 end
 
-local function ensureFrame()
-	if frame then
-		return frame
-	end
-
-	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
-	Primitives.refreshFontsOnShow(frame)
-	-- Width is derived from the response buttons' own real total width (measureResponseButtonsWidth
-	-- above), not a hardcoded literal -- a fixed "700" could never stay correct anyway, since
-	-- profile.responses (the button set/labels) is user-customizable via the Options panel, and a
-	-- hand-picked number also silently went stale once before (see UI/SessionFrame.lua's own
-	-- width -- the same category of bug, just caught there first) and clipped the note field
-	-- against the window's right border instead of leaving blank space like a too-WIDE guess would
-	-- have. icon(28) + name(170) + countdown(40) match those columns' own widths below; the note
-	-- box matches the button row's width exactly (buttonsWidth), with a 14px gap between them (see
-	-- the response-button column's create() below) and the grid's own scrollbar gutter
-	-- (ScrollFrame.RESERVED_WIDTH, reserved even when not actively scrolling) plus a small
-	-- breathing margin added past that.
-	local buttonsWidth = measureResponseButtonsWidth()
-	local ROW_RIGHT_MARGIN = 10
-	local rowContentWidth = 28 + 170 + 40 + buttonsWidth + 14 + buttonsWidth
-	local contentWidth = rowContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + ROW_RIGHT_MARGIN
-	local frameWidth = contentWidth + 20 -- content's own 10px left + 10px right insets, see below
-
-	-- Height stays freely resizable -- a taller window genuinely shows more pending items at once.
-	frame:SetSize(frameWidth, 260)
-	frame:SetPoint("CENTER", 0, -80)
-	-- Top of the three main windows on purpose -- one tier above UI/SessionFrame.lua's "DIALOG"
-	-- (itself one tier above UI/OptionsFrame.lua's "HIGH") -- responding to loot always needs to
-	-- be reachable, so this window must never end up hidden behind either of the others
-	-- regardless of which was clicked/opened more recently.
-	frame:SetFrameStrata("FULLSCREEN_DIALOG")
-	frame:SetMovable(true)
-	frame:EnableMouse(true)
-	frame:RegisterForDrag("LeftButton")
-	frame:SetScript("OnDragStart", frame.StartMoving)
-	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-	tinsert(UISpecialFrames, "PixlLootCouncilLootFrame")
-	-- Width min and max are the same value -- fixes the width (see the comment on SetSize above)
-	-- while leaving height genuinely resizable between 180 and 600.
-	Primitives.makeResizable(frame, frameWidth, 180, frameWidth, 600)
-
-	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
-	frame.bg:SetAllPoints()
-	frame.border = Primitives.createBorder(frame)
-
-	header = CreateFrame("Frame", nil, frame)
-	header:SetHeight(Theme.LAYOUT.headerHeight)
-	header:SetPoint("TOPLEFT")
-	header:SetPoint("TOPRIGHT")
-	header.bg = Primitives.createTexture(header, "BACKGROUND", "header")
-	header.bg:SetAllPoints()
-
-	header.logo = Primitives.createLogo(header, 20)
-	header.logo:SetPoint("LEFT", 10, 0)
-
-	-- Bigger than before, and centered on the logo same as always. The subtitle below is already
-	-- at Primitives.createText's hard minimum render size (11 floors to the same 9px as a
-	-- smaller value would -- there's no more room to shrink it), so widening the gap to make it
-	-- read as "smaller in comparison" means growing the title instead.
-	header.title = Primitives.createText(header, L["LOOTFRAME_TITLE"], 18, "title")
-	-- The -2 is an empirical nudge, not 0 like every other "LEFT"-anchored pairing in this
-	-- codebase: a FontString's "LEFT" anchor centers its full ascent+descent line box, not the
-	-- actual rendered glyphs -- most fonts give more room below the baseline (for descenders)
-	-- than above the cap-height, so the visible text sits a bit above true center once the box
-	-- is tightly auto-fit with no slack for WoW's own layout to correct for that. Barely
-	-- noticeable at the old 14pt size; visibly "too high" once bumped to 18pt, since the
-	-- asymmetry scales with font size.
-	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, -2)
-
-	-- Anchored BOTTOMLEFT-to-BOTTOMRIGHT (baseline-ish), not the LEFT-to-RIGHT (box-center)
-	-- anchor every other text pairing in this codebase uses -- box-centering a much smaller
-	-- subtitle against a much bigger title left it looking like it was sitting too low, since
-	-- the two texts' vertical centers matched but their baselines didn't. The +1 is a small
-	-- empirical nudge for the smaller font's own baseline sitting a touch higher in its line box.
-	header.ownerLabel = Primitives.createText(header, "", 11, "dim")
-	header.ownerLabel:SetPoint("BOTTOMLEFT", header.title, "BOTTOMRIGHT", 10, 1)
-	header.ownerLabel:Hide()
-
-	header.close = Primitives.createCloseButton(header, 20)
-	header.close:SetPoint("RIGHT", -6, 0)
-	header.close:SetScript("OnClick", function()
-		frame:Hide()
-	end)
-
-	Primitives.createSeparator(frame, -Theme.LAYOUT.headerHeight)
-
-	local content = CreateFrame("Frame", nil, frame)
-	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
-	content:SetPoint("BOTTOMRIGHT", -10, 10)
-
-	-- UI/Widgets/ScrollFrame.lua anchors dataTable.scroll to `content` itself now (reserving its
-	-- own room for the scrollbar inside that), so no SetAllPoints here -- calling it would
-	-- override that anchoring and let the scrollbar stick out past the window's edge again.
-	dataTable = DataTable.Create(content, ROW_HEIGHT)
-
-	dataTable:SetColumns({
+-- The response columns are built per response set, since a row's buttons are fixed once created.
+local function buildColumns()
+	return {
 		{
 			width = 28,
 			isWidget = true,
@@ -259,7 +167,7 @@ local function ensureFrame()
 
 				local x = 0
 				local BUTTON_GAP = 6
-				for i, resp in ipairs(PLC.db.profile.responses) do
+				for _, resp in ipairs(PLC.Responses:GetActive()) do
 					-- Omitting a fixed width lets each button size itself to its own label (see
 					-- UI/Widgets/Button.lua) -- a shared fixed width left short labels like "OS"
 					-- swimming in padding while "Upgrade" looked cramped against its own border.
@@ -275,16 +183,16 @@ local function ensureFrame()
 				container.divider:SetPoint("BOTTOM", container.buttonsWidth + 6, 2)
 				container.divider:SetWidth(1)
 
-				-- Fixed size, matching the button row exactly -- same width as all 5 buttons
-				-- together, same height as a single button, set once here and never resized
-				-- afterward (a previous round recalculated this dynamically against the row's
-				-- current width on every render, which read as the note field randomly changing
-				-- size rather than having a stable, predictable size "like the buttons").
+				-- Fixed size, same height as a single button and the button row's width up to
+				-- MAX_NOTE_WIDTH, set once here and never resized afterward (a previous round
+				-- recalculated this dynamically against the row's current width on every render,
+				-- which read as the note field randomly changing size rather than having a stable,
+				-- predictable size "like the buttons").
 				-- `maxLetters` is sized to this exact width so typed text can realistically wrap
 				-- to at most ~2 lines -- SetClipsChildren (see Primitives.createEditBox) is a
 				-- backstop against overflow, not the primary control; relying on it alone let
 				-- someone type a wall of text that silently vanished past line 2.
-				local noteWidth = container.buttonsWidth
+				local noteWidth = math.min(container.buttonsWidth, MAX_NOTE_WIDTH)
 				local maxLetters = math.max(20, math.floor((noteWidth - 12) / 5.5) * 2)
 				container.noteBox = Primitives.createEditBox(
 					container, noteWidth, Theme.LAYOUT.buttonHeight, L["LOOTFRAME_NOTE_PLACEHOLDER"], true, maxLetters)
@@ -312,7 +220,108 @@ local function ensureFrame()
 				end
 			end,
 		},
-	})
+	}
+end
+
+-- Rebuilds the buttons and refits the window whenever the session's response set differs from the
+-- one they were built for: the holder's set arrives with session_start or the resync, so it can't be
+-- known when the window is first created. Width is derived from the buttons' real total width, not a
+-- literal, and is fixed (min and max are the same): icon(28) + name(170) + countdown(40), the
+-- buttons, a 14px gap, the note box, then the grid's scrollbar gutter and a small margin.
+local function applyResponseSet()
+	local signature = PLC.Responses:Signature()
+	if signature == builtSignature then
+		return
+	end
+	builtSignature = signature
+
+	local buttonsWidth = measureResponseButtonsWidth()
+	local ROW_RIGHT_MARGIN = 10
+	local rowContentWidth = 28 + 170 + 40 + buttonsWidth + 14 + math.min(buttonsWidth, MAX_NOTE_WIDTH)
+	local contentWidth = rowContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + ROW_RIGHT_MARGIN
+	local frameWidth = contentWidth + 20 -- content's own 10px left + 10px right insets
+	frame:SetWidth(frameWidth)
+	Primitives.setResizeBounds(frame, frameWidth, 180, frameWidth, 600)
+	dataTable:SetColumns(buildColumns())
+end
+
+local function ensureFrame()
+	if frame then
+		return frame
+	end
+
+	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
+	Primitives.refreshFontsOnShow(frame)
+	-- Height stays freely resizable -- a taller window genuinely shows more pending items at once.
+	frame:SetHeight(260)
+	frame:SetPoint("CENTER", 0, -80)
+	-- Top of the three main windows on purpose -- one tier above UI/SessionFrame.lua's "DIALOG"
+	-- (itself one tier above UI/OptionsFrame.lua's "HIGH") -- responding to loot always needs to
+	-- be reachable, so this window must never end up hidden behind either of the others
+	-- regardless of which was clicked/opened more recently.
+	frame:SetFrameStrata("FULLSCREEN_DIALOG")
+	frame:SetMovable(true)
+	frame:EnableMouse(true)
+	frame:RegisterForDrag("LeftButton")
+	frame:SetScript("OnDragStart", frame.StartMoving)
+	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+	tinsert(UISpecialFrames, "PixlLootCouncilLootFrame")
+	-- The width is set by applyResponseSet; this leaves height resizable between 180 and 600.
+	Primitives.makeResizable(frame, 1, 180, 2000, 600)
+
+	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
+	frame.bg:SetAllPoints()
+	frame.border = Primitives.createBorder(frame)
+
+	header = CreateFrame("Frame", nil, frame)
+	header:SetHeight(Theme.LAYOUT.headerHeight)
+	header:SetPoint("TOPLEFT")
+	header:SetPoint("TOPRIGHT")
+	header.bg = Primitives.createTexture(header, "BACKGROUND", "header")
+	header.bg:SetAllPoints()
+
+	header.logo = Primitives.createLogo(header, 20)
+	header.logo:SetPoint("LEFT", 10, 0)
+
+	-- Bigger than before, and centered on the logo same as always. The subtitle below is already
+	-- at Primitives.createText's hard minimum render size (11 floors to the same 9px as a
+	-- smaller value would -- there's no more room to shrink it), so widening the gap to make it
+	-- read as "smaller in comparison" means growing the title instead.
+	header.title = Primitives.createText(header, L["LOOTFRAME_TITLE"], 18, "title")
+	-- The -2 is an empirical nudge, not 0 like every other "LEFT"-anchored pairing in this
+	-- codebase: a FontString's "LEFT" anchor centers its full ascent+descent line box, not the
+	-- actual rendered glyphs -- most fonts give more room below the baseline (for descenders)
+	-- than above the cap-height, so the visible text sits a bit above true center once the box
+	-- is tightly auto-fit with no slack for WoW's own layout to correct for that. Barely
+	-- noticeable at the old 14pt size; visibly "too high" once bumped to 18pt, since the
+	-- asymmetry scales with font size.
+	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, -2)
+
+	-- Anchored BOTTOMLEFT-to-BOTTOMRIGHT (baseline-ish), not the LEFT-to-RIGHT (box-center)
+	-- anchor every other text pairing in this codebase uses -- box-centering a much smaller
+	-- subtitle against a much bigger title left it looking like it was sitting too low, since
+	-- the two texts' vertical centers matched but their baselines didn't. The +1 is a small
+	-- empirical nudge for the smaller font's own baseline sitting a touch higher in its line box.
+	header.ownerLabel = Primitives.createText(header, "", 11, "dim")
+	header.ownerLabel:SetPoint("BOTTOMLEFT", header.title, "BOTTOMRIGHT", 10, 1)
+	header.ownerLabel:Hide()
+
+	header.close = Primitives.createCloseButton(header, 20)
+	header.close:SetPoint("RIGHT", -6, 0)
+	header.close:SetScript("OnClick", function()
+		frame:Hide()
+	end)
+
+	Primitives.createSeparator(frame, -Theme.LAYOUT.headerHeight)
+
+	local content = CreateFrame("Frame", nil, frame)
+	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
+	content:SetPoint("BOTTOMRIGHT", -10, 10)
+
+	-- UI/Widgets/ScrollFrame.lua anchors dataTable.scroll to `content` itself now (reserving its
+	-- own room for the scrollbar inside that), so no SetAllPoints here -- calling it would
+	-- override that anchoring and let the scrollbar stick out past the window's edge again.
+	dataTable = DataTable.Create(content, ROW_HEIGHT)
 
 	-- Whole-row depleting background instead of the old column-local bar -- same math as the
 	-- countdown text column above, just relocated (see UI/Widgets/DataTable.lua).
@@ -355,6 +364,7 @@ function LootFrame:Refresh()
 	end
 
 	local f = ensureFrame()
+	applyResponseSet()
 	dataTable:SetRows(rows)
 	updateHeaderOwner()
 	f:Show()

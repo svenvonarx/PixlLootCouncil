@@ -399,10 +399,7 @@ end
 -- Resizing
 ----------------------------------------------------------------------------------------------------
 
--- Drag-resizable from a bottom-right grip (a triangle of dots, brightening on hover), within the
--- given bounds.
-function Primitives.makeResizable(frame, minWidth, minHeight, maxWidth, maxHeight)
-	frame:SetResizable(true)
+function Primitives.setResizeBounds(frame, minWidth, minHeight, maxWidth, maxHeight)
 	maxWidth, maxHeight = maxWidth or 2000, maxHeight or 2000
 	if frame.SetResizeBounds then
 		frame:SetResizeBounds(minWidth, minHeight, maxWidth, maxHeight)
@@ -410,6 +407,13 @@ function Primitives.makeResizable(frame, minWidth, minHeight, maxWidth, maxHeigh
 		frame:SetMinResize(minWidth, minHeight)
 		frame:SetMaxResize(maxWidth, maxHeight)
 	end
+end
+
+-- Drag-resizable from a bottom-right grip (a triangle of dots, brightening on hover), within the
+-- given bounds.
+function Primitives.makeResizable(frame, minWidth, minHeight, maxWidth, maxHeight)
+	frame:SetResizable(true)
+	Primitives.setResizeBounds(frame, minWidth, minHeight, maxWidth, maxHeight)
 
 	local grip = CreateFrame("Button", nil, frame)
 	grip:SetSize(16, 16)

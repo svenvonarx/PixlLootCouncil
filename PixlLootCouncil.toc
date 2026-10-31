@@ -22,6 +22,7 @@ Data\CouncilRules.lua
 Data\Presence.lua
 Data\Gear.lua
 Data\Professions.lua
+Data\Responses.lua
 Data\History.lua
 Data\HistoryImport.lua
 Data\Session.lua

@@ -11,7 +11,7 @@ local function channel()
 	return PLC.Loot.Announce:GetChannel()
 end
 
-function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, enchanterGuid, council)
+function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, enchanterGuid, council, responseSet)
 	local ch = channel()
 	if not ch then
 		return
@@ -23,6 +23,8 @@ function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, 
 		responseTimeoutSeconds = responseTimeoutSeconds,
 		enchanterGuid = enchanterGuid,
 		council = council,
+		responseSet = responseSet,
+		preview = preview or nil,
 	}, ch)
 end
 

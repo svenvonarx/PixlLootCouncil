@@ -43,18 +43,6 @@ local function classColor(class)
 	return Primitives.color("text")
 end
 
-local function responseConfig(key)
-	if not key then
-		return nil
-	end
-	for _, resp in ipairs(PLC.db.profile.responses) do
-		if resp.key == key then
-			return resp
-		end
-	end
-	return nil
-end
-
 local function findRowIndexByGuid(rowsData, guid)
 	for i, row in ipairs(rowsData) do
 		if row.guid == guid then
@@ -428,10 +416,15 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton)
 				return holder
 			end,
 			update = function(holder, rowData)
-				local resp = responseConfig(rowData.response)
+				local resp = PLC.Responses:Find(rowData.response)
 				if resp then
 					holder.text:SetText(resp.text)
 					holder.text:SetTextColor(resp.color.r, resp.color.g, resp.color.b)
+				elseif rowData.response then
+					-- An answer from a button this session doesn't have (a client on an older version).
+					holder.text:SetText(rowData.response)
+					local r, g, b = Primitives.color("dim")
+					holder.text:SetTextColor(r, g, b)
 				elseif rowData.present then
 					holder.text:SetText(L["VOTINGFRAME_WAITING"])
 					local r, g, b = Primitives.color("dim")

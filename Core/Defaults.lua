@@ -17,6 +17,7 @@ PLC.Defaults = {
 			manualList = {}, -- ["Name-Realm" or "Name"] = true
 		},
 
+		-- The built-in set. Edits are stored in profile.customResponses -- see Data/Responses.lua.
 		responses = {
 			{ key = "BIS",     text = "BiS",     color = { r = 0.15, g = 0.85, b = 0.35 }, order = 1 },
 			{ key = "UPGRADE", text = "Upgrade", color = { r = 0.35, g = 0.65, b = 0.95 }, order = 2 },

@@ -62,7 +62,7 @@ local function winnerResponse(idx, winnerGuid)
 	if not r or not r.response then
 		return nil
 	end
-	for i, resp in ipairs(PLC.db.profile.responses) do
+	for i, resp in ipairs(PLC.Responses:GetActive()) do
 		if resp.key == r.response then
 			return resp.text, i, { resp.color.r, resp.color.g, resp.color.b, 1 }, r.note
 		end

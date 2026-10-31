@@ -202,4 +202,7 @@ L["OPTIONS_ACCENT_HINT"] = "Click to pick a color. The whole interface updates a
 L["OPTIONS_ACCENT_RESET"] = "Reset to default"
 L["OPTIONS_DESC_GENERAL"] = "Chat announcements, loot collection and session timing."
 L["OPTIONS_DESC_RESPONSES"] = "The buttons raiders choose from in the Loot Response window."
+L["OPTIONS_RESPONSES_ADD"] = "Add response"
+L["OPTIONS_RESPONSES_NEW"] = "New"
+L["OPTIONS_RESPONSES_HINT"] = "Everyone in your session sees these buttons, whatever their own options say. A running session keeps its buttons: changes apply to the next session you start."
 L["OPTIONS_DESC_APPEARANCE"] = "Colors of the PixlLootCouncil interface."
