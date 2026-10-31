@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.0-beta
+
+The master looter's loot window now hands out loot by itself, and there's a preview mode for
+practicing the whole workflow with your group.
+
+- **Loot Timers window**: the Loot Session window minimizes to a small list of picked-up items waiting
+  for review, most urgent first, showing each item's remaining trade time. It appears by itself when
+  new loot reaches the bags and remembers its position. `/plc timers` shows or hides it.
+- Only epics, legendaries and patterns are collected by default, so raid materials such as Mark of the
+  Illidari, Heart of Darkness and Sunmote stay out. The default quality threshold is now Epic, and
+  patterns count at any quality from uncommon up.
+- **Auto loot**: replaces the old self-looting, which went through the wrong game call. The master
+  looter's loot window now hands items out by itself. Options → Auto Loot sets who gets review loot
+  and other master loot (master looter, leave it, or players with fallbacks), with per-item exceptions,
+  gold, and an option for world bosses. Failures name the reason, such as full bags, and each item is
+  retried when the corpse is reopened. Hold Shift while opening loot to skip it. `/plc autoloot`
+  toggles it.
+- Only loot that actually reached the master looter joins a session now.
+- **Excluded items**: a curated list (`Data/ExcludedItems.lua`) of raid materials that are never
+  auto looted or reviewed, starting with Mark of the Illidari, Heart of Darkness, Sunmote and Primal
+  Nether. They stay in the window to assign through Blizzard's list, and quest items do the same.
+- **Preview mode**: `/plc preview` or Options → Preview runs the whole workflow in a group with
+  fictional items and trade timers. Nothing is saved to the history, everyone's real state comes back
+  afterwards, and trades use BoE items from the holder's bags as stand-ins.
+- Raid announcements use the current chat API instead of a deprecated one.
+- **Custom responses**: Options → Responses can rename, recolor, reorder, add (up to 7) and remove
+  response buttons. The session holder's set goes to everyone in the session, including anyone who
+  joins or reloads later. A running session keeps its buttons; edits apply to the next one.
+- Players who join the group, log in or reload during a session now catch up automatically, and
+  their windows update when they do.
+- An item now counts as bagged as soon as it's found in the bags, however it got there.
+
 ## 0.1.0-beta
 
 First public test version.
