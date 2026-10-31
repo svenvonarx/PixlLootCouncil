@@ -26,9 +26,10 @@ Reworked after the second round of playtest feedback: the ML stays on Master Loo
 and silently self-loots every qualifying item the moment it drops (items are BoP-tradeable for
 2h, so review/award happens later, not live at the corpse) — there is no more "vote live at this
 corpse's loot window" flow.
-- Set loot method to Master Loot (works solo, party of 1), enter any instance, loot a trash mob
-  whose drop meets `profile.lootThreshold` (Rare+ by default). Confirm the item actually lands in **your own bags** with no window popping up at all — collection is
-  deliberately silent (see `Loot/Detection.lua`'s `onLootReady`).
+- Set loot method to Master Loot in a real group (at least one other player), enter any instance, and
+  open a corpse whose drop meets `profile.lootThreshold` (Epic+ by default; patterns count from green
+  up). Confirm the item lands in **your own bags** with no window popping up at all (see section 2.15
+  and `Loot/AutoLoot.lua`).
 - Loot something *below* `profile.lootThreshold` (a gray/green): confirm it's left alone —
   normal Blizzard looting, untouched by the addon, not self-looted or tracked.
 - `/plc` any time afterward shows it in the list with a Pending status, confirming
@@ -586,3 +587,80 @@ addon's own existing taint capture, and the fastest signal if a protected-functi
 - **Holder's settings win:** change who's council on the holder mid-session (e.g. promote someone
   to assistant, tick a guild rank) — that player's window switches to the council view without a
   reload. A council member's own Council settings don't affect the running session.
+
+### 2.13 Loot Timers window (`UI/LootTimersFrame.lua`)
+- **Minimize / expand:** `/plc` → the bar button next to × swaps to Loot Timers; the square button
+  swaps back. `/plc` and auto-start keep using whichever view you left (the full window when the
+  list is empty). Dragging moves it, and the position survives a reload.
+- **Comes up by itself:** as master looter with the full window closed, collect an item: the list
+  appears. × hides it until the next new item. Escape doesn't close it. With the full window open
+  it stays hidden. A raider who holds no backlog never gets it on loot.
+- **Status and order:** an item is listed once it's in your bags. Timers come first, least time
+  first, then BoE / **No timer** (`/plc additem` items), then **Expired**. Each timer row's background
+  drains over the 2 hours and turns from green to accent to red.
+- **Reaching the bags another way:** give yourself an item through Blizzard's master-loot list. Within
+  about a second it appears with its timer.
+- **What's listed:** Mark of the Illidari (green), Heart of Darkness and Sunmote (blue) stay out. Epics,
+  legendaries, tier tokens and patterns of any quality from green up are listed.
+- **Start Session** appears only for whoever may start one, and opens the full window. During a
+  session it reads "Session running" instead. The window hides once the last item is awarded.
+- **Reload:** with items on a timer, `/reload`: the list comes back after about 4 seconds. A character
+  with only expired leftovers doesn't get it.
+
+### 2.14 Custom responses (`Data/Responses.lua`)
+- **Editing:** Options → Responses. Rename (Enter or click away; empty keeps the old name), pick a
+  color, reorder with ^ / v, remove (the last one can't go), add up to 7. **Reset to default** restores
+  the five built-in responses. A removed response stays gone after `/reload`.
+- **Holder's set wins:** A edits their responses and starts a session; B keeps the defaults. B's Loot
+  Response window shows A's buttons, sized to fit, and A's grid shows B's answer in A's text and color.
+- **Back to your own:** B starts their own session afterwards: everyone gets B's set, and B's buttons
+  rebuild without a reload.
+- **Fixed for the session:** while a session runs, A edits their responses. Nothing changes for anyone;
+  the next session uses the edit.
+- **Late players:** during a session, B reloads, or joins the group, or logs in. B gets a "synced" line
+  and the Loot Response window opens with A's buttons.
+- **Holder reload:** A reloads mid-session. A's grid still shows the session's buttons, even if A's
+  options were edited since, and a resync from B returns the same set.
+- **Older clients:** a client without this version shows its own buttons. Its answers appear in dim
+  text with their raw name if the session has no matching response.
+
+### 2.15 Auto loot (`Loot/AutoLoot.lua`, `Loot/Award.lua`)
+Needs a real group on Master Loot, with drops at or above the group's loot threshold.
+- **Default:** open a corpse with an epic: it reaches your bags within a second, with no candidate list.
+  It appears in Loot Timers with its timer.
+- **Shift:** hold Shift while opening a corpse: nothing is handed out, and you can loot by hand.
+- **Off:** Options → Auto Loot, or `/plc autoloot`: nothing is handed out.
+- **Named target:** set epics to "Players..." with another player's name: the item goes to them, chat
+  says so, and it doesn't join a session.
+- **Fallback:** "Mule, Other" with Mule's bags full: chat reports Mule's bags, and Other gets the item.
+- **Nobody eligible:** a name that's not in the raid: chat says nobody can receive it, the item stays
+  in the window. Reopening the corpse tries again.
+- **Other loot:** default leaves blues and greens alone. Set a mule: they go to the mule without
+  joining a session. Marks of the Illidari and Hearts of Darkness count as other loot.
+- **Exceptions:** add Mark of the Illidari (32897) with a player: it goes to them. Add an epic with
+  Leave in window: it stays, and doesn't join a session even if you loot it by hand.
+- **Excluded items:** Mark of the Illidari, Heart of Darkness, Sunmote and Primal Nether stay in the
+  window even with other loot sent to a mule, and so do quest items. Clicking one opens Blizzard's
+  assign list. Options → Auto Loot lists them without a remove button.
+- **Legendary:** with epics set to a player, a legendary still comes to you.
+- **Gold:** gold is looted from corpses when the option is on. Lockboxes aren't touched.
+- **Outside instances:** with the option on, a world boss's loot is handled too.
+- **Bags full (yours):** chat says so, nothing joins a session, and reopening the corpse retries.
+
+### 2.16 Preview mode (`Data/Preview.lua`)
+Needs the addon on everyone taking part. Start it with `/plc preview` or Options → Preview.
+- **Start:** only whoever may start a session can, and not during a real session. Everyone gets the
+  Loot Response window, marked PREVIEW, and raid chat lines start with [Preview].
+- **Timers:** Loot Timers shows every state: long, under an hour, under 20 and 5 minutes (with the chat
+  reminders), expired, and BoE.
+- **Whole flow:** respond, stage, Award All, then trade. The winner's Loot Trades row works, and Trade
+  places a random BoE from the holder's bags, never better than rare. Completing the trade clears the
+  row on both sides, and the last one ends the preview for everyone.
+- **No BoE in bags:** chat says so; × removes the row.
+- **Self-disenchant:** the Disenchant button does nothing in a preview.
+- **Nothing kept:** the history has no new entries on any client.
+- **State comes back:** with real items in your backlog, and raiders with real "items to collect", run a
+  preview: everything real is back afterwards. `/reload` as the holder ends it for you, with your real
+  backlog intact; raiders leave with `/plc preview`.
+- **Real loot:** loot a real epic during a preview: it ends at once, and the item is in your real list.
+- **Late player:** reload or join during a preview: they get the preview, marked PREVIEW.

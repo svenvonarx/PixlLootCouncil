@@ -10,13 +10,26 @@ uses RCLootCouncil's format.
 
 ## Features
 
-- **Silent loot collection.** As master looter you just loot. Items at or above your quality
-  threshold go straight into your bags, with no popups mid-pull.
+- **Auto loot.** As master looter you just open the corpse. Items at or above your quality threshold
+  (Epic by default) and all patterns go straight into your bags, and the full session window stays
+  closed mid-pull. Under Options → Auto Loot you choose who gets what, send other master loot to a
+  mule, add exceptions for single items, and turn the whole thing off. Hold Shift while opening loot
+  to do that corpse by hand.
 - **Trade-time tracking.** Each bagged item shows how long it can still be traded: soulbound loot
   has a 2-hour trade window, and BoE recipes from the raid have no limit. You get a chat reminder at
   20 and 5 minutes, and expired items are flagged.
+- **Loot Timers window.** Minimize the Loot Session window to a small list of what you've picked up
+  for review, most urgent first, with each item's trade time left. It appears by itself when new
+  loot reaches your bags.
+- **Excluded items.** Raid materials such as Mark of the Illidari stay in the loot window for you to
+  assign through Blizzard's list. The curated list is in `Data/ExcludedItems.lua`, and your exceptions
+  override it.
+- **Preview mode.** `/plc preview` or Options → Preview runs the whole workflow in your group with
+  fictional items and trade timers. Nothing is saved to the history, and your real loot list comes
+  back afterwards.
 - **Loot Response window** for raiders: BiS / Upgrade / PvP / OS / Pass plus an optional note, with
-  a countdown.
+  a countdown. The master looter can change these buttons under Options → Responses, and everyone in
+  the session sees the master looter's set.
 - **Loot Session window** for the council:
   - every candidate's response and note, equipped items, item level difference and role
   - hover a name to see what that player has received; hover an item to see who already got it
@@ -44,15 +57,16 @@ uses RCLootCouncil's format.
 ## Requirements
 
 - TBC Anniversary Classic.
-- **Master Loot** for the full workflow (collection, sessions, trades).
+- **Master Loot** for the full workflow (auto loot, sessions, trades).
 - Raiders need the addon to respond to a session. People without it show as *No addon detected*.
 
 ## Getting started
 
 ### Master looter
 
-1. Set the group's loot method to **Master Loot** and loot as usual. Qualifying items are collected
-   into your bags. Change the quality threshold under Options → General.
+1. Set the group's loot method to **Master Loot** and open corpses as usual. Qualifying items are
+   handed to you automatically. Change who gets what under Options → Auto Loot, and the quality
+   threshold under Options → General.
 2. Type `/plc` to open the **Loot Session** window, then press **Start Session**. With auto-start on
    (the default), this happens by itself a few seconds after you collect loot.
 3. For each item, click **Award** next to a candidate, or **Disenchant**. This only *stages* the pick
@@ -77,6 +91,9 @@ note if you like. Awarded items show up in **Loot Trades** with a **Trade** butt
 | Command | What it does |
 |---|---|
 | `/plc` | Open the Loot Session window |
+| `/plc timers` | Show or hide the Loot Timers window |
+| `/plc autoloot` | Turn auto loot on or off |
+| `/plc preview` | Start or stop a practice session with fictional loot |
 | `/plc loot` | Reopen the Loot Response window |
 | `/plc trades` | Reopen the Loot Trades window |
 | `/plc history` | Open the Loot History window |
@@ -121,6 +138,8 @@ Please open an issue on [GitHub](https://github.com/svenvonarx/PixlLootCouncil/i
 PixlLootCouncil is free software under the **GNU General Public License v3.0 or later**; see
 [LICENSE](LICENSE).
 
+- Auto loot's idea of rules, fallback targets and Shift to skip is inspired by the PackMule module in
+  [Gargul](https://www.curseforge.com/wow/addons/gargul). No Gargul code is used.
 - The loot history format, the TSV export layout, the in-game sync protocol and a few item helpers
   follow [RCLootCouncil](https://github.com/evil-morfar/RCLootCouncil2) (GPL-3.0) for compatibility.
 - Bundled libraries:
