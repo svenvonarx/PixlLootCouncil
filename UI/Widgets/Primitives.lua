@@ -326,24 +326,53 @@ function Primitives.createNoteIcon(parent, size)
 	return icon
 end
 
--- Window/row close control: a thin accent "X" that turns red on hover.
-function Primitives.createCloseButton(parent, size)
-	size = size or 20
+-- A glyph button: `drawStrokes(button)` returns its accent strokes, which turn `hoverColor` on hover.
+local function createGlyphButton(parent, size, hoverColor, drawStrokes)
 	local button = CreateFrame("Button", nil, parent)
 	button:SetSize(size, size)
-	local strokes = {
-		stroke(button, "accent", size * 0.6, 45),
-		stroke(button, "accent", size * 0.6, -45),
-	}
+	local strokes = drawStrokes(button)
 	local function recolor(colorName)
 		local r, g, b = Primitives.color(colorName)
 		for _, line in ipairs(strokes) do
 			line:SetColorTexture(r, g, b, 1)
 		end
 	end
-	button:SetScript("OnEnter", function() recolor("warning") end)
+	button:SetScript("OnEnter", function() recolor(hoverColor) end)
 	button:SetScript("OnLeave", function() recolor("accent") end)
 	return button
+end
+
+-- Window/row close control: a thin accent "X" that turns red on hover.
+function Primitives.createCloseButton(parent, size)
+	size = size or 20
+	return createGlyphButton(parent, size, "warning", function(button)
+		return {
+			stroke(button, "accent", size * 0.6, 45),
+			stroke(button, "accent", size * 0.6, -45),
+		}
+	end)
+end
+
+-- Collapse a window into its small view: a single bar along the bottom.
+function Primitives.createMinimizeButton(parent, size)
+	size = size or 20
+	return createGlyphButton(parent, size, "white", function(button)
+		return { stroke(button, "accent", size * 0.6, 0, 0, -size * 0.2) }
+	end)
+end
+
+-- Back to the full window: a small square outline.
+function Primitives.createExpandButton(parent, size)
+	size = size or 20
+	local side, offset = size * 0.5, size * 0.25
+	return createGlyphButton(parent, size, "white", function(button)
+		return {
+			stroke(button, "accent", side, 0, 0, offset),
+			stroke(button, "accent", side, 0, 0, -offset),
+			stroke(button, "accent", side, 90, -offset, 0),
+			stroke(button, "accent", side, 90, offset, 0),
+		}
+	end)
 end
 
 -- Downward chevron for dropdowns: two strokes meeting just below the center.

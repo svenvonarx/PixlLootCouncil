@@ -22,6 +22,7 @@ local RECIPE_CLASS_ID = (Enum and Enum.ItemClass and Enum.ItemClass.Recipe) or 9
 local MIN_RECIPE_QUALITY = 2 -- uncommon
 local REMINDER_THRESHOLDS = { 1200, 300 } -- RC warns at 20 min; a final nudge at 5
 local REFRESH_SECONDS = 30
+BagTracker.TRADE_WINDOW_SECONDS = 7200 -- soulbound raid loot stays tradable for 2 hours
 
 local function getContainerFns()
 	return (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots,
@@ -133,7 +134,7 @@ local function applyStatus(item, status, secondsLeft)
 	if status == "timer" then
 		item.boe = nil
 		item.untradable = nil
-		item.tradeExpiresAt = time() + (secondsLeft or 7200)
+		item.tradeExpiresAt = time() + (secondsLeft or BagTracker.TRADE_WINDOW_SECONDS)
 	elseif status == "free" then
 		item.boe = true
 		item.untradable = nil
@@ -284,6 +285,10 @@ function BagTracker:Scan()
 				local status, secondsLeft = self:GetTradeStatus(entry.bag, entry.slot)
 				if item then
 					item.itemGUID = guid
+					-- It's in the bags now, however it got there (this addon's self-loot, autoloot,
+					-- or Blizzard's own master-loot list) -- the loot slot no longer means anything.
+					item.bagged = true
+					item.lootSlot = nil
 					applyStatus(item, status, secondsLeft)
 					changed = true
 				elseif inRaidInstance() and qualifies(entry, status) then

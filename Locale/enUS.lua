@@ -6,6 +6,7 @@ L["CHAT_PREFIX"] = "|cffE8A33D[PixlLootCouncil]|r "
 L["CMD_HELP_HEADER"] = "PixlLootCouncil slash commands:"
 L["CMD_UNKNOWN"] = "Unknown command: %s. Type /plc help for a list."
 
+
 L["ERROR_LOG_EMPTY"] = "No errors recorded."
 L["ERROR_LOG_ENTRY"] = "[%s] %s"
 
@@ -73,7 +74,16 @@ L["VOTINGFRAME_WAITING"] = "Waiting for response..."
 L["VOTINGFRAME_NO_ADDON"] = "No addon detected"
 L["VOTINGFRAME_VOTE_COUNT"] = "%d out of %d have voted"
 
+L["LOOTTIMERS_TITLE"] = "Loot Timers"
+L["LOOTTIMERS_EXPIRED"] = "Expired"
+L["LOOTTIMERS_NO_TIMER"] = "No timer"
+L["LOOTTIMERS_EMPTY"] = "No loot waiting for review."
+L["LOOTTIMERS_SESSION_RUNNING"] = "Session running"
+L["LOOTTIMERS_EXPAND_TIP"] = "Open the full Loot Session window"
+L["LOOTTIMERS_CLOSE_TIP"] = "Hide until new loot comes in"
+
 L["SESSIONFRAME_TITLE"] = "Loot Session"
+L["SESSIONFRAME_MINIMIZE_TIP"] = "Minimize to the Loot Timers list"
 L["SESSIONFRAME_START"] = "Start Session"
 L["SESSIONFRAME_END"] = "End Session"
 L["SESSIONFRAME_AWARDALL"] = "Award All"

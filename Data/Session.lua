@@ -920,6 +920,9 @@ function Session:notifySessionFrame()
 	if PLC.UI and PLC.UI.SessionFrame and PLC.UI.SessionFrame.OnSessionUpdated then
 		PLC.UI.SessionFrame:OnSessionUpdated()
 	end
+	if PLC.UI and PLC.UI.LootTimersFrame and PLC.UI.LootTimersFrame.OnSessionUpdated then
+		PLC.UI.LootTimersFrame:OnSessionUpdated()
+	end
 end
 
 -- UI/TradeFrame.lua doesn't exist until this round's own UI step -- guarded exactly like every

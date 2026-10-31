@@ -49,6 +49,10 @@ PLC.Defaults = {
 		-- RCLootCouncil's autoStart: collecting loot as master looter starts a review pass by itself
 		-- (Data/Session.lua:ScheduleAutoStart).
 		autoStartSession = true,
+		-- The Loot Session window was minimized into UI/LootTimersFrame.lua: `/plc` and auto-start
+		-- reopen that view instead of the full window.
+		sessionMinimized = false,
+		lootTimersWindow = { point = "RIGHT", x = -60, y = 120 }, -- LibWindow-1.1 position
 	},
 	char = {
 		activeSession = nil, -- Data/Session.lua persists the held session here; nil = not currently a holder

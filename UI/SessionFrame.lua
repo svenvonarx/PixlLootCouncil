@@ -685,6 +685,20 @@ local function ensureFrame()
 		frame:Hide()
 	end)
 
+	header.minimize = Primitives.createMinimizeButton(header, 20)
+	header.minimize:SetPoint("RIGHT", header.close, "LEFT", -2, 0)
+	header.minimize:SetScript("OnClick", function()
+		SessionFrame:Minimize()
+	end)
+	header.minimize:HookScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(L["SESSIONFRAME_MINIMIZE_TIP"])
+		GameTooltip:Show()
+	end)
+	header.minimize:HookScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+
 	Primitives.createSeparator(frame, -Theme.LAYOUT.headerHeight)
 
 	-- New toolbar row for the Enchanter picker, between the header and the icon-sidebar+detail
@@ -879,13 +893,40 @@ function SessionFrame:OnSessionUpdated()
 	refresh()
 end
 
--- Plain `/plc` -- the main entry point. There's no automatic popup on loot (collection is
--- deliberately silent across the whole raid, see Loot/Detection.lua); any council member, not just
--- the live ML, can use this to check progress or reach the controls for a running session.
-function SessionFrame:Open()
+local function showFullWindow()
 	local f = ensureFrame()
 	refresh()
 	f:Show()
+	PLC.UI.LootTimersFrame:Hide()
+end
+
+-- Plain `/plc` and auto-start -- the main entry point, in whichever view was used last. This full
+-- window never pops up on loot by itself (UI/LootTimersFrame.lua's small list does that, see
+-- Loot/Detection.lua); any council member, not just the live ML, can use this to check progress or
+-- reach the controls for a running session.
+function SessionFrame:Open()
+	if PLC.db.profile.sessionMinimized and PLC.UI.LootTimersFrame:HasItems() then
+		PLC.UI.LootTimersFrame:Show()
+	else
+		showFullWindow()
+	end
+end
+
+-- Swaps to the small Loot Timers view and remembers that choice.
+function SessionFrame:Minimize()
+	PLC.db.profile.sessionMinimized = true
+	frame:Hide()
+	PLC.UI.LootTimersFrame:Show()
+end
+
+-- Back from the Loot Timers view to this window.
+function SessionFrame:Expand()
+	PLC.db.profile.sessionMinimized = false
+	showFullWindow()
+end
+
+function SessionFrame:IsShown()
+	return frame ~= nil and frame:IsShown()
 end
 
 PLC:SetDefaultSlashHandler(function()

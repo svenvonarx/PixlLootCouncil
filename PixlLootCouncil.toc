@@ -48,6 +48,7 @@ UI\Widgets\PanelLayout.lua
 
 UI\LootFrame.lua
 UI\SessionFrame.lua
+UI\LootTimersFrame.lua
 UI\VotingFrame.lua
 UI\TradeFrame.lua
 UI\HistoryFrame.lua
