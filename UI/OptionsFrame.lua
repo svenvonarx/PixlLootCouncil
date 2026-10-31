@@ -618,6 +618,27 @@ local function buildCouncilPage(page)
 	refreshNames()
 end
 
+-- A practice run for the whole group (Data/Preview.lua). Also /plc preview.
+local function buildPreviewPage(page)
+	local text = Primitives.createText(page, L["OPTIONS_PREVIEW_HELP"], 12)
+	text:SetPoint("TOPLEFT")
+	text:SetPoint("TOPRIGHT")
+	text:SetJustifyH("LEFT")
+	text:SetWordWrap(true)
+
+	local button = ButtonWidget.createButton(page, L["OPTIONS_PREVIEW_START"], 160)
+	button:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -16)
+
+	local function refresh()
+		button.label:SetText(L[PLC.Session.preview and "OPTIONS_PREVIEW_STOP" or "OPTIONS_PREVIEW_START"])
+	end
+	button:SetScript("OnClick", function()
+		PLC.Preview:Toggle()
+		refresh()
+	end)
+	page:HookScript("OnShow", refresh)
+end
+
 local DEFAULT_ACCENT = { r = 0.91, g = 0.64, b = 0.24 }
 
 local function buildAppearancePage(page)
@@ -687,6 +708,8 @@ local function ensurePanel()
 		{ icon = "nav_council.png", description = L["OPTIONS_COUNCIL_INTRO"] }))
 
 	panel:AddSidebarHeader(L["OPTIONS_SECTION_SETTINGS"])
+	buildPreviewPage(panel:AddTab("preview", L["OPTIONS_TAB_PREVIEW"],
+		{ icon = "nav_general.png", description = L["OPTIONS_DESC_PREVIEW"] }))
 	buildAppearancePage(panel:AddTab("appearance", L["OPTIONS_TAB_APPEARANCE"],
 		{ icon = "nav_appearance.png", description = L["OPTIONS_DESC_APPEARANCE"] }))
 

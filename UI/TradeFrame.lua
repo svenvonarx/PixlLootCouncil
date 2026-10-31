@@ -271,6 +271,7 @@ local function ensureFrame()
 
 	header.title = Primitives.createText(header, L["TRADEFRAME_TITLE"], 18, "title")
 	header.title:SetPoint("LEFT", header.logo, "RIGHT", 8, -2)
+	frame.title = header.title
 
 	header.close = Primitives.createCloseButton(header, 20)
 	header.close:SetPoint("RIGHT", -6, 0)
@@ -337,6 +338,7 @@ function TradeFrame:Refresh()
 
 	local f = ensureFrame()
 	dataTable:SetRows(rows)
+	f.title:SetText(PLC.Session.preview and (L["TRADEFRAME_TITLE"] .. " - " .. L["PREVIEW_LABEL"]) or L["TRADEFRAME_TITLE"])
 
 	if wasEmpty then
 		userClosed = false

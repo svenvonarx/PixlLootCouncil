@@ -36,6 +36,7 @@ Session.nextIdx = 1
 Session.sentFirstBatch = false
 Session.responseTimeoutSeconds = 60 -- the holder's db.profile.responseTimeoutSeconds wins for everyone -- see Start()
 Session.responseSet = nil -- the holder's response buttons, fixed at Start() -- see Data/Responses.lua
+Session.preview = false -- a practice session with fictional loot is running -- see Data/Preview.lua
 Session.isCollector = false -- true once this client has silently bagged at least one item -- see persist()
 -- [guid] = true: the loot council for the current session, decided by the HOLDER's council
 -- settings and broadcast by the holder (session_start, sync, "council" on roster changes), so every
@@ -224,6 +225,9 @@ end
 -- carry their own bagged/awarded/preAwardGuid state, so nothing extra is needed); when neither
 -- is true, it explicitly clears the saved slot instead of leaving a stale value behind.
 function persist()
+	if Session.preview then
+		return -- the real session stays exactly as it was saved
+	end
 	if Session:IsHolder() or Session.isCollector then
 		PLC.db.char.activeSession = {
 			sessionId = Session.sessionId,
@@ -352,6 +356,11 @@ local function applyReceivedItems(items)
 	end
 end
 
+-- Adds items built elsewhere in the wire shape, resolving their links and icons (Data/Preview.lua).
+function Session:ApplyItems(items)
+	applyReceivedItems(items)
+end
+
 local function startHeartbeat()
 	if heartbeatTimerHandle then
 		return
@@ -377,6 +386,13 @@ end
 -- copy. Filtered by Detection:IsReviewItem so trash doesn't get hoovered into the backlog.
 function Session:CollectDetectedItems(lootSlotInfo, delivered)
 	local newlyCollected = {}
+	local realLoot = false
+	for _, info in pairs(lootSlotInfo) do
+		realLoot = realLoot or PLC.Loot.Detection:IsReviewItem(info.link, info.quality)
+	end
+	if realLoot and self.preview then
+		PLC.Preview:Stop(L["PREVIEW_ENDED_REAL_LOOT"])
+	end
 
 	for lootSlot, info in pairs(lootSlotInfo) do
 		if PLC.Loot.Detection:IsReviewItem(info.link, info.quality) then
@@ -445,6 +461,7 @@ end
 -- client's own loot-window collection: a trade-window BoP or a BoE recipe). Same shape as a
 -- collected item, already bagged and tied to its physical copy via itemGUID. Returns the entry.
 function Session:AddTrackedItem(link, itemGUID)
+	PLC.Preview:Stop(L["PREVIEW_ENDED_REAL_LOOT"])
 	if self.state == "active" and not self:IsHolder() then
 		return nil
 	end
@@ -592,7 +609,7 @@ end
 function Session:broadcastNewItems(newItems)
 	if not self.sentFirstBatch then
 		self.sentFirstBatch = true
-		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(newItems), self.responseTimeoutSeconds, self.enchanterGuid, councilList(self.council), self.responseSet)
+		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(newItems), self.responseTimeoutSeconds, self.enchanterGuid, councilList(self.council), self.responseSet, self.preview)
 		PLC.Loot.Announce:AnnounceSessionStart(newItems)
 	else
 		PLC.Comms.Sync:SendItemAdd(self.sessionId, stripForTransmit(newItems))
@@ -606,6 +623,7 @@ end
 -- window. Holder-only once a review pass is active; works pre-Start() too (silent collection,
 -- same as CollectDetectedItems) as long as this client is the designated collector.
 function Session:AddManualItem(itemIdOrLink)
+	PLC.Preview:Stop(L["PREVIEW_ENDED_REAL_LOOT"])
 	if self.state == "active" and not self:IsHolder() then
 		print(L["CHAT_PREFIX"] .. L["SESSION_NOT_HOLDER"])
 		return
@@ -690,7 +708,7 @@ function Session:AwardBaggedItem(idx, winnerGuid, reason)
 	if PLC.Loot.Announce and PLC.Loot.Announce.AnnounceAward then
 		PLC.Loot.Announce:AnnounceAward({ link = item.link, winnerName = winnerEntry.name, reason = reason })
 	end
-	if PLC.History and PLC.History.RecordAward then
+	if PLC.History and PLC.History.RecordAward and not self.preview then
 		PLC.History:RecordAward(item, winnerGuid, reason)
 	end
 	-- A genuine self-AWARD (not disenchant) -- the item's already sitting right where it needs to
@@ -841,10 +859,20 @@ function Session:AwardAllPreAwarded()
 	end
 end
 
+-- A practice session sets the real state aside; a real one ends any practice run in progress.
+local function matchPreviewState(preview)
+	if preview then
+		PLC.Preview:Enter()
+	else
+		PLC.Preview:Leave()
+	end
+end
+
 function Session:OnSessionStartReceived(data)
 	if self:IsHolder() then
 		return
 	end
+	matchPreviewState(data.preview)
 	self.sessionId = data.sessionId
 	self.owner = data.owner
 	self.enchanterGuid = data.enchanterGuid
@@ -981,6 +1009,7 @@ function Session:MarkItemTraded(idx)
 	PLC.Comms.Sync:SendTradeComplete(self.sessionId, idx)
 	self:notifySessionFrame()
 	self:notifyTradeFrame()
+	PLC.Preview:CheckFinished()
 end
 
 -- Manual escape hatch from UI/TradeFrame.lua's remove button, for a row that's stuck (traded
@@ -1059,6 +1088,7 @@ function Session:End()
 	self:notifyTradeFrame()
 
 	print(L["CHAT_PREFIX"] .. L["SESSION_ENDED"])
+	PLC.Preview:CheckFinished()
 end
 
 function Session:OnSessionEndReceived(data)
@@ -1126,6 +1156,7 @@ function Session:OnSyncRequestReceived(data, sender)
 		lastHolderSeenAt = self.lastHolderSeenAt,
 		responseTimeoutSeconds = self.responseTimeoutSeconds,
 		responseSet = self.responseSet,
+		preview = self.preview or nil,
 		council = councilList(self.council),
 	}, sender)
 end
@@ -1134,6 +1165,7 @@ function Session:OnSyncDataReceived(data)
 	if self:IsHolder() or not data.sessionId then
 		return
 	end
+	matchPreviewState(data.preview)
 	self.sessionId = data.sessionId
 	self.owner = data.owner
 	self.enchanterGuid = data.enchanterGuid

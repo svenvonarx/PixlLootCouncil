@@ -248,7 +248,8 @@ local function render(rows)
 
 	fitHeight(count)
 	dataTable:SetRows(rows)
-	countText:SetText(count > 0 and tostring(count) or "")
+	local countLabel = count > 0 and tostring(count) or ""
+	countText:SetText(PLC.Session.preview and (countLabel .. "  " .. L["PREVIEW_LABEL"]) or countLabel)
 	emptyText:SetShown(count == 0)
 
 	local active = PLC.Session.state == "active"

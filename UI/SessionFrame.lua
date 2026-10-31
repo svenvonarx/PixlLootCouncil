@@ -459,7 +459,8 @@ local function updateHeaderOwner()
 		return
 	end
 	if PLC.Session.state == "active" and PLC.Session.owner then
-		header.ownerLabel:SetText(string.format(L["STARTED_BY_LABEL"], PLC.Roster:ShortName(PLC.Session.owner.name) or "?"))
+		local text = string.format(L["STARTED_BY_LABEL"], PLC.Roster:ShortName(PLC.Session.owner.name) or "?")
+		header.ownerLabel:SetText(PLC.Session.preview and (text .. "  " .. L["PREVIEW_LABEL"]) or text)
 		header.ownerLabel:Show()
 	else
 		header.ownerLabel:Hide()

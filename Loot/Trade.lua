@@ -39,7 +39,8 @@ function Trade:ConfigureDisenchantButton(button, idx)
 	end
 	local item = PLC.Session.items[idx]
 	local itemID = item and itemIDFromItemString(item.itemString)
-	if not itemID then
+	-- A preview item doesn't exist, and a real copy in the bags must not get disenchanted in its place.
+	if not itemID or PLC.Session.preview then
 		button:SetAttribute("macrotext", "")
 		return
 	end
@@ -205,6 +206,55 @@ local function findTradableStack(itemID, needed, guids)
 	return fallbackBag, fallbackSlot, fallbackCount
 end
 
+-- Preview items don't exist, so a trade carries a stand-in: a random BoE from the holder's bags. Those
+-- really change hands, so nothing better than rare is ever picked.
+local MAX_STAND_IN_QUALITY = 3
+
+local function pickStandIn(taken)
+	local BagTracker = PLC.Loot.BagTracker
+	local getNumSlots = getContainerFns()
+	local candidates = {}
+	for bag = 0, NUM_BAG_SLOTS do
+		for slot = 1, getNumSlots(bag) or 0 do
+			local id, _, locked = containerInfo(bag, slot)
+			if id and not locked and not taken[id] and BagTracker:GetTradeStatus(bag, slot) == "free" then
+				local _, _, quality = C_Item.GetItemInfo(id)
+				if quality and quality <= MAX_STAND_IN_QUALITY then
+					table.insert(candidates, id)
+				end
+			end
+		end
+	end
+	return candidates[1] and candidates[math.random(#candidates)]
+end
+
+-- The bag item that goes over for this award: normally the item itself.
+local function tradeItemID(item)
+	if PLC.Session.preview then
+		return item.tradeItemID
+	end
+	return itemIDFromItemString(item.itemString)
+end
+
+local function assignStandIns(partnerGuid)
+	local taken = {}
+	local warned = false
+	for _, item in pairs(PLC.Session.items) do
+		if item.awarded == partnerGuid and not item.traded then
+			item.tradeItemID = pickStandIn(taken)
+			if item.tradeItemID then
+				taken[item.tradeItemID] = true
+			elseif not warned then
+				warned = true
+				print(L["CHAT_PREFIX"] .. L["PREVIEW_NO_STAND_IN"])
+			end
+		end
+	end
+	if next(taken) then
+		print(L["CHAT_PREFIX"] .. L["PREVIEW_STAND_IN_NOTE"])
+	end
+end
+
 local function itemLabel(itemID)
 	return (select(2, C_Item.GetItemInfo(itemID))) or ("item:" .. itemID)
 end
@@ -264,9 +314,12 @@ local function onTradeShow()
 	if not PLC.Session:IsOwner() or not tradePartnerGuid then
 		return
 	end
+	if PLC.Session.preview then
+		assignStandIns(tradePartnerGuid)
+	end
 	local byItem, order = {}, {}
 	for idx, item in pairs(PLC.Session.items) do
-		local itemID = itemIDFromItemString(item.itemString)
+		local itemID = tradeItemID(item)
 		if itemID and item.awarded == tradePartnerGuid and not item.traded then
 			if not byItem[itemID] then
 				byItem[itemID] = { itemID = itemID, idxs = {}, guids = {} }
@@ -321,7 +374,7 @@ local function onUIInfoMessage(_, messageType, message)
 	end
 	table.sort(pending)
 	for _, idx in ipairs(pending) do
-		local itemID = itemIDFromItemString(PLC.Session.items[idx].itemString)
+		local itemID = tradeItemID(PLC.Session.items[idx])
 		if itemID and (tradedSnapshot[itemID] or 0) > 0 then
 			tradedSnapshot[itemID] = tradedSnapshot[itemID] - 1
 			PLC.Session:MarkItemTraded(idx)

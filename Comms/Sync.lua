@@ -11,7 +11,7 @@ local function channel()
 	return PLC.Loot.Announce:GetChannel()
 end
 
-function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, enchanterGuid, council, responseSet)
+function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, enchanterGuid, council, responseSet, preview)
 	local ch = channel()
 	if not ch then
 		return
@@ -66,6 +66,15 @@ function Sync:SendSessionEnd(sessionId)
 		return
 	end
 	Protocol:Send("session_end", { sessionId = sessionId }, ch)
+end
+
+-- Holder-only: a practice session is over, so everyone goes back to their real state (Data/Preview.lua).
+function Sync:SendPreviewEnd(sessionId)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("preview_end", { sessionId = sessionId }, ch)
 end
 
 function Sync:SendForceEnd(sessionId, byGuid)
@@ -187,6 +196,7 @@ Protocol:RegisterHandler("response", function(data) PLC.Session:OnResponseReceiv
 Protocol:RegisterHandler("award", function(data) PLC.Session:OnAwardReceived(data) end)
 Protocol:RegisterHandler("session_heartbeat", function(data) PLC.Session:OnHeartbeatReceived(data) end)
 Protocol:RegisterHandler("session_end", function(data) PLC.Session:OnSessionEndReceived(data) end)
+Protocol:RegisterHandler("preview_end", function(data) PLC.Preview:OnPreviewEndReceived(data) end)
 Protocol:RegisterHandler("session_force_end", function(data) PLC.Session:OnForceEndReceived(data) end)
 Protocol:RegisterHandler("session_sync_request", function(data, sender) PLC.Session:OnSyncRequestReceived(data, sender) end)
 Protocol:RegisterHandler("session_sync_data", function(data) PLC.Session:OnSyncDataReceived(data) end)

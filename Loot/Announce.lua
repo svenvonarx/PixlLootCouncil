@@ -26,6 +26,15 @@ local function iAmHolder()
 	return PLC.Session and PLC.Session.IsHolder and PLC.Session:IsHolder()
 end
 
+-- The global SendChatMessage only exists as a deprecation shim here, so prefer the real one.
+local function post(text, channel)
+	if PLC.Session.preview then
+		text = L["PREVIEW_CHAT_TAG"] .. text
+	end
+	local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+	send(text, channel)
+end
+
 -- One summary line, not one per item -- the per-item breakdown belongs in each candidate's
 -- UI/LootFrame.lua window, not raid chat.
 function Announce:AnnounceSessionStart(items)
@@ -40,7 +49,7 @@ function Announce:AnnounceSessionStart(items)
 	for _ in pairs(items) do
 		count = count + 1
 	end
-	SendChatMessage(string.format(L["ANNOUNCE_SESSION_START"], count), channel)
+	post(string.format(L["ANNOUNCE_SESSION_START"], count), channel)
 end
 
 function Announce:AnnounceAward(entry)
@@ -54,8 +63,8 @@ function Announce:AnnounceAward(entry)
 	-- Disenchant deliberately omits the winner name -- the Enchanter isn't "the winner" the way a
 	-- regular award's recipient is, just the designated hand it passes through.
 	if entry.reason == "disenchant" then
-		SendChatMessage(string.format(L["ANNOUNCE_DISENCHANT"], entry.link), channel)
+		post(string.format(L["ANNOUNCE_DISENCHANT"], entry.link), channel)
 	else
-		SendChatMessage(string.format(L["ANNOUNCE_AWARD"], entry.link, entry.winnerName), channel)
+		post(string.format(L["ANNOUNCE_AWARD"], entry.link, entry.winnerName), channel)
 	end
 end

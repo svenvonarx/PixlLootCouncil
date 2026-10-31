@@ -27,6 +27,7 @@ Data\ExcludedItems.lua
 Data\History.lua
 Data\HistoryImport.lua
 Data\Session.lua
+Data\Preview.lua
 
 Comms\Protocol.lua
 Comms\Sync.lua
