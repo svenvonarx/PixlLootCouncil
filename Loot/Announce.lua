@@ -64,6 +64,8 @@ function Announce:AnnounceAward(entry)
 	-- regular award's recipient is, just the designated hand it passes through.
 	if entry.reason == "disenchant" then
 		post(string.format(L["ANNOUNCE_DISENCHANT"], entry.link), channel)
+	elseif entry.reason == "bank" then
+		post(string.format(L["ANNOUNCE_BANK"], entry.link), channel)
 	else
 		post(string.format(L["ANNOUNCE_AWARD"], entry.link, entry.winnerName), channel)
 	end

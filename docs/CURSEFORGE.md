@@ -27,6 +27,7 @@ Raiders can drop RCLootCouncil and keep raiding with a loot master who still run
 ## Loot history
 
 - Stored in RCLootCouncil's exact format, with date, name, class and response filters.
+- Items you keep can be recorded as **Banking**, with nothing left to trade.
 - Exports to TSV for Google Sheets and Excel, so spreadsheets built on RC exports keep working.
 - Import your old history: RC's own `/rc sync`, a pasted Player Export, or directly from RC's saved data.
 

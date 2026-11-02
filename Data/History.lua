@@ -136,6 +136,10 @@ function History:RecordAward(item, winnerGuid, reason)
 	if reason == "disenchant" then
 		-- RC's default award reason #1 is Disenchant (sort 401 -> responseID 401 - 400 = 1).
 		response, responseID, color, isAwardReason = L["VOTINGFRAME_DISENCHANT"], 1, { 1, 1, 1, 1 }, true
+	elseif reason == "bank" then
+		-- RC's default award reason #2 is Banking (sort 402). The holder only keeps it, so their own
+		-- response and note say nothing about it.
+		response, responseID, color, isAwardReason, note = L["VOTINGFRAME_BANKING"], 2, { 1, 1, 1, 1 }, true, nil
 	elseif not response then
 		-- Holder awarded without the winner having responded.
 		response, responseID, color, isAwardReason = L["VOTINGFRAME_AWARD"], 0, { 1, 1, 1, 1 }, true
@@ -145,7 +149,10 @@ function History:RecordAward(item, winnerGuid, reason)
 		and (item.instance .. "-" .. item.difficultyName) or item.instance) or _G.UNKNOWN
 
 	local ownerEntry = PLC.Session.owner and PLC.Roster:Get(PLC.Session.owner.guid)
-	local itemReplaced1, itemReplaced2 = itemsReplaced(winnerGuid, item.link)
+	local itemReplaced1, itemReplaced2
+	if reason ~= "bank" then -- nothing of the holder's is being replaced
+		itemReplaced1, itemReplaced2 = itemsReplaced(winnerGuid, item.link)
+	end
 	local t = serverTimeLocal()
 
 	local entry = {

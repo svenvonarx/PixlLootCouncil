@@ -397,9 +397,13 @@ Award still just means "record the decision and tell the holder who to trade it 
   or before it auto-advanced away — either way SetPreAward just overwrites the previous pick):
   confirm the first candidate's button reverts to plain "Award" and the second candidate's button
   now reads "Staged" — only one candidate is ever staged per item.
-- Click Disenchant (the header control, next to "N out of M voted") on a different item: confirm
+- Click Disenchant (the header control, next to "N/M voted") on a different item: confirm
   it stages to the current Enchanter (see 2.8) without needing any candidate row clicked, the
   header button itself flips to "Staged", and the sidebar auto-advances the same way Award does.
+- `luajit tests/banking_test.lua` covers Banking from the button to the history; the steps below are for
+  the real windows.
+- Click Banking on another item: its button flips to "Staged", no candidate row does (even your own),
+  and the sidebar auto-advances. Clicking Award or Disenchant on it afterwards replaces the pick.
 - Auto-advance should skip only truly finished (awarded) items, not staged-but-uncommitted ones —
   stage two items in a row and confirm the second stage lands on the very next item, not one
   further down the list.
@@ -413,6 +417,9 @@ Award still just means "record the decision and tell the holder who to trade it 
   - A disenchant commit prints the disenchant instruction line instead, and announces with the
     item link only — **no winner name** — even though a real roster GUID (the Enchanter) is
     recorded underneath.
+  - A banking commit announces "sent to the bank" with no name. It's in the history under the holder
+    as Banking, with no gear or note, it isn't in Loot Trades and gets no trade reminders. If only
+    banked items were committed, Loot Trades doesn't open at all.
   - Both print/announce from the holder's client only; the candidate's client does neither.
   - An item that was never staged is left untouched (still "Pending").
 - Attempt to Award All again, or stage-and-commit the same item twice: confirm the already-
@@ -427,8 +434,10 @@ Award still just means "record the decision and tell the holder who to trade it 
   committed it.
 - Sidebar icon tooltip wording matches the reason: a committed disenchant reads "Disenchanted"
   (not "Awarded: PlayerName"), and a staged disenchant reads "Staged: Disenchant (EnchanterName)"
-  (not "Staged: EnchanterName") — border colors stay the same success/accent as a regular
-  award/stage, only the tooltip text branches.
+  (not "Staged: EnchanterName"). Banking reads "Banked" and "Staged: Banking". Border colors stay
+  the same success/accent as a regular award/stage, only the tooltip text branches.
+- Header row: with a long item name, the name is cut short with the vote count and both buttons
+  clear of it, and the trade time still shows on ordinary names. Hovering shows the whole item.
 
 ### 2.6 Chat announcements, exactly once (Stage 6, reworked after first playtest)
 - With a real session and award happening, confirm the session-start summary line (one line
@@ -576,12 +585,13 @@ addon's own existing taint capture, and the fastest signal if a protected-functi
 - **Starting:** with Master Loot on, only the master looter sees Start Session (and auto-start).
   Without Master Loot: the group leader; solo: anyone. Others get "Only the master looter can
   start a loot session." from `/plc`-triggered starts.
-- **Holder:** full controls — Award per row, Disenchant, Award All, End Session, Remove/Remove All,
+- **Holder:** full controls — Award per row, Disenchant, Banking, Award All, End Session, Remove/Remove All,
   Enchanter picker.
-- **Council member (not holder):** sees the grid with responses; no Award buttons, no Disenchant,
-  no Award All/End/Remove All; Enchanter picker is read-only. When the holder stages a pick, the
-  row shows "Staged" (and the sidebar icon turns orange) within a second; a staged disenchant shows
-  as "Staged: Disenchant" next to the vote count.
+- **Council member (not holder):** sees the grid with responses; no Award buttons, no Disenchant or
+  Banking, no Award All/End/Remove All; Enchanter picker is read-only. When the holder stages a pick,
+  the row shows "Staged" (and the sidebar icon turns orange) within a second; a staged disenchant or
+  banking shows as "Staged: Disenchant" or "Staged: Banking" next to the vote count, at the right edge
+  where the holder has the buttons.
 - **Not on the council:** the Loot Session window lists the items but shows "Only the loot council
   can see responses and award decisions for this item." instead of the grid.
 - **Holder's settings win:** change who's council on the holder mid-session (e.g. promote someone

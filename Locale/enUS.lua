@@ -72,6 +72,7 @@ L["LOOT_METHOD_NOT_MASTER"] = "This group's loot method isn't Master Loot -- Pix
 L["ANNOUNCE_SESSION_START"] = "[PixlLootCouncil] Loot session started with %d item(s) -- check your Loot Response window!"
 L["ANNOUNCE_AWARD"] = "[PixlLootCouncil] %s awarded to %s"
 L["ANNOUNCE_DISENCHANT"] = "[PixlLootCouncil] %s sent to disenchant"
+L["ANNOUNCE_BANK"] = "[PixlLootCouncil] %s sent to the bank"
 
 L["COMMS_UNKNOWN_VERSION"] = "Ignored a message using protocol version %s (newer than this client understands)."
 
@@ -106,11 +107,14 @@ L["TRADE_NO_TRADABLE"] = "No tradable %s found in your bags -- drag it into the 
 L["VOTINGFRAME_AWARD"] = "Award"
 L["VOTINGFRAME_DISENCHANT"] = "Disenchant"
 L["VOTINGFRAME_DISENCHANT_TARGET"] = "Will go to: %s"
+L["VOTINGFRAME_BANKING"] = "Banking"
+L["VOTINGFRAME_BANKING_TIP"] = "You keep the item, and it's recorded in the loot history as Banking. There's nothing to trade afterwards."
 L["VOTINGFRAME_STAGED"] = "Staged"
 L["VOTINGFRAME_STAGED_DISENCHANT"] = "Staged: Disenchant"
+L["VOTINGFRAME_STAGED_BANKING"] = "Staged: Banking"
 L["VOTINGFRAME_WAITING"] = "Waiting for response..."
 L["VOTINGFRAME_NO_ADDON"] = "No addon detected"
-L["VOTINGFRAME_VOTE_COUNT"] = "%d out of %d have voted"
+L["VOTINGFRAME_VOTE_COUNT"] = "%d/%d voted"
 
 L["LOOTTIMERS_TITLE"] = "Loot Timers"
 L["LOOTTIMERS_EXPIRED"] = "Expired"
@@ -136,6 +140,7 @@ L["SESSIONFRAME_REMOVE_ALL_CONFIRM"] = "Remove all %d not-yet-awarded item(s) fr
 L["SESSIONFRAME_AWARDED_TO"] = "Awarded: %s"
 L["SESSIONFRAME_PREAWARDED_TO"] = "Staged: %s"
 L["SESSIONFRAME_DISENCHANTED"] = "Disenchanted"
+L["SESSIONFRAME_BANKED"] = "Banked"
 L["SESSIONFRAME_STAGED_DISENCHANT"] = "Staged: Disenchant (%s)"
 L["SESSIONFRAME_PENDING"] = "Pending"
 L["SESSIONFRAME_EXPIRED"] = "Expired"

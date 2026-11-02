@@ -6,6 +6,8 @@
   person on your list who's online in the group becomes master looter. Handing it to someone else
   afterwards sticks, and holding Shift skips it once. The same page can set the loot threshold at that
   moment too.
+- **Banking**: next to Disenchant in the Loot Session window, for items you keep. It's recorded in the
+  loot history as Banking, the same way RCLootCouncil records it, and nothing shows up in Loot Trades.
 - **Options overhaul**: a selected menu entry now runs the full width of the menu, and the logo,
   section titles and icons share one left edge. Pages have more room, and General is split into Raid
   chat, RCLootCouncil, Loot and Timing. Auto Loot, Master Looter, Preview and About have their own
@@ -16,6 +18,9 @@
 - **About page** (`/plc about`): your version, the version of everyone in your group, and the credits.
   You get one chat notice when someone in your group has a newer version.
 - **Fixed** the Auto Loot exception list using the wrong row height.
+- **Fixed** Award All opening an empty Loot Trades window when nothing was left to trade.
+- **Fixed** long item names running into the vote count in the Loot Session window. They're cut short
+  now, and hovering shows the whole item. The vote count itself is shorter, as "25/25 voted".
 
 ## 0.3.0-beta
 

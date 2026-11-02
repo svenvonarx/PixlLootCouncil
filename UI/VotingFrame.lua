@@ -102,8 +102,8 @@ function Panel:buildRows()
 			-- Excludes a disenchant stage even when this candidate happens to BE the current
 			-- Enchanter -- they didn't win it as a candidate, so their own Award button shouldn't
 			-- read "Staged" just because the item is staged for disenchant (see Panel:Disenchant's
-			-- own header-level "Staged" swap instead).
-			staged = item ~= nil and item.preAwardGuid == guid and item.preAwardReason ~= "disenchant",
+			-- own header-level "Staged" swap instead). Banking the same: the holder didn't win it.
+			staged = item ~= nil and item.preAwardGuid == guid and item.preAwardReason == "award",
 		}
 
 		local slotIDs = equipLoc and PLC.Gear:SlotsForEquipLoc(guid, equipLoc)
@@ -133,7 +133,7 @@ function Panel:buildRows()
 	return rows
 end
 
--- "N out of M have voted" (RCLootCouncil-style header, from the screenshot comparison) -- M is
+-- "N/M voted" (short, it shares its row with the item name and two buttons) -- M is
 -- everyone shown in the table (addon or not), N is actual recorded responses, regardless of
 -- presence.
 function Panel:updateHeader()
@@ -145,11 +145,15 @@ function Panel:updateHeader()
 		end
 	end
 	local text = string.format(L["VOTINGFRAME_VOTE_COUNT"], responded, total)
-	-- The holder sees a staged disenchant on the Disenchant button itself; everyone else only
-	-- has this header line to see it.
+	-- The holder sees a staged disenchant or banking on its button itself; everyone else only has
+	-- this header line to see it.
 	local item = self.currentIdx and PLC.Session.items[self.currentIdx]
-	if item and item.preAwardReason == "disenchant" and not PLC.Session:IsHolder() then
-		text = text .. "  |  " .. L["VOTINGFRAME_STAGED_DISENCHANT"]
+	if item and not PLC.Session:IsHolder() then
+		if item.preAwardReason == "disenchant" then
+			text = text .. "  |  " .. L["VOTINGFRAME_STAGED_DISENCHANT"]
+		elseif item.preAwardReason == "bank" then
+			text = text .. "  |  " .. L["VOTINGFRAME_STAGED_BANKING"]
+		end
 	end
 	self.header:SetText(text)
 end
@@ -182,21 +186,29 @@ function Panel:Disenchant()
 	PLC.UI.SessionFrame:AdvanceToNextItem()
 end
 
--- Same "Staged" label/color swap the Award column's buttons use, just for the one header-level
--- Disenchant control -- item.preAwardReason == "disenchant" is the one state that matters here,
--- regardless of which candidate (if any) the Enchanter happens to also be.
-function Panel:updateDisenchantButton()
-	local item = self.currentIdx and PLC.Session.items[self.currentIdx]
-	local staged = item ~= nil and item.preAwardReason == "disenchant"
-	if staged then
-		self.disenchantButton.label:SetText(L["VOTINGFRAME_STAGED"])
-		local r, g, b = Primitives.color("accent")
-		self.disenchantButton.label:SetTextColor(r, g, b)
-	else
-		self.disenchantButton.label:SetText(L["VOTINGFRAME_DISENCHANT"])
-		local r, g, b = Primitives.color("text")
-		self.disenchantButton.label:SetTextColor(r, g, b)
+-- Stages to the holder, who keeps the item. Only they get this button, like Disenchant.
+function Panel:Bank()
+	if not self.currentIdx then
+		return
 	end
+	PLC.Session:SetPreAward(self.currentIdx, UnitGUID("player"), "bank")
+	PLC.UI.SessionFrame:AdvanceToNextItem()
+end
+
+local function updateStageButton(button, staged, text)
+	button.label:SetText(staged and L["VOTINGFRAME_STAGED"] or text)
+	local r, g, b = Primitives.color(staged and "accent" or "text")
+	button.label:SetTextColor(r, g, b)
+end
+
+-- Same "Staged" label/color swap the Award column's buttons use, just for the header-level
+-- Disenchant and Banking controls -- item.preAwardReason is the one state that matters here,
+-- regardless of which candidate (if any) the Enchanter or holder happens to also be.
+function Panel:updateStageButtons()
+	local item = self.currentIdx and PLC.Session.items[self.currentIdx]
+	local reason = item and item.preAwardReason
+	updateStageButton(self.disenchantButton, reason == "disenchant", L["VOTINGFRAME_DISENCHANT"])
+	updateStageButton(self.bankButton, reason == "bank", L["VOTINGFRAME_BANKING"])
 end
 
 function Panel:ShowItem(idx)
@@ -204,7 +216,7 @@ function Panel:ShowItem(idx)
 	self.rowsData = self:buildRows()
 	self.dataTable:SetRows(self.rowsData)
 	self:updateHeader()
-	self:updateDisenchantButton()
+	self:updateStageButtons()
 end
 
 -- Session:notifyVotingFrame's target (forwarded via VotingFrame:OnItemUpdated below). guid
@@ -219,7 +231,7 @@ function Panel:OnItemUpdated(idx, guid)
 		self.rowsData = self:buildRows()
 		self.dataTable:SetRows(self.rowsData)
 		self:updateHeader()
-		self:updateDisenchantButton()
+		self:updateStageButtons()
 		return
 	end
 	local rowIndex = findRowIndexByGuid(self.rowsData, guid)
@@ -227,7 +239,7 @@ function Panel:OnItemUpdated(idx, guid)
 		self.rowsData = self:buildRows()
 		self.dataTable:SetRows(self.rowsData)
 		self:updateHeader()
-		self:updateDisenchantButton()
+		self:updateStageButtons()
 		return
 	end
 	local responses = PLC.Session.responses[idx]
@@ -278,14 +290,14 @@ local function gearColumn(suffix)
 end
 
 -- Builds the candidate/role/response/Award grid into `parent` and returns the panel object. The
--- "N of M voted" text and the Disenchant button are NOT created here -- UI/SessionFrame.lua
+-- "N of M voted" text and the Disenchant and Banking buttons are NOT created here -- UI/SessionFrame.lua
 -- builds and positions those itself, sharing the same top row as the item name and the Remove
 -- button (one compact header bar instead of two stacked ones), and passes them in so this panel
 -- can still own their content/click behavior. Only one panel is ever actually live at a time in
 -- practice (the one UI/SessionFrame.lua mounts), but nothing here assumes that --
 -- VotingFrame.activePanel (set below) is just "whichever panel Session's forward-hooks should
 -- talk to."
-function VotingFrame.CreatePanel(parent, header, disenchantButton)
+function VotingFrame.CreatePanel(parent, header, disenchantButton, bankButton)
 	local tableContainer = CreateFrame("Frame", nil, parent)
 	tableContainer:SetPoint("TOPLEFT", parent, "TOPLEFT")
 	tableContainer:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT")
@@ -301,6 +313,7 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton)
 	local self = setmetatable({
 		header = header,
 		disenchantButton = disenchantButton,
+		bankButton = bankButton,
 		dataTable = dataTable,
 		currentIdx = nil,
 		rowsData = {},
@@ -325,6 +338,11 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton)
 	disenchantButton:HookScript("OnLeave", function()
 		GameTooltip:Hide()
 	end)
+
+	bankButton:SetScript("OnClick", function()
+		self:Bank()
+	end)
+	Primitives.attachTooltip(bankButton, L["VOTINGFRAME_BANKING"], L["VOTINGFRAME_BANKING_TIP"])
 
 	local columns = {
 		{

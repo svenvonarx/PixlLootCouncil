@@ -36,8 +36,8 @@ uses RCLootCouncil's format.
 - **Loot Session window** for the council:
   - every candidate's response and note, equipped items, item level difference and role
   - hover a name to see what that player has received; hover an item to see who already got it
-  - the session holder stages a pick per item (or **Disenchant** to the raid's Enchanter), then
-    commits everything with **Award All**
+  - the session holder stages a pick per item (or **Disenchant** to the raid's Enchanter, or
+    **Banking** to keep it, which only records it), then commits everything with **Award All**
   - the council sees staged picks live
 - **Loot Trades window** listing what you still have to hand out or collect, with trade time left:
   - **Trade** opens a trade and puts the awarded items in for you; you still click the trade
@@ -78,8 +78,8 @@ uses RCLootCouncil's format.
    threshold under Options → General.
 2. Type `/plc` to open the **Loot Session** window, then press **Start Session**. With auto-start on
    (the default), this happens by itself a few seconds after you collect loot.
-3. For each item, click **Award** next to a candidate, or **Disenchant**. This only *stages* the pick
-   and moves on to the next item.
+3. For each item, click **Award** next to a candidate, **Disenchant**, or **Banking** for items you
+   keep. This only *stages* the pick and moves on to the next item.
 4. Press **Award All** when you're done. The awards are announced, recorded in the history, and the
    session ends.
 5. In **Loot Trades**, click **Trade** next to each item (or open a trade with the winner) and confirm

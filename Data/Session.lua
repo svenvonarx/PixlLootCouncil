@@ -671,9 +671,10 @@ end
 --
 -- The only caller is AwardAllPreAwarded below -- there's no more direct, one-click-and-it's-final
 -- path from the UI (see UI/VotingFrame.lua): every row's Award/Disenchant button only ever calls
--- SetPreAward (stage), never this. `reason` is "award" (trade to winnerGuid) or "disenchant"
+-- SetPreAward (stage), never this. `reason` is "award" (trade to winnerGuid), "disenchant"
 -- (winnerGuid is the designated Enchanter, Session:GetEnchanterGuid() -- still a real roster GUID,
--- still goes through the exact same trade-tracking/Announce path, just with different wording).
+-- still goes through the exact same trade-tracking/Announce path, just with different wording) or
+-- "bank" (winnerGuid is the holder, who keeps it: this only records it, with nothing to trade).
 function Session:AwardBaggedItem(idx, winnerGuid, reason)
 	if not self:IsHolder() then
 		print(L["CHAT_PREFIX"] .. L["SESSION_NOT_HOLDER"])
@@ -718,8 +719,9 @@ function Session:AwardBaggedItem(idx, winnerGuid, reason)
 	-- the item is in the holder's bags, yes, but disenchanting it is a real action this addon
 	-- doesn't perform for them (no "auto-cast Disenchant" feature), so it still needs to show up as
 	-- a reminder. Loot/Trade.lua's own bag-watch picks it up automatically once they actually
-	-- disenchant it, the same way a real trade's completion is detected.
-	if reason == "award" and winnerGuid == UnitGUID("player") then
+	-- disenchant it, the same way a real trade's completion is detected. Banking has nothing left
+	-- to do either: that's the point of it.
+	if reason == "bank" or (reason == "award" and winnerGuid == UnitGUID("player")) then
 		self:MarkItemTraded(idx)
 	end
 	self:notifyVotingFrame(item.idx)
@@ -854,8 +856,14 @@ function Session:AwardAllPreAwarded()
 	-- could keep going on other items, was declined). End() already handles broadcasting
 	-- session_end, stopping the heartbeat, and pruning -- nothing else here needs to change.
 	self:End()
-	if PLC.UI and PLC.UI.TradeFrame and PLC.UI.TradeFrame.Open then
-		PLC.UI.TradeFrame:Open()
+	-- Banked items and self-awards are finished by now, so there may be nothing to trade at all.
+	for _, item in pairs(self.items) do
+		if item.awarded and not item.traded then
+			if PLC.UI and PLC.UI.TradeFrame and PLC.UI.TradeFrame.Open then
+				PLC.UI.TradeFrame:Open()
+			end
+			break
+		end
 	end
 end
 

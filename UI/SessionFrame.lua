@@ -36,6 +36,7 @@ local detailItemHover
 local detailRemoveButton
 local detailVoteCountText
 local detailDisenchantButton
+local detailBankButton
 local detailContainer
 local detailNotice
 local votingPanel
@@ -283,6 +284,8 @@ local function iconColumn(suffix)
 			if awarded then
 				if awardReason == "disenchant" then
 					holder.tooltipStatus = L["SESSIONFRAME_DISENCHANTED"]
+				elseif awardReason == "bank" then
+					holder.tooltipStatus = L["SESSIONFRAME_BANKED"]
 				else
 					local entry = PLC.Roster:Get(awarded)
 					holder.tooltipStatus = string.format(L["SESSIONFRAME_AWARDED_TO"], PLC.Roster:ShortName(entry and entry.name) or "?")
@@ -298,6 +301,8 @@ local function iconColumn(suffix)
 				if preAwardReason == "disenchant" then
 					local entry = PLC.Roster:Get(preAwardGuid)
 					holder.tooltipStatus = string.format(L["SESSIONFRAME_STAGED_DISENCHANT"], PLC.Roster:ShortName(entry and entry.name) or "?")
+				elseif preAwardReason == "bank" then
+					holder.tooltipStatus = L["VOTINGFRAME_STAGED_BANKING"]
 				else
 					local entry = PLC.Roster:Get(preAwardGuid)
 					holder.tooltipStatus = string.format(L["SESSIONFRAME_PREAWARDED_TO"], PLC.Roster:ShortName(entry and entry.name) or "?")
@@ -402,16 +407,28 @@ local function onRemoveClick()
 	refresh()
 end
 
--- Remove and Disenchant+vote-count share the same top-right slot (see ensureFrame) rather than
+-- Remove and Disenchant+Banking+vote-count share the same top-right slot (see ensureFrame) rather than
 -- needing separate rows -- they're never both meaningful at once: Remove only applies outside an
 -- active review (Session:IsHolder() itself requires state == "active", so Session:SetPreAward/
 -- SetEnchanter are no-ops the whole time Remove would be shown anyway), so showing one always
 -- means hiding the other, never both or neither.
+--
+-- The vote count sits left of the buttons, or takes their place for council members, who don't get
+-- them and need the room: their count also has to fit what's staged.
+local function anchorVoteCount(besideButtons)
+	detailVoteCountText:ClearAllPoints()
+	if besideButtons then
+		detailVoteCountText:SetPoint("TOPRIGHT", detailBankButton, "TOPLEFT", -10, -8)
+	else
+		detailVoteCountText:SetPoint("TOPRIGHT", detailDisenchantButton, "TOPRIGHT", 0, -8)
+	end
+end
+
 function showDetailFor(idx)
 	selectedIdx = idx
 	local item = idx and PLC.Session.items[idx]
 	-- Only the council sees the voting grid (responses, staged picks); only the holder gets the
-	-- controls (Disenchant here, Award in the grid -- see UI/VotingFrame.lua). Everyone else sees
+	-- controls (Disenchant and Banking here, Award in the grid -- see UI/VotingFrame.lua). Everyone else sees
 	-- the item list and a short notice.
 	local isCouncil = PLC.Session:IsCouncilMember() or PLC.Session:IsHolder()
 	detailNotice:SetShown(item ~= nil and not isCouncil)
@@ -420,6 +437,7 @@ function showDetailFor(idx)
 		detailItemHover.itemLink = item.link
 		detailRemoveButton:Hide()
 		detailDisenchantButton:Hide()
+		detailBankButton:Hide()
 		detailVoteCountText:Hide()
 		detailContainer:Hide()
 	elseif item then
@@ -427,7 +445,10 @@ function showDetailFor(idx)
 		detailItemHover.itemLink = item.link
 		local active = PLC.Session.state == "active"
 		detailRemoveButton:SetShown(not active and not item.awarded and PLC.Session:CanManage())
-		detailDisenchantButton:SetShown(active and PLC.Session:IsHolder())
+		local isHolder = PLC.Session:IsHolder()
+		detailDisenchantButton:SetShown(active and isHolder)
+		detailBankButton:SetShown(active and isHolder)
+		anchorVoteCount(active and isHolder)
 		detailVoteCountText:SetShown(active)
 		detailContainer:Show()
 		votingPanel:ShowItem(idx)
@@ -436,6 +457,7 @@ function showDetailFor(idx)
 		detailItemHover.itemLink = nil
 		detailRemoveButton:Hide()
 		detailDisenchantButton:Hide()
+		detailBankButton:Hide()
 		detailVoteCountText:Hide()
 		detailContainer:Hide()
 	end
@@ -790,7 +812,7 @@ local function ensureFrame()
 
 	-- One compact header bar: item name (left) and, sharing the same top-right slot (see
 	-- showDetailFor), either the Remove button (outside an active review) or the vote count +
-	-- Disenchant button (during one) -- previously two stacked rows (item name+Remove, then the
+	-- Banking and Disenchant buttons (during one) -- previously two stacked rows (item name+Remove, then the
 	-- embedded panel's own "N of M voted"+Disenchant row below a second separator), which ate
 	-- extra vertical space for no reason once Disenchant existed. Both buttons' final TOPRIGHT
 	-- anchor is set further below, once VotingFrame.GRID_WIDTH is known (set by CreatePanel) --
@@ -805,18 +827,20 @@ local function ensureFrame()
 
 	-- Same top-right slot as detailRemoveButton -- showDetailFor shows exactly one of the two,
 	-- never both (see its own comment for why that's always safe).
-	detailDisenchantButton = ButtonWidget.createButton(detailArea, L["VOTINGFRAME_DISENCHANT"], 90)
+	-- Both are just wide enough for their labels: the item name and the vote count share this row.
+	detailDisenchantButton = ButtonWidget.createButton(detailArea, L["VOTINGFRAME_DISENCHANT"], 78)
+	detailBankButton = ButtonWidget.createButton(detailArea, L["VOTINGFRAME_BANKING"], 62)
+	detailBankButton:SetPoint("RIGHT", detailDisenchantButton, "LEFT", -4, 0)
 
 	detailVoteCountText = Primitives.createText(detailArea, "", 11, "dim")
-	detailVoteCountText:SetPoint("RIGHT", detailDisenchantButton, "LEFT", -10, 0)
-	detailVoteCountText:SetPoint("TOP", detailDisenchantButton, "TOP", 0, -8)
+	anchorVoteCount(true)
 
 	-- A Frame wrapping the label, not the label itself -- a FontString has no SetScript, so
 	-- showing a tooltip on hover needs an actual Frame to own OnEnter/OnLeave. RIGHT is reserved
 	-- against the vote-count text's own left edge (not a fixed number), so it stays correct
-	-- regardless of exactly where that text and the button end up. This only bounds the hover-
-	-- tooltip trigger area, not the rendered text itself (detailItemLabel has no RIGHT point of
-	-- its own, so a very long item name can still visually extend further than this if it has to).
+	-- regardless of exactly where that text and the button end up. The label stops at the same
+	-- edge, so a long item name is cut short instead of running into the vote count: hovering it
+	-- shows the whole item.
 	detailItemHover = CreateFrame("Frame", nil, detailArea)
 	detailItemHover:SetPoint("TOPLEFT")
 	detailItemHover:SetPoint("RIGHT", detailVoteCountText, "LEFT", -10, 0)
@@ -832,7 +856,9 @@ local function ensureFrame()
 
 	detailItemLabel = Primitives.createText(detailItemHover, "", 13, "white")
 	detailItemLabel:SetPoint("LEFT")
+	detailItemLabel:SetPoint("RIGHT")
 	detailItemLabel:SetJustifyH("LEFT")
+	detailItemLabel:SetWordWrap(false)
 
 	Primitives.createSeparator(detailArea, -28)
 
@@ -847,7 +873,7 @@ local function ensureFrame()
 	detailNotice:SetWordWrap(true)
 	detailNotice:Hide()
 
-	votingPanel = PLC.UI.VotingFrame.CreatePanel(detailContainer, detailVoteCountText, detailDisenchantButton)
+	votingPanel = PLC.UI.VotingFrame.CreatePanel(detailContainer, detailVoteCountText, detailDisenchantButton, detailBankButton)
 
 	-- Only now does VotingFrame.GRID_WIDTH exist (CreatePanel just set it) -- both buttons' right
 	-- edge lands exactly on the grid's own right edge (the Award column's), measured from
