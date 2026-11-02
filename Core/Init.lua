@@ -101,7 +101,7 @@ end
 
 PLC:RegisterChatCommand("plc", "SlashHandler")
 
-PLC:RegisterSlashCommand("errors", "Show captured errors (useful for bug reports)", function()
+PLC:RegisterSlashCommand("errors", L["SLASH_ERRORS"], function()
 	local entries = PLC.ErrorHandler:GetEntries()
 	if #entries == 0 then
 		print(L["CHAT_PREFIX"] .. L["ERROR_LOG_EMPTY"])

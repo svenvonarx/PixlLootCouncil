@@ -56,17 +56,39 @@ end
 local scanTooltip
 local tradeTimePattern
 
--- "1 hour 52 min" / "52 min" / "45 sec" -> seconds. The client's own duration wording; matched on
--- the unit's first letter, which covers the English client. nil if nothing could be read.
-local function parseDuration(text)
-	local lower = text:lower()
-	local hours = tonumber(lower:match("(%d+)%s*h"))
-	local minutes = tonumber(lower:match("(%d+)%s*m"))
-	local seconds = tonumber(lower:match("(%d+)%s*s"))
-	if not hours and not minutes and not seconds then
-		return nil
+local durationUnits -- [unit as the client writes it] = seconds
+
+-- Adds a unit from the client's own format, where |4 lists its plural forms: "%d |4hour:hrs;".
+local function addDurationUnit(format, seconds)
+	local text = format:gsub("%%d", "")
+	local before, forms, after = text:match("^(.-)|4(.-);(.*)$")
+	if forms then
+		for form in forms:gmatch("[^:]+") do
+			durationUnits[strtrim(before .. form .. after)] = seconds
+		end
+	else
+		durationUnits[strtrim(text)] = seconds
 	end
-	return (hours or 0) * 3600 + (minutes or 0) * 60 + (seconds or 0)
+end
+
+-- "1 hour 52 min" / "52 min" / "45 sec" -> seconds, in any client language: "1 Stunde 52 Min.",
+-- "1小时52分钟". nil if nothing could be read.
+local function parseDuration(text)
+	if not durationUnits then
+		durationUnits = {}
+		addDurationUnit(INT_SPELL_DURATION_HOURS, 3600)
+		addDurationUnit(INT_SPELL_DURATION_MIN, 60)
+		addDurationUnit(INT_SPELL_DURATION_SEC, 1)
+	end
+	local total
+	for number, unit in text:gmatch("(%d+)%s*([^%d]*)") do
+		local seconds = durationUnits[strtrim(unit)]
+		if not seconds then
+			return nil
+		end
+		total = (total or 0) + tonumber(number) * seconds
+	end
+	return total
 end
 
 -- Returns one of:
@@ -77,9 +99,11 @@ end
 function BagTracker:GetTradeStatus(bag, slot)
 	if not scanTooltip then
 		scanTooltip = CreateFrame("GameTooltip", "PixlLootCouncilScanTooltip", nil, "GameTooltipTemplate")
-		-- Escape pattern magic, then turn the %s placeholder into a capture for the time text.
+		-- Escape pattern magic, then turn the placeholder into a capture for the time text. Some
+		-- languages have numbered it: %1$s.
 		tradeTimePattern = BIND_TRADE_TIME_REMAINING
-			and BIND_TRADE_TIME_REMAINING:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1"):gsub("%%s", "(.+)")
+			and BIND_TRADE_TIME_REMAINING:gsub("%%1%$s", "%%s")
+				:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1"):gsub("%%s", "(.+)")
 	end
 	scanTooltip:SetOwner(UIParent, "ANCHOR_NONE")
 	scanTooltip:SetBagItem(bag, slot)

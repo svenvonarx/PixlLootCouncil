@@ -312,7 +312,7 @@ PLC:RegisterOnEnable(function()
 	end, 4)
 end)
 
-PLC:RegisterSlashCommand("timers", "Show or hide the Loot Timers window", function()
+PLC:RegisterSlashCommand("timers", L["SLASH_TIMERS"], function()
 	if LootTimersFrame:IsShown() then
 		LootTimersFrame:Hide()
 	else

@@ -976,6 +976,6 @@ function HistoryFrame:OnHistoryUpdated()
 	end
 end
 
-PLC:RegisterSlashCommand("history", "Open the Loot History window", function()
+PLC:RegisterSlashCommand("history", L["SLASH_HISTORY"], function()
 	HistoryFrame:Toggle()
 end)

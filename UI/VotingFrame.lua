@@ -28,7 +28,7 @@ local PanelMeta = { __index = Panel }
 -- Full words for the role icon's hover tooltip now, not an inline text column -- the icon
 -- (Primitives.createRoleIcon) carries the at-a-glance meaning, this is just there so it's never
 -- ambiguous to someone unfamiliar with the icon shapes.
-local ROLE_ABBR = { TANK = "Tank", HEALER = "Healer", DAMAGER = "Damage Dealer" }
+local ROLE_ABBR = { TANK = TANK, HEALER = HEALER, DAMAGER = DAMAGER }
 
 -- Trailing space after the Award column's own button width, also reused as the row-height
 -- formula's own vertical slack (see DataTable.Create below), so the column's own right-edge gap

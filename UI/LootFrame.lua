@@ -432,6 +432,6 @@ function LootFrame:Open()
 	self:Refresh()
 end
 
-PLC:RegisterSlashCommand("loot", "Reopen the Loot Response window", function()
+PLC:RegisterSlashCommand("loot", L["SLASH_LOOT"], function()
 	LootFrame:Open()
 end)

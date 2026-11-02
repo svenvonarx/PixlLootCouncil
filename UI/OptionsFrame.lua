@@ -1048,12 +1048,16 @@ local function buildAppearancePage(page)
 	fontDropdown:SetPoint("TOPRIGHT", 0, fontTop)
 	Primitives.attachTooltip(fontDropdown, L["OPTIONS_FONT"], L["TIP_FONT"])
 
+	local function fontLabel(name)
+		return (name == "Inter" and not Primitives.hasInter) and L["OPTIONS_FONT_DEFAULT"] or name
+	end
+
 	-- Addons can register fonts at any time, so the list is rebuilt whenever the page opens.
 	local function refreshFonts()
 		local entries = {}
 		for _, name in ipairs(Primitives.fontNames()) do
 			table.insert(entries, {
-				text = name,
+				text = fontLabel(name),
 				font = Primitives.fontPath(name),
 				checked = name == profile.font,
 				onClick = function()
@@ -1063,7 +1067,7 @@ local function buildAppearancePage(page)
 				end,
 			})
 		end
-		DropdownWidget.setEntries(fontDropdown, profile.font, entries)
+		DropdownWidget.setEntries(fontDropdown, fontLabel(profile.font), entries)
 	end
 	refreshFonts()
 	page:HookScript("OnShow", refreshFonts)
@@ -1127,10 +1131,10 @@ function OptionsFrame:OnVersionsUpdated()
 	end
 end
 
-PLC:RegisterSlashCommand("options", "Open the options window", function()
+PLC:RegisterSlashCommand("options", L["SLASH_OPTIONS"], function()
 	OptionsFrame:Open()
 end)
 
-PLC:RegisterSlashCommand("about", "Show the version, the group's versions and the credits", function()
+PLC:RegisterSlashCommand("about", L["SLASH_ABOUT"], function()
 	OptionsFrame:Open("about")
 end)

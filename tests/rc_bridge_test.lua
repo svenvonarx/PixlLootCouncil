@@ -445,7 +445,7 @@ PLC.Session.state, PLC.Session.owner = "active", { name = "Holder-SpineShatter" 
 PLC.Session.items = { [1] = { link = "x", deadlineAt = now + 60 } }
 PLC.Session.responses, PLC.Session.responseSet = {}, PLC.Responses:GetDefaults()
 PLC.UI.LootFrame:Refresh()
-local plcOnly = #rows == 1 and buttons(rows[1]) == "BiS,OS,Pass,PvP,Upgrade"
+local plcOnly = #rows == 1 and buttons(rows[1]) == "RESPONSE_BIS,RESPONSE_OS,RESPONSE_PASS,RESPONSE_PVP,RESPONSE_UPGRADE"
 local mine
 PLC.Session.SendMyResponse = function(_, idx, key) mine = { idx, key } end
 start(30001)

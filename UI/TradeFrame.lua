@@ -371,6 +371,6 @@ function TradeFrame:OpenOrNotify()
 	self:Open()
 end
 
-PLC:RegisterSlashCommand("trades", "Reopen the Loot Trades window", function()
+PLC:RegisterSlashCommand("trades", L["SLASH_TRADES"], function()
 	TradeFrame:OpenOrNotify()
 end)

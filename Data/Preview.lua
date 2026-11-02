@@ -193,6 +193,6 @@ function Preview:Toggle()
 	end
 end
 
-PLC:RegisterSlashCommand("preview", "Start or stop a practice session with fictional loot", function()
+PLC:RegisterSlashCommand("preview", L["SLASH_PREVIEW"], function()
 	Preview:Toggle()
 end)

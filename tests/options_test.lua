@@ -65,6 +65,7 @@ PLC.UI.Widgets.Primitives = setmetatable({
 		texts[#texts + 1] = t
 		return PLC.UI.Theme:Track(t, "text", "text")
 	end,
+	hasInter = true,
 	fontNames = function() return { "Inter", "Arial Narrow", "Morpheus" } end,
 	fontPath = function(name) return "path/" .. name end,
 	setFont = function(name) PLC.chosenFont = name end,

@@ -16,6 +16,13 @@ local MEDIA = "Interface\\AddOns\\PixlLootCouncil\\"
 local FONT = MEDIA .. "font\\Inter-Medium.ttf"
 local INTER = "Inter"
 
+-- Inter has no Korean or Chinese, so those clients use the game's font instead of it, and larger:
+-- their characters are unreadable at the sizes that work for Inter.
+local NO_INTER = { koKR = true, zhCN = true, zhTW = true }
+Primitives.hasInter = not NO_INTER[GetLocale()]
+local DEFAULT_FONT = Primitives.hasInter and FONT or STANDARD_TEXT_FONT
+local FONT_SCALE = Primitives.hasInter and 0.8 or 1
+
 local LSM = LibStub("LibSharedMedia-3.0")
 LSM:Register(LSM.MediaType.FONT, INTER, FONT, LSM.LOCALE_BIT_western + LSM.LOCALE_BIT_ruRU)
 
@@ -107,14 +114,14 @@ end
 -- Callers pass a "design size"; the font is rendered at four fifths of it (every layout in the
 -- addon is tuned to that), never below 9px.
 local function pixelSizeFor(size)
-	return math.max(9, math.floor((size or 12) * 0.8 + 0.5))
+	return math.max(9, math.floor((size or 12) * FONT_SCALE + 0.5))
 end
 
 -- One Font object per pixel size, shared by every label of that size.
 local fonts = {}
 
 -- The font in use: profile.font's file, once Primitives.setFont has run.
-local currentFont = FONT
+local currentFont = DEFAULT_FONT
 
 local function setFontWithFallback(target, pixelSize)
 	if target:SetFont(currentFont, pixelSize, "") == false then
@@ -159,8 +166,8 @@ function Primitives.RefreshFonts()
 	end)
 end
 
--- Every font registered with LibSharedMedia, by name. Inter comes first and always: registering it
--- can be refused on clients in some languages.
+-- Every font registered with LibSharedMedia, by name. "Inter", the default, comes first and always:
+-- it's refused on clients it has no characters for, where the name stands for the game's font.
 function Primitives.fontNames()
 	local names = { INTER }
 	for _, name in ipairs(LSM:List(LSM.MediaType.FONT) or {}) do
@@ -171,9 +178,9 @@ function Primitives.fontNames()
 	return names
 end
 
--- The file of a registered font. Inter for one that's not there, such as an uninstalled addon's.
+-- The file of a registered font. The default for one that's not there, such as an uninstalled addon's.
 function Primitives.fontPath(name)
-	return name ~= INTER and LSM:Fetch(LSM.MediaType.FONT, name, true) or FONT
+	return name ~= INTER and LSM:Fetch(LSM.MediaType.FONT, name, true) or DEFAULT_FONT
 end
 
 -- Switches every label, live.

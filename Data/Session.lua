@@ -1243,17 +1243,17 @@ end)
 
 -- The two session lifecycle actions without a button: resync from the holder, and the
 -- stuck-session escape hatch (spec §5.1).
-PLC:RegisterSlashCommand("sync", "Resync the current loot session from its holder", function()
+PLC:RegisterSlashCommand("sync", L["SLASH_SYNC"], function()
 	Session:RequestSync()
 end)
 
-PLC:RegisterSlashCommand("forceend", "Force-end a session whose holder stopped responding", function()
+PLC:RegisterSlashCommand("forceend", L["SLASH_FORCEEND"], function()
 	Session:ForceEnd()
 end)
 
 -- Real utility command, not a debug stub -- lets the ML add an item that didn't come through
 -- their own loot window (a world drop someone already picked up, etc).
-PLC:RegisterSlashCommand("additem", "Add an item to the session by item link or ID", function(args)
+PLC:RegisterSlashCommand("additem", L["SLASH_ADDITEM"], function(args)
 	local itemArg = args:match("^%s*(.-)%s*$")
 	if itemArg == "" then
 		print(L["CHAT_PREFIX"] .. L["SESSION_ADDITEM_USAGE"])

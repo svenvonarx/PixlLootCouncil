@@ -13,6 +13,8 @@ PLC.Loot.Trade = Trade
 -- so the actual accept click still has to be a real click from a real person on each side -- that's
 -- a WoW constraint, not something this file can route around.
 
+local DISENCHANT_SPELL = 13262
+
 local function getContainerFns()
 	return (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots,
 		(C_Container and C_Container.GetContainerItemID) or GetContainerItemID,
@@ -44,7 +46,8 @@ function Trade:ConfigureDisenchantButton(button, idx)
 		button:SetAttribute("macrotext", "")
 		return
 	end
-	button:SetAttribute("macrotext", "/cast Disenchant\n/use item:" .. itemID)
+	-- /cast takes the spell's name in the client's language.
+	button:SetAttribute("macrotext", "/cast " .. C_Spell.GetSpellName(DISENCHANT_SPELL) .. "\n/use item:" .. itemID)
 end
 
 -- Scans every bag for the first stack of a given item ID -- used by the self-disenchant watcher

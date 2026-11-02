@@ -245,7 +245,7 @@ function AutoLoot:End()
 	flushFailures()
 end
 
-PLC:RegisterSlashCommand("autoloot", "Turn auto loot on or off", function()
+PLC:RegisterSlashCommand("autoloot", L["SLASH_AUTOLOOT"], function()
 	local autoLoot = settings()
 	autoLoot.enabled = not autoLoot.enabled
 	print(L["CHAT_PREFIX"] .. L[autoLoot.enabled and "AUTOLOOT_TURNED_ON" or "AUTOLOOT_TURNED_OFF"])
