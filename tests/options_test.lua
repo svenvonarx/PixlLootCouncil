@@ -122,13 +122,13 @@ for _, t in ipairs(texts) do
 end
 local function leftOf(region) return region.points[1][2] end
 local titleX = leftOf(sectionTitles[1])
-local allFull, allAligned = #navRows == 7, true
+local allFull, allAligned = #navRows == 8, true
 for _, row in ipairs(navRows) do
 	local left, right = row.points[1], row.points[2]
 	allFull = allFull and left[1] == "TOPLEFT" and left[2] == 0 and right[1] == "TOPRIGHT" and right[2] == 0
 	allAligned = allAligned and row.icon.points[1][1] == "LEFT" and row.icon.points[1][2] == titleX
 end
-check("L1", allFull, "all 7 menu rows run from edge to edge")
+check("L1", allFull, "all 8 menu rows run from edge to edge")
 check("L2", allAligned, "every icon starts where the section titles start, x=" .. tostring(titleX))
 local sameTitles = #sectionTitles == 3
 for _, t in ipairs(sectionTitles) do sameTitles = sameTitles and leftOf(t) == titleX end

@@ -70,6 +70,9 @@ PLC.Defaults = {
 		-- reopen that view instead of the full window.
 		sessionMinimized = false,
 		lootTimersWindow = { point = "RIGHT", x = -60, y = 120 }, -- LibWindow-1.1 position
+		-- Loot/MasterLooterList.lua: who becomes master looter when the group switches to Master Loot.
+		autoMasterLooter = true,
+		masterLooterList = {}, -- names, the first found in the group gets it
 	},
 	char = {
 		activeSession = nil, -- Data/Session.lua persists the held session here; nil = not currently a holder

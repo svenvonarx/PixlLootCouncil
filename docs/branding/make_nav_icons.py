@@ -58,6 +58,14 @@ def about():
     save(image, "nav_about")
 
 
+def master_looter():
+    """A crown."""
+    image, draw = canvas()
+    line(draw, 12, 48, 8, 20, 22, 31, 32, 13, 42, 31, 56, 20, 52, 48, 12, 48)
+    save(image, "nav_masterlooter")
+
+
 auto_loot()
+master_looter()
 preview()
 about()

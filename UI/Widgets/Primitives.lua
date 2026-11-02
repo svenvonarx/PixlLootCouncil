@@ -255,6 +255,20 @@ function Primitives.attachItemTooltip(frame, anchor)
 	end)
 end
 
+-- Hovering `frame` explains it: a title and a wrapped description, for the settings pages.
+function Primitives.attachTooltip(frame, title, text)
+	frame:EnableMouse(true)
+	frame:HookScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
+		GameTooltip:SetText(title, 1, 1, 1)
+		GameTooltip:AddLine(text, nil, nil, nil, true)
+		GameTooltip:Show()
+	end)
+	frame:HookScript("OnLeave", function()
+		GameTooltip:Hide()
+	end)
+end
+
 ----------------------------------------------------------------------------------------------------
 -- Class and role icons (Blizzard atlases)
 ----------------------------------------------------------------------------------------------------

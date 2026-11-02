@@ -37,6 +37,7 @@ Comms\RCWire.lua
 Loot\Detection.lua
 Loot\Award.lua
 Loot\AutoLoot.lua
+Loot\MasterLooterList.lua
 Loot\BagTracker.lua
 Loot\Trade.lua
 Loot\Announce.lua

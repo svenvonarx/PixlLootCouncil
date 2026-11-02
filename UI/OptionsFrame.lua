@@ -9,7 +9,7 @@ local SliderWidget = PLC.UI.Widgets.Slider
 local PanelLayout = PLC.UI.Widgets.PanelLayout
 local Theme = PLC.UI.Theme
 
--- General / Auto Loot / Responses / Council / Appearance / Preview / About sidebar categories (spec §4.3), reading/writing
+-- General / Auto Loot / Master Looter / Responses / Council / Appearance / Preview / About sidebar categories (spec §4.3), reading/writing
 -- db.profile.* live -- no /reload needed to see a change take effect (AceDB itself handles
 -- writing the change through to disk on logout).
 local OptionsFrame = {}
@@ -18,6 +18,7 @@ PLC.UI.OptionsFrame = OptionsFrame
 local panel
 
 local NAME_ROW_HEIGHT = 20 -- the name lists on the Auto Loot, Council and About pages
+local ML_ROW_HEIGHT = 26 -- the master looter list has buttons in its rows
 
 -- Vertical rhythm of a settings page: a group title, then its controls.
 local GROUP_TITLE_HEIGHT = 22
@@ -475,6 +476,126 @@ local function buildAutoLootPage(page)
 	refreshPage()
 end
 
+-- Who becomes master looter when the group switches to Master Loot (Loot/MasterLooterList.lua).
+local function buildMasterLooterPage(page)
+	local profile = PLC.db.profile
+
+	local enabled = CheckboxWidget.createCheckbox(page, L["OPTIONS_ML_ENABLED"], function(checked)
+		profile.autoMasterLooter = checked
+	end)
+	enabled:SetPoint("TOPLEFT")
+	Primitives.attachTooltip(enabled, L["OPTIONS_ML_ENABLED"], L["TIP_ML_ENABLED"])
+
+	local listLabel = Primitives.createText(page, L["OPTIONS_ML_LIST"], 13, "white")
+	listLabel:SetPoint("TOPLEFT", 0, -38)
+
+	local nameBox = Primitives.createEditBox(page, 200, Theme.LAYOUT.fieldHeight)
+	nameBox:SetPoint("TOPLEFT", listLabel, "BOTTOMLEFT", 0, -8)
+	Primitives.attachTooltip(nameBox, L["OPTIONS_ML_LIST"], L["TIP_ML_LIST"])
+	local addButton = ButtonWidget.createButton(page, L["OPTIONS_COUNCIL_ADD"], 70)
+	addButton:SetHeight(Theme.LAYOUT.fieldHeight)
+	addButton:SetPoint("LEFT", nameBox, "RIGHT", 6, 0)
+
+	local hint = Primitives.createText(page, L["OPTIONS_ML_HINT"], 11, "dim")
+	hint:SetPoint("BOTTOMLEFT")
+	hint:SetPoint("BOTTOMRIGHT")
+	hint:SetJustifyH("LEFT")
+	hint:SetWordWrap(true)
+
+	local listHolder = CreateFrame("Frame", nil, page)
+	listHolder:SetPoint("TOPLEFT", nameBox, "BOTTOMLEFT", 0, -8)
+	listHolder:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 48)
+	listHolder.border = Primitives.createBorder(listHolder, "borderDim")
+	local listTable = PLC.UI.Widgets.DataTable.Create(listHolder, ML_ROW_HEIGHT)
+
+	local refreshList
+	local function move(index, offset)
+		local list = profile.masterLooterList
+		if list[index] and list[index + offset] then
+			list[index], list[index + offset] = list[index + offset], list[index]
+			refreshList()
+		end
+	end
+
+	local function moveButton(caption, offset)
+		return {
+			width = 28,
+			isWidget = true,
+			create = function(row)
+				local button = ButtonWidget.createButton(row, caption, 24)
+				button:SetHeight(22)
+				return button
+			end,
+			update = function(button, rowData)
+				button:SetShown(profile.masterLooterList[rowData.index + offset] ~= nil)
+				button:SetScript("OnClick", function()
+					move(rowData.index, offset)
+				end)
+			end,
+		}
+	end
+
+	listTable:SetColumns({
+		{
+			width = 290,
+			render = function(rowData)
+				return string.format("  %d.  %s", rowData.index, rowData.name)
+			end,
+		},
+		moveButton("^", -1),
+		moveButton("v", 1),
+		{
+			width = 24,
+			isWidget = true,
+			create = function(row)
+				return Primitives.createCloseButton(row, 14)
+			end,
+			update = function(button, rowData)
+				button:SetScript("OnClick", function()
+					table.remove(profile.masterLooterList, rowData.index)
+					refreshList()
+				end)
+			end,
+		},
+	})
+
+	function refreshList()
+		local rows = {}
+		for index, name in ipairs(profile.masterLooterList) do
+			rows[index] = { index = index, name = name }
+		end
+		listTable:SetRows(rows)
+	end
+
+	local function addName()
+		local name = strtrim(nameBox:GetValue() or "")
+		if name == "" then
+			return
+		end
+		-- Character names are stored capitalized, like the game shows them.
+		name = name:sub(1, 1):upper() .. name:sub(2)
+		for _, existing in ipairs(profile.masterLooterList) do
+			if existing:lower() == name:lower() then
+				nameBox:SetText("")
+				return
+			end
+		end
+		table.insert(profile.masterLooterList, name)
+		nameBox:SetText("")
+		nameBox:ClearFocus()
+		refreshList()
+	end
+	addButton:SetScript("OnClick", addName)
+	nameBox:SetScript("OnEnterPressed", addName)
+
+	local function refreshPage()
+		enabled:SetChecked(profile.autoMasterLooter)
+		refreshList()
+	end
+	page:HookScript("OnShow", refreshPage)
+	refreshPage()
+end
+
 -- Who's on the loot council (Data/CouncilRules.lua:Evaluate). The master looter is always on it
 -- and runs the session; these settings add members. While a session runs, the HOLDER's settings
 -- decide the council for everyone. Any change rebuilds the roster, which re-broadcasts the council
@@ -827,6 +948,8 @@ local function ensurePanel()
 		{ icon = "nav_general.png", description = L["OPTIONS_DESC_GENERAL"] }))
 	buildAutoLootPage(panel:AddTab("autoloot", L["OPTIONS_TAB_AUTOLOOT"],
 		{ icon = "nav_autoloot.png", description = L["OPTIONS_DESC_AUTOLOOT"] }))
+	buildMasterLooterPage(panel:AddTab("masterlooter", L["OPTIONS_TAB_ML"],
+		{ icon = "nav_masterlooter.png", description = L["OPTIONS_DESC_ML"] }))
 	buildResponsesPage(panel:AddTab("responses", L["OPTIONS_TAB_RESPONSES"],
 		{ icon = "nav_responses.png", description = L["OPTIONS_DESC_RESPONSES"] }))
 	buildCouncilPage(panel:AddTab("council", L["OPTIONS_TAB_COUNCIL"],

@@ -64,6 +64,9 @@ function Roster:Rebuild()
 	if PLC.RCBridge then
 		PLC.RCBridge:OnRosterRebuilt()
 	end
+	if PLC.Loot and PLC.Loot.MasterLooterList then
+		PLC.Loot.MasterLooterList:OnRosterRebuilt()
+	end
 end
 
 function Roster:Get(guid)
