@@ -1,6 +1,18 @@
 ## Interface: 20506
 ## Title: PixlLootCouncil
-## Notes: Master-looter-driven, council-voted loot distribution for TBC Anniversary Classic
+## Notes: Loot council for TBC Anniversary. The master looter collects the raid's loot, the council reviews everyone's interest in one window, and every trade is guided from there. Raiders can also answer a master looter who runs RCLootCouncil.
+## IconTexture: Interface\AddOns\PixlLootCouncil\textures\icon
+## Category: Loot
+## Category-deDE: Beute
+## Category-esES: Botín
+## Category-esMX: Botín
+## Category-frFR: Butin
+## Category-itIT: Bottino
+## Category-koKR: 전리품
+## Category-ptBR: Saque
+## Category-ruRU: Добыча
+## Category-zhCN: 战利品
+## Category-zhTW: 戰利品
 ## Author: Pixl
 ## Version: @project-version@
 ## X-License: GPL-3.0-or-later

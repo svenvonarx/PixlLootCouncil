@@ -724,6 +724,8 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   inside an instance: nothing until you leave. With someone newer online in the guild but not the
   group, `/reload` on their side: you hear about it within seconds. Turn it off on About: silence.
 - **Website:** the box selects its text on click, and typing can't change it.
+- **Addon list:** on the character screen and in game: the icon is sharp beside the name, the addon is
+  under Loot with Gargul and RCLootCouncil, and hovering it shows the new description.
 
 ### 2.19 Master looter list (`Loot/MasterLooterList.lua`)
 `luajit tests/master_looter_test.lua` covers the rules. In a real group, as leader, with a list set under

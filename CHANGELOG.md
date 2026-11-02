@@ -15,6 +15,8 @@
   you're a whole version behind, you also get one pop-up, which waits until you're out of combat, out
   of instances and not in a loot session. You hear about new versions from your guild as well as your
   group, and it's remembered between logins. Options → About turns it off.
+- **Addon list**: PixlLootCouncil now has its own icon, sits in the Loot category with Gargul and
+  RCLootCouncil, and has a clearer description.
 - **Options overhaul**: a selected menu entry now runs the full width of the menu, and the logo,
   section titles and icons share one left edge. Pages have more room, and General is split into Raid
   chat, RCLootCouncil, Loot and Timing. Auto Loot, Master Looter, Preview and About have their own

@@ -1,5 +1,6 @@
 """Renders the CurseForge/project logo from the PixlLootCouncil mark (the same five rectangles as
-textures/UI/logo.png, redrawn as vectors). Usage: python3 make_logo.py <out_dir>"""
+textures/UI/logo.png, redrawn as vectors), and the addon list icon. Usage: python3 make_logo.py <out_dir>"""
+import os
 import sys
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -74,6 +75,36 @@ def render():
     img.paste(Image.new("RGBA", (SIZE, SIZE), GOLD_BOTTOM + (255,)), (0, 0), rim.point(lambda v: v * 0.35))
     return img.convert("RGB")
 
+
+# The addon list draws the icon at 20 x 20, where the logo's rim, glow and background turn to mush:
+# just the mark, as big as it fits, with every block on whole pixels at that size.
+ICON_SIZE = 64  # a power of two
+ICON_DRAWN_AT = 20
+ICON_RECTS = [  # the mark again, in pixels at 20 x 20
+    (2, 0, 5, 3),      # the pixel
+    (8, 3, 17, 6),     # top of the bowl
+    (5, 6, 8, 19),     # stem
+    (14, 6, 17, 13),   # right of the bowl
+    (5, 13, 17, 16),   # bottom of the bowl
+]
+
+
+def render_icon():
+    oversample = 8
+    size = ICON_SIZE * oversample
+    scale = size / ICON_DRAWN_AT
+    mask = Image.new("L", (size, size), 0)
+    d = ImageDraw.Draw(mask)
+    for x0, y0, x1, y1 in ICON_RECTS:
+        d.rectangle([x0 * scale, y0 * scale, x1 * scale - 1, y1 * scale - 1], fill=255)
+    gold = vertical_gradient((size, size), GOLD_TOP, GOLD_BOTTOM).convert("RGBA")
+    gold.putalpha(mask)
+    return gold.resize((ICON_SIZE, ICON_SIZE), Image.BOX)
+
+
+icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "textures", "icon.tga")
+render_icon().save(icon_path)
+print("written:", icon_path)
 
 logo = render()
 logo.save(f"{OUT}/logo-1024.png", optimize=True)
