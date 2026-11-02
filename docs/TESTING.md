@@ -742,6 +742,21 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
 - **Addon list:** on the character screen and in game: the icon is sharp beside the name, the addon is
   under Loot with Gargul and RCLootCouncil, and hovering it shows the new description.
 
+### 2.20 Sessions reaching everyone (`Data/Session.lua`)
+`luajit tests/delivery_test.lua` runs a whole raid on a simulated network that loses messages to
+anyone on a loading screen. In a real group, with the master looter and at least two raiders:
+- **Loading screen during the start:** a raider zones (hearthstone or a portal) and the master looter
+  starts a session while they're on the loading screen. Within a few seconds of arriving, the Loot
+  Response window opens with every item.
+- **Far away:** a raider in another zone or continent, and one inside a battleground queued from the
+  raid, both get the session.
+- **Master looter zoning:** raiders answer while the master looter is on a loading screen. Within about
+  20 seconds of the master looter arriving, every answer shows in the Loot Session window.
+- **Missed end:** a raider zones while the master looter presses Award All. Within about 30 seconds of
+  arriving, their window shows the session as ended.
+- **Quiet otherwise:** with `/etrace` or a comm logger, a running session where nobody zones sends only
+  the master looter's check-ins, and no catch-up requests.
+
 ### 2.19 Master looter list (`Loot/MasterLooterList.lua`)
 `luajit tests/master_looter_test.lua` covers the rules. In a real group, as leader, with a list set under
 Options → Master Looter:

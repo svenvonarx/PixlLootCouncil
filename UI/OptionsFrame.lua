@@ -142,7 +142,7 @@ local function buildGeneralPage(page)
 	-- Data/Session.lua:Start()/OnSessionStartReceived -- so changing this only affects sessions
 	-- this character goes on to hold, never a session already in progress.
 	slider(L["OPTIONS_RESPONSE_TIMEOUT"], L["TIP_RESPONSE_TIMEOUT"], 15, 300, 5, "responseTimeoutSeconds", secondsText)
-	slider(L["OPTIONS_HEARTBEAT_SECONDS"], L["TIP_HEARTBEAT"], 15, 180, 5, "sessionHeartbeatSeconds", secondsText)
+	slider(L["OPTIONS_HEARTBEAT_SECONDS"], L["TIP_HEARTBEAT"], 5, 60, 5, "sessionHeartbeatSeconds", secondsText)
 	slider(L["OPTIONS_FORCE_END_MINUTES"], L["TIP_FORCE_END"], 1, 30, 1, "sessionForceEndMinutes", minutesText)
 end
 

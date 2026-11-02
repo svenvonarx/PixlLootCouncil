@@ -46,7 +46,7 @@ PLC.Defaults = {
 		},
 
 		sessionForceEndMinutes = 10, -- see docs/SPECIFICATION.md §5.1 "stuck-session escape hatch"
-		sessionHeartbeatSeconds = 60,
+		sessionHeartbeatSeconds = 10, -- also how quickly anyone who missed something catches up
 		responseTimeoutSeconds = 60, -- the holder's value wins for everyone -- see Data/Session.lua:Start()
 
 		announce = {

@@ -4,6 +4,10 @@
 
 > **Beta.** This is an early test version. Please report what you find on [GitHub](https://github.com/svenvonarx/PixlLootCouncil/issues).
 
+## Sessions that reach everyone
+
+Group messages in WoW only reach whoever is there to receive them, so someone on a loading screen when a session starts can miss it entirely. PixlLootCouncil doesn't rely on any single message arriving: the master looter checks in every few seconds, and anyone who missed something, from a loading screen, a disconnect or a lost message, catches up by themselves within seconds. Answers that got lost are sent again. You can zone out and travel while a session runs, and the window is there when you arrive.
+
 ## For the master looter
 
 - **Auto loot.** Open a corpse and the loot goes where it should, with no candidate list to click through. Send epics and patterns to yourself and everything else to a mule, with fallback names if someone's bags are full. Hold Shift to do a corpse by hand.

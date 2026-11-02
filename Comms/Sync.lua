@@ -52,12 +52,23 @@ function Sync:SendAward(sessionId, idx, winnerGuid, reason)
 	Protocol:Send("award", { sessionId = sessionId, idx = idx, winnerGuid = winnerGuid, reason = reason }, ch)
 end
 
-function Sync:SendHeartbeat(sessionId)
+-- Also a summary of the session (see Data/Session.lua:Fingerprint), so anyone who missed something
+-- notices. `every` is how often it comes, so silence can be noticed too.
+function Sync:SendHeartbeat(sessionId, items, responded, every)
 	local ch = channel()
 	if not ch then
 		return
 	end
-	Protocol:Send("session_heartbeat", { sessionId = sessionId, ts = time() }, ch)
+	Protocol:Send("session_heartbeat", { sessionId = sessionId, ts = time(), items = items, responded = responded, every = every }, ch)
+end
+
+-- Every answer this player has given in the session, sent again: the holder was missing some.
+function Sync:SendResponses(sessionId, guid, responses)
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("responses", { sessionId = sessionId, guid = guid, responses = responses }, ch)
 end
 
 function Sync:SendSessionEnd(sessionId)
@@ -95,7 +106,15 @@ end
 
 -- Unlike every other command, the sync reply goes to exactly one player (the requester), never
 -- the whole group -- a full-state snapshot has no reason to be seen by anyone else.
+-- To one player, or the whole group when several asked at once (no targetName).
 function Sync:SendSyncData(snapshot, targetName)
+	if not targetName then
+		local ch = channel()
+		if ch then
+			Protocol:Send("session_sync_data", snapshot, ch)
+		end
+		return
+	end
 	Protocol:Send("session_sync_data", snapshot, "WHISPER", targetName)
 end
 
@@ -212,6 +231,7 @@ Protocol:RegisterHandler("response", function(data) PLC.Session:OnResponseReceiv
 Protocol:RegisterHandler("award", function(data) PLC.Session:OnAwardReceived(data) end)
 Protocol:RegisterHandler("session_heartbeat", function(data) PLC.Session:OnHeartbeatReceived(data) end)
 Protocol:RegisterHandler("session_end", function(data) PLC.Session:OnSessionEndReceived(data) end)
+Protocol:RegisterHandler("responses", function(data) PLC.Session:OnResponsesReceived(data) end)
 Protocol:RegisterHandler("version", function(data) PLC.Presence:NoteVersion(data.version) end)
 Protocol:RegisterHandler("preview_end", function(data) PLC.Preview:OnPreviewEndReceived(data) end)
 Protocol:RegisterHandler("session_force_end", function(data) PLC.Session:OnForceEndReceived(data) end)

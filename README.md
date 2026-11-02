@@ -10,6 +10,22 @@ can browse and export.
 
 ## Features
 
+### Sessions that reach everyone
+
+Group messages in WoW only reach the people who are there to receive them. Whoever is on a loading
+screen at that moment simply never gets them, and a session that's announced once can be missed
+entirely. PixlLootCouncil doesn't rely on any single message arriving:
+
+- The master looter checks in every few seconds with a short summary of the session. Anyone whose
+  copy doesn't match, from a loading screen, a disconnect or a lost message, catches up by
+  themselves, and answers the master looter missed are sent again.
+- After every loading screen, not just a reload, the addon asks for the session straight away.
+- A session that ended while someone was away ends for them too.
+- If many people catch up at once, the master looter answers them all with one message.
+
+You can zone out of the raid and travel while a session runs, and the window is there when you
+arrive.
+
 ### For the master looter
 
 - **Auto loot.** Open a corpse and the loot goes where it should. Items at or above your quality

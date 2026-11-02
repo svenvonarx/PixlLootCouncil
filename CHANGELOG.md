@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Sessions reach everyone, wherever they are.** Anyone on a loading screen when a session starts,
+  or who misses part of one for any other reason, catches up by themselves within seconds: right
+  after the loading screen, and otherwise at the session's next check-ins. Answers the master looter
+  missed are sent again by themselves, and a session that ended while someone was away ends for
+  them too. When many people catch up at once, the master looter answers them all with one message.
+  You no longer have to wait for the loot window before zoning out of the raid.
+- The master looter checks in every 10 seconds instead of every 60, which is also how quickly
+  anything missed gets repaired.
+- **Fixed** session messages going to a battleground's group instead of the raid for anyone who
+  queued into one from the raid.
+- **Fixed** catching up after a reload losing your items to collect in Loot Trades.
+
 ## 0.4.0-beta
 
 The Loot Session window gets Banking and shows who already has an item, Options gets a full overhaul

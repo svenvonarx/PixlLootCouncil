@@ -48,6 +48,24 @@ local persist -- forward-declared: SetEnchanter (above its definition) calls it
 local restored = false -- restoreFromSaved has run, so IsHolder() can be trusted
 local syncAsked = false -- already asked for a resync since joining this group
 
+-- Catching up (Session:CatchUp). Group messages only reach whoever is there to hear them: someone on
+-- a loading screen, or whose message got lost, simply never gets it, and the holder can miss
+-- answers the same way. So nothing relies on one message arriving. The holder's heartbeat says what
+-- the session looks like, and whoever doesn't match asks for all of it, or sends their answers
+-- again.
+local CATCH_UP_COOLDOWN = 15 -- seconds between asks, so nobody floods the holder
+local SYNC_GATHER = 2 -- the holder waits this long for more asks, then answers them all at once
+local ZONE_SETTLE = 3 -- seconds after a loading screen before asking
+local SILENT_BEATS = 3 -- this many missed heartbeats and the holder may have ended without us
+local lastCatchUp = 0
+local awaitingSync = false -- asked, and the answer hasn't come yet
+local itemsBehindLast = false -- the previous heartbeat's item summary didn't match either
+local previousResponded -- the holder's answer counts in the previous heartbeat
+local mineAtLastBeat -- how many items this client had answered when that heartbeat came
+local lastHeartbeatAt -- local time the holder's last heartbeat came in
+local holderEvery -- seconds between the holder's heartbeats, as it says
+local syncRequesters, syncAnswerTimer = {}, nil
+
 function Session:IsHolder()
 	return self.state == "active" and self.owner ~= nil and self.owner.guid == UnitGUID("player")
 end
@@ -278,6 +296,33 @@ local function stripForTransmit(entries)
 	return out
 end
 
+-- What every client should agree on while a review pass runs: the items sent in it, each marked
+-- awarded or staged. The holder counts only what it sent in this pass (item.sentIn), since it keeps
+-- older items the others never got. Everyone else counts all they have.
+local function itemSummary(items, sessionId)
+	local parts = {}
+	for idx, item in pairs(items) do
+		if not sessionId or item.sentIn == sessionId then
+			parts[#parts + 1] = idx .. (item.awarded and "a" or "") .. (item.preAwardGuid and "s" or "")
+		end
+	end
+	table.sort(parts)
+	return table.concat(parts, ",")
+end
+
+-- [guid] = how many items that player has answered.
+local function responseCounts(responses)
+	local counts = {}
+	for _, byGuid in pairs(responses) do
+		for guid, r in pairs(byGuid) do
+			if r.response then
+				counts[guid] = (counts[guid] or 0) + 1
+			end
+		end
+	end
+	return counts
+end
+
 local function itemStringFromLink(link)
 	return link and link:match("|H(.-)|h")
 end
@@ -342,8 +387,14 @@ local function applyReceivedItems(items)
 		-- time later) -- keep the award/trade state we already know about.
 		local existing = Session.items[idx]
 		if existing then
-			entry.awarded, entry.awardReason, entry.awardedAt = existing.awarded, existing.awardReason, existing.awardedAt
-			entry.traded = existing.traded
+			entry.awarded = entry.awarded or existing.awarded
+			entry.awardReason = entry.awardReason or existing.awardReason
+			entry.awardedAt = entry.awardedAt or existing.awardedAt
+			entry.traded = entry.traded or existing.traded
+		end
+		-- A catch-up carries awards made before it, so "items to collect" survives it.
+		if entry.awarded and not entry.awardedAt then
+			entry.awardedAt = time()
 		end
 		entry.link, entry.icon = reconstructItemVisuals(entry.itemString)
 		Session.items[idx] = entry
@@ -368,7 +419,8 @@ local function startHeartbeat()
 	heartbeatTimerHandle = PLC:ScheduleRepeatingTimer(function()
 		Session.lastHolderSeenAt = time()
 		persist()
-		PLC.Comms.Sync:SendHeartbeat(Session.sessionId)
+		PLC.Comms.Sync:SendHeartbeat(Session.sessionId, itemSummary(Session.items, Session.sessionId),
+			responseCounts(Session.responses), PLC.db.profile.sessionHeartbeatSeconds)
 	end, PLC.db.profile.sessionHeartbeatSeconds)
 end
 
@@ -607,6 +659,12 @@ end
 -- pass) or item_add (everything after), announces once, and notifies the UI. Caller is
 -- responsible for having already added/updated self.items and called persist() first.
 function Session:broadcastNewItems(newItems)
+	for idx in pairs(newItems) do
+		if self.items[idx] then
+			self.items[idx].sentIn = self.sessionId
+		end
+	end
+	persist()
 	if not self.sentFirstBatch then
 		self.sentFirstBatch = true
 		PLC.Comms.Sync:SendSessionStart(self.sessionId, self.owner, stripForTransmit(newItems), self.responseTimeoutSeconds, self.enchanterGuid, councilList(self.council), self.responseSet, self.preview)
@@ -888,6 +946,8 @@ function Session:OnSessionStartReceived(data)
 	self.items = {}
 	self.responses = {}
 	self.lastHolderSeenAt = time()
+	lastHeartbeatAt = time()
+	itemsBehindLast, previousResponded, mineAtLastBeat = false, nil, nil
 	-- The holder's configured timeout wins for everyone, never the receiving client's own
 	-- profile.responseTimeoutSeconds.
 	self.responseTimeoutSeconds = data.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
@@ -1051,10 +1111,93 @@ function Session:OnTradeCompleteReceived(data)
 end
 
 function Session:OnHeartbeatReceived(data)
-	if not data.sessionId or data.sessionId ~= self.sessionId then
+	if not data.sessionId or self:IsHolder() then
+		return
+	end
+	lastHeartbeatAt = time()
+	holderEvery = tonumber(data.every) or holderEvery
+	if data.sessionId ~= self.sessionId or self.state == "inactive" then
+		-- A review pass this client never heard start, from a loading screen for example.
+		self:CatchUp()
+		return
+	end
+	if self.state ~= "active" then
 		return
 	end
 	self.lastHolderSeenAt = data.ts or time()
+	if type(data.items) ~= "string" then
+		return -- a holder on an older version, with nothing to compare
+	end
+
+	local mine = UnitGUID("player")
+	local counts = responseCounts(self.responses)
+	local responded = {}
+	if type(data.responded) == "table" then
+		for guid, count in pairs(data.responded) do
+			responded[guid] = tonumber(count) or 0
+		end
+	end
+	-- Items only change through the holder's own messages, so a different summary means one got
+	-- lost, or that one is still arriving: a long one comes in pieces, and the throttle library can
+	-- let a short heartbeat past it. Two in a row, then.
+	local itemsBehind = data.items ~= itemSummary(self.items)
+	-- Answers come from everyone, so one can always be on its way when a heartbeat arrives. What's
+	-- missing is what the holder already had a heartbeat ago and still hasn't come, and, the other
+	-- way round, answers this client gave before the last heartbeat that the holder still lacks.
+	local answersBehind = false
+	for guid, count in pairs(previousResponded or {}) do
+		if guid ~= mine and (counts[guid] or 0) < count then
+			answersBehind = true
+		end
+	end
+	local holderMissesMine = (responded[mine] or 0) < (mineAtLastBeat or 0)
+	if (itemsBehind and itemsBehindLast) or answersBehind then
+		self:CatchUp()
+	end
+	if holderMissesMine then
+		self:ResendMyResponses()
+	end
+	itemsBehindLast, previousResponded, mineAtLastBeat = itemsBehind, responded, counts[mine] or 0
+end
+
+-- Asks the holder for the whole session, at most every CATCH_UP_COOLDOWN seconds.
+function Session:CatchUp()
+	if self:IsHolder() or not IsInGroup() or time() - lastCatchUp < CATCH_UP_COOLDOWN then
+		return
+	end
+	lastCatchUp = time()
+	self:RequestSync()
+end
+
+-- Every answer this player has given in the session, again: the holder didn't have them all.
+function Session:ResendMyResponses()
+	local mine = UnitGUID("player")
+	local own = {}
+	for idx, byGuid in pairs(self.responses) do
+		local r = byGuid[mine]
+		if r and r.response and self.items[idx] then
+			own[idx] = { response = r.response, note = r.note }
+		end
+	end
+	if next(own) then
+		PLC.Comms.Sync:SendResponses(self.sessionId, mine, own)
+	end
+end
+
+function Session:OnResponsesReceived(data)
+	if not data.sessionId or data.sessionId ~= self.sessionId or type(data.responses) ~= "table" or not data.guid then
+		return
+	end
+	for idx, r in pairs(data.responses) do
+		if self.items[idx] and type(r) == "table" and r.response then
+			self.responses[idx] = self.responses[idx] or {}
+			self.responses[idx][data.guid] = { response = r.response, note = r.note }
+			self:notifyVotingFrame(idx, data.guid)
+		end
+	end
+	if self:IsHolder() then
+		persist()
+	end
 end
 
 -- Holder-only explicit action.
@@ -1148,30 +1291,91 @@ end
 -- separately from the holder) asks for a full state snapshot instead of relying on having
 -- received every incremental session_start/item_add/response.
 function Session:RequestSync()
+	awaitingSync = true
 	PLC.Comms.Sync:SendSyncRequest(UnitGUID("player"))
 end
 
-function Session:OnSyncRequestReceived(data, sender)
-	if not self:IsHolder() then
+-- Everything a client needs to be where everyone else is: the items sent in this pass, with
+-- their awards, and every answer so far.
+local function sessionSnapshot()
+	local sent = {}
+	for idx, item in pairs(Session.items) do
+		if item.sentIn == Session.sessionId then
+			sent[idx] = item
+		end
+	end
+	local items = stripForTransmit(sent)
+	for idx, entry in pairs(items) do
+		entry.awarded, entry.awardReason, entry.traded = sent[idx].awarded, sent[idx].awardReason, sent[idx].traded
+	end
+	return {
+		sessionId = Session.sessionId,
+		owner = Session.owner,
+		enchanterGuid = Session.enchanterGuid,
+		items = items,
+		responses = Session.responses,
+		lastHolderSeenAt = Session.lastHolderSeenAt,
+		responseTimeoutSeconds = Session.responseTimeoutSeconds,
+		responseSet = Session.responseSet,
+		preview = Session.preview or nil,
+		council = councilList(Session.council),
+	}
+end
+
+-- One answer for everyone who asked in the last SYNC_GATHER seconds: a raid zoning out together
+-- costs one message instead of one each.
+local function answerSyncRequests()
+	syncAnswerTimer = nil
+	local names = {}
+	for name in pairs(syncRequesters) do
+		names[#names + 1] = name
+	end
+	wipe(syncRequesters)
+	if #names == 0 or not Session:IsHolder() then
 		return
 	end
-	PLC.Comms.Sync:SendSyncData({
-		sessionId = self.sessionId,
-		owner = self.owner,
-		enchanterGuid = self.enchanterGuid,
-		items = stripForTransmit(self.items),
-		responses = self.responses,
-		lastHolderSeenAt = self.lastHolderSeenAt,
-		responseTimeoutSeconds = self.responseTimeoutSeconds,
-		responseSet = self.responseSet,
-		preview = self.preview or nil,
-		council = councilList(self.council),
-	}, sender)
+	PLC.Comms.Sync:SendSyncData(sessionSnapshot(), #names == 1 and names[1] or nil)
+end
+
+function Session:OnSyncRequestReceived(data, sender)
+	if self:IsHolder() then
+		syncRequesters[sender or "?"] = true
+		syncAnswerTimer = syncAnswerTimer or PLC:ScheduleTimer(answerSyncRequests, SYNC_GATHER)
+	elseif self:IsOwner() and self.sessionId and (self.state == "ended" or self.state == "force_ended") then
+		-- Someone still thinks the review pass this client ran is on: it missed the end.
+		PLC.Comms.Sync:SendSyncData({ sessionId = self.sessionId, ended = true }, sender)
+	end
 end
 
 function Session:OnSyncDataReceived(data)
 	if self:IsHolder() or not data.sessionId then
 		return
+	end
+	if data.ended then
+		if data.sessionId == self.sessionId and self.state == "active" then
+			awaitingSync = false
+			self.state = "ended"
+			self:notifySessionFrame()
+			self:notifyLootFrame()
+			self:notifyTradeFrame()
+		end
+		return
+	end
+	-- Sent to the whole group when several asked at once: it's only for those who did, or who
+	-- don't have this session.
+	if not awaitingSync and data.sessionId == self.sessionId and self.state == "active" then
+		return
+	end
+	awaitingSync = false
+	-- This client's own answers, in case the holder doesn't have them yet.
+	local mine = UnitGUID("player")
+	local own = {}
+	if data.sessionId == self.sessionId then
+		for idx, byGuid in pairs(self.responses) do
+			if byGuid[mine] then
+				own[idx] = byGuid[mine]
+			end
+		end
 	end
 	matchPreviewState(data.preview)
 	self.sessionId = data.sessionId
@@ -1183,6 +1387,19 @@ function Session:OnSyncDataReceived(data)
 	self.responseSet = PLC.Responses.Sanitize(data.responseSet) or PLC.Responses:GetDefaults()
 	applyReceivedItems(data.items)
 	self.responses = data.responses or {}
+	local missing = {}
+	for idx, r in pairs(own) do
+		if self.items[idx] and not (self.responses[idx] and self.responses[idx][mine]) then
+			self.responses[idx] = self.responses[idx] or {}
+			self.responses[idx][mine] = r
+			missing[idx] = { response = r.response, note = r.note }
+		end
+	end
+	if next(missing) then
+		PLC.Comms.Sync:SendResponses(self.sessionId, mine, missing)
+	end
+	itemsBehindLast, previousResponded, mineAtLastBeat = false, nil, nil
+	lastHeartbeatAt = time()
 	self.lastHolderSeenAt = data.lastHolderSeenAt or time()
 	self.council = data.council and councilSet(data.council) or nil
 	print(L["CHAT_PREFIX"] .. L["SESSION_SYNCED"])
@@ -1235,10 +1452,32 @@ local function restoreFromSaved()
 	end
 end
 
+-- After a loading screen: whatever was sent meanwhile never arrived. Logging in and reloading are
+-- caught up from OnRosterRebuilt instead.
+PLC.Events:RegisterHandler("PLAYER_ENTERING_WORLD", function(_, isInitialLogin, isReloadingUi)
+	if not isInitialLogin and not isReloadingUi then
+		PLC:ScheduleTimer(function()
+			Session:CatchUp()
+		end, ZONE_SETTLE)
+	end
+end)
+
+-- The holder's heartbeat stopped: it ended the pass and that never arrived, or it's offline.
+local function checkHolderSilence()
+	if Session:IsHolder() or Session.state ~= "active" or not lastHeartbeatAt then
+		return
+	end
+	local every = holderEvery or PLC.db.profile.sessionHeartbeatSeconds
+	if time() - lastHeartbeatAt > every * SILENT_BEATS then
+		Session:CatchUp()
+	end
+end
+
 -- The resync a client needs after logging in or reloading is requested from OnRosterRebuilt.
 PLC:RegisterOnEnable(function()
 	restoreFromSaved()
 	restored = true
+	PLC:ScheduleRepeatingTimer(checkHolderSilence, 5)
 end)
 
 -- The two session lifecycle actions without a button: resync from the holder, and the

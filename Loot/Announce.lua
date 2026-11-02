@@ -6,15 +6,17 @@ PLC.Loot = PLC.Loot or {}
 local Announce = {}
 PLC.Loot.Announce = Announce
 
--- Shared by Comms/Sync.lua (send) and this file (chat post): resolves to whatever group channel
--- currently exists. This is a transport detail only -- it never gates session validity (see
--- docs/SPECIFICATION.md §5.1/§5.3).
+-- Shared by Comms/Sync.lua (send) and this file (chat post): the raid or party itself. This is a
+-- transport detail only -- it never gates session validity (see docs/SPECIFICATION.md §5.1/§5.3).
+-- Always the home group, never a battleground's: asked without a category, the game answers for
+-- whichever group is active, which for someone who queued into a battleground from the raid is the
+-- battleground, and the session would go to the wrong people.
+local HOME = LE_PARTY_CATEGORY_HOME or 1
+
 function Announce:GetChannel()
-	if IsPartyLFG and IsPartyLFG() then
-		return "INSTANCE_CHAT"
-	elseif IsInRaid() then
+	if IsInRaid(HOME) then
 		return "RAID"
-	elseif IsInGroup() then
+	elseif IsInGroup(HOME) then
 		return "PARTY"
 	end
 	return nil
