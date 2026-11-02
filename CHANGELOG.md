@@ -1,15 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.5.0-beta
 
-- **Welcome window**: the first time the addon loads, it asks whether you're a raider or the loot
-  master. Raiders are done in one click. A loot master can import their loot history and the
-  settings they changed in RCLootCouncil with one button, or pick the essentials: auto loot, the
-  council, raid chat announcements and the time to respond. `/plc setup` or Options → About shows it
-  again.
-- **Changelog** in Options, so you can see what changed in each version without leaving the game.
-- **Reset all data** under Options → About (or `/plc reset`) deletes every setting and the whole loot
-  history after a warning, then reloads.
+Loot sessions now reach everyone, wherever they are and whatever they missed, the addon speaks every
+client language, and a welcome window sets new users up, including a one-click move from
+RCLootCouncil.
+
 - **Sessions reach everyone, wherever they are.** Anyone on a loading screen when a session starts,
   or who misses part of one for any other reason, catches up by themselves within seconds: right
   after the loading screen, and otherwise at the session's next check-ins. Answers the master looter
@@ -18,6 +14,20 @@
   You no longer have to wait for the loot window before zoning out of the raid.
 - The master looter checks in every 10 seconds instead of every 60, which is also how quickly
   anything missed gets repaired.
+- **Welcome window**: the first time the addon loads, it asks whether you're a raider or the loot
+  master. Raiders are done in one click. A loot master can import their loot history and the
+  settings they changed in RCLootCouncil with one button, or pick the essentials: auto loot, the
+  council, raid chat announcements and the time to respond. `/plc setup` or Options → About shows it
+  again.
+- **Every client language**: the addon is translated into German, Spanish, French, Italian, Portuguese,
+  Russian, Korean and Simplified and Traditional Chinese, using Blizzard's own terms where they exist.
+  The translations are machine-written, so corrections are welcome. It also works properly on those
+  clients now: one-click Disenchant, finding the raid's Enchanter and trade timers relied on English,
+  and Korean and Chinese clients use the game's font, because Inter doesn't have those characters.
+- **Changelog** in Options, so you can see what changed in each version without leaving the game.
+- **Reset all data** under Options → About (or `/plc reset`) deletes every setting and the whole loot
+  history after a warning, then reloads.
+- The Pixl Gold theme is now called Default.
 - **Fixed** session messages going to a battleground's group instead of the raid for anyone who
   queued into one from the raid.
 - **Fixed** catching up after a reload losing your items to collect in Loot Trades.
@@ -36,12 +46,7 @@ with themes and selectable fonts, and the master looter can be set automatically
   person on your list who's online in the group becomes master looter. Handing it to someone else
   afterwards sticks, and holding Shift skips it once. The same page can set the loot threshold at that
   moment too.
-- **Every client language**: the addon is translated into German, Spanish, French, Italian, Portuguese,
-  Russian, Korean and Simplified and Traditional Chinese, using Blizzard's own terms where they exist.
-  The translations are machine-written, so corrections are welcome. It also works properly on those
-  clients now: one-click Disenchant, finding the raid's Enchanter and trade timers relied on English,
-  and Korean and Chinese clients use the game's font, because Inter doesn't have those characters.
-- **Themes**: Options → Appearance now has eight themes instead of an accent color: Default, which is
+- **Themes**: Options → Appearance now has eight themes instead of an accent color: Pixl Gold, which is
   the look you already know, Sunwell, Fel, Zangarmarsh, Frost, Twilight, Arcane and Nether. Each has
   its own backgrounds, and they all keep the trade timers and Staged/Awarded easy to tell apart. A
   custom accent color isn't carried over.
