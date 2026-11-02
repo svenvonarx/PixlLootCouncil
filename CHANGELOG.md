@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Options overhaul**: a selected menu entry now runs the full width of the menu, and the logo,
+  section titles and icons share one left edge. Pages have more room, and General is split into Raid
+  chat, RCLootCouncil and Loot sessions. Auto Loot, Preview and About have their own icons.
+- **About page** (`/plc about`): your version, the version of everyone in your group, and the credits.
+  You get one chat notice when someone in your group has a newer version.
+- **Fixed** the Auto Loot exception list using the wrong row height.
+
 ## 0.3.0-beta
 
 Raiders can now answer a master looter who runs RCLootCouncil without having RCLootCouncil installed.

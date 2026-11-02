@@ -687,3 +687,17 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   answer. With Options → General's option off, nothing opens.
 - **Both at once:** a normal PixlLootCouncil preview still works with RC disabled, and its rows use its
   own buttons.
+
+### 2.18 Options layout and About (`UI/Widgets/PanelLayout.lua`, `UI/OptionsFrame.lua`)
+`luajit tests/options_test.lua` checks the anchors and the version logic from the addon folder. By eye:
+- **Menu:** hover and select entries: the highlight touches both sides of the menu column, with the
+  accent bar on its far left. The logo, section titles and icons line up on one left edge.
+- **Pages:** open every page: nothing is clipped at the bottom or right, including a two-line page
+  description and the Auto Loot hint.
+- **Accent:** change the accent color on Appearance: the selected entry and icons follow it.
+- **About:** `/plc about`. In a group, the list fills as people answer. Someone on 0.3.0-beta shows as
+  "older" and Outdated, someone without the addon as No addon detected. A packaged copy shows its
+  version; a copy run from the repository shows "development copy".
+- **Update notice:** with a packaged copy, group with someone on a newer one: one chat line, and the
+  version line on About names the newer version.
+- **Website:** the box selects its text on click, and typing can't change it.

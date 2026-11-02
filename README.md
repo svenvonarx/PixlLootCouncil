@@ -41,6 +41,8 @@ uses RCLootCouncil's format.
     window's Trade button
   - **Follow** walks you to the other player
   - one-click **Disenchant** for items you disenchant yourself
+- **Version check**: Options → About lists the version everyone in your group runs, and you get a
+  chat notice when someone has a newer one.
 - **Loot history**:
   - stored in RCLootCouncil's exact format, browsable with date, name, class and response filters
   - exports to *TSV (Google Sheets & English Excel)* and *TSV (International Excel)*, so existing
@@ -98,6 +100,7 @@ note if you like. Awarded items show up in **Loot Trades** with a **Trade** butt
 | `/plc timers` | Show or hide the Loot Timers window |
 | `/plc autoloot` | Turn auto loot on or off |
 | `/plc preview` | Start or stop a practice session with fictional loot |
+| `/plc about` | Show your version, your group's versions and the credits |
 | `/plc loot` | Reopen the Loot Response window |
 | `/plc trades` | Reopen the Loot Trades window |
 | `/plc history` | Open the Loot History window |
