@@ -2,9 +2,16 @@
 
 ## Unreleased
 
+- **Master looter list** (Options → Master Looter): when you switch the group to Master Loot, the first
+  person on your list who's online in the group becomes master looter. Handing it to someone else
+  afterwards sticks, and holding Shift skips it once.
 - **Options overhaul**: a selected menu entry now runs the full width of the menu, and the logo,
   section titles and icons share one left edge. Pages have more room, and General is split into Raid
-  chat, RCLootCouncil and Loot sessions. Auto Loot, Preview and About have their own icons.
+  chat, RCLootCouncil, Loot and Timing. Auto Loot, Master Looter, Preview and About have their own
+  icons.
+- **Clearer settings**: every option has a tooltip explaining it, and labels use plain words. Minimum
+  quality is a choice of names in the game's colors instead of a number, and sliders show their value
+  with its unit, lined up on the right.
 - **About page** (`/plc about`): your version, the version of everyone in your group, and the credits.
   You get one chat notice when someone in your group has a newer version.
 - **Fixed** the Auto Loot exception list using the wrong row height.

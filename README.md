@@ -21,6 +21,9 @@ uses RCLootCouncil's format.
 - **Loot Timers window.** Minimize the Loot Session window to a small list of what you've picked up
   for review, most urgent first, with each item's trade time left. It appears by itself when new
   loot reaches your bags.
+- **Master looter list.** Choose who should run the loot, in order. When you switch the group to
+  Master Loot, the first of them who's online in the group gets it. Set it up under Options → Master
+  Looter.
 - **Excluded items.** Raid materials such as Mark of the Illidari stay in the loot window for you to
   assign through Blizzard's list. The curated list is in `Data/ExcludedItems.lua`, and your exceptions
   override it.

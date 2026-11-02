@@ -694,6 +694,9 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   accent bar on its far left. The logo, section titles and icons line up on one left edge.
 - **Pages:** open every page: nothing is clipped at the bottom or right, including a two-line page
   description and the Auto Loot hint.
+- **General:** sliders run the full width with their value on the right, in seconds or minutes. "Collect
+  items of at least" is a dropdown of colored quality names, and picking one changes what's collected.
+- **Tooltips:** hover every checkbox, slider and dropdown on every page: each explains itself.
 - **Accent:** change the accent color on Appearance: the selected entry and icons follow it.
 - **About:** `/plc about`. In a group, the list fills as people answer. Someone on 0.3.0-beta shows as
   "older" and Outdated, someone without the addon as No addon detected. A packaged copy shows its
@@ -701,3 +704,17 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
 - **Update notice:** with a packaged copy, group with someone on a newer one: one chat line, and the
   version line on About names the newer version.
 - **Website:** the box selects its text on click, and typing can't change it.
+
+### 2.19 Master looter list (`Loot/MasterLooterList.lua`)
+`luajit tests/master_looter_test.lua` covers the rules. In a real group, as leader, with a list set under
+Options → Master Looter:
+- **Switching:** set the loot method to Master Looter on yourself: within a moment the first person on
+  the list who's online and in the group has it, and chat says who.
+- **Skipped:** someone on the list who's offline or not in the group is passed over.
+- **Nobody:** with nobody from the list in the group, chat says so and it stays with you.
+- **Sticks:** hand master loot to someone else afterwards: it stays with them.
+- **Shift:** hold Shift while switching: it stays with you.
+- **Combat:** switch during combat: it moves when combat ends.
+- **Login:** with Master Loot on and someone else as master looter, `/reload` or relog: nothing changes.
+- **Threshold:** check the loot threshold is what you set after the change. If this moves it, the
+  code needs to set it back, as MRT does.
