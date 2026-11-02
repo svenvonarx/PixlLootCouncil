@@ -25,7 +25,7 @@ _G.UNKNOWNOBJECT = "Unknown"
 _G.RANDOM_ROLL_RESULT = "%s rolls %d (%d-%d)"
 _G.StaticPopupDialogs = {}
 _G.UISpecialFrames = {}
-_G.UIParent = {}
+_G.UIParent = { GetHeight = function() return 768 end }
 
 local function loadLua(path, ...)
 	return assert(loadfile(path))(...)

@@ -23,6 +23,9 @@ local builtSets = {} -- those sets, in order
 local columns -- the current ones, resized by fitColumns
 local buttonsWidth = 0 -- the widest set's buttons
 local openingWidth -- the width the window last opened at, see applyResponseSets
+local minWidth, maxWidth = 1, 2000 -- set by applyResponseSets
+local fittedCount -- how many items the height was last fitted to, see fitHeight
+local sizingFrom -- the height when the player took hold of the resize grip
 
 -- Response buttons and the note field share one row, same as the original layout -- a stacked
 -- (buttons-then-note) layout was tried and made every row much taller than before for no real
@@ -45,6 +48,8 @@ local NOTE_LEAD = 15 -- buttons to note, with the divider in the middle
 local NOTE_WIDTH, NOTE_MIN = 300, 120
 local NOTE_MAX_LETTERS = 50 -- about what NOTE_WIDTH shows at once, so a note stays one line
 local MAX_EXTRA_WIDTH = 400 -- how much wider than it opens the window can go
+local BOTTOM_SPACE = 14 -- below the rows, for the resize grip
+local SCREEN_MARGIN = 80 -- room the window leaves on screen at its tallest
 
 local function myResponse(idx)
 	local responses = PLC.Session.responses[idx]
@@ -337,15 +342,65 @@ local function applyResponseSets()
 	end
 	local EDGES = 2 -- the window's 1px border, each side
 	local opening = fixedWidth() + NAME_WIDTH + NAME_GAP + NOTE_WIDTH + EDGES
-	local minWidth = fixedWidth() + NOTE_MIN + EDGES
-	local maxWidth = opening + MAX_EXTRA_WIDTH
+	minWidth = fixedWidth() + NOTE_MIN + EDGES
+	maxWidth = opening + MAX_EXTRA_WIDTH
 	local current = frame:GetWidth() or 0
 	local chosen = openingWidth and math.abs(current - openingWidth) >= 1
 	frame:SetWidth(chosen and math.max(minWidth, math.min(maxWidth, current)) or opening)
 	openingWidth = opening
-	Primitives.setResizeBounds(frame, minWidth, 180, maxWidth, 600)
+	fittedCount = nil -- the bounds changed: fitHeight sets them again
 	columns = buildColumns()
 	dataTable:SetColumns(columns)
+end
+
+-- Exactly `count` whole rows, nothing to scroll.
+local function heightFor(count)
+	return Theme.LAYOUT.headerHeight + 1 + ROW_GAP + count * ROW_HEIGHT - ROW_GAP + BOTTOM_SPACE
+end
+
+local function rowsOnScreen()
+	local screen = UIParent:GetHeight() or 0
+	if screen <= 0 then
+		return math.huge
+	end
+	return math.max(1, math.floor((screen - SCREEN_MARGIN - heightFor(0)) / ROW_HEIGHT))
+end
+
+-- As tall as the rows the player chose to see (profile.lootResponseRows), but never taller than the
+-- items there are: fewer items shrink the window, more grow it back to that. It can't be dragged
+-- taller than all of them either, so there's no blank space below the rows and no scrollbar
+-- unless there are more items than the player chose to see.
+-- Keeps the top edge where it is, so the window grows and shrinks at the bottom.
+local function setHeightKeepingTop(height)
+	local left, top = frame:GetLeft(), frame:GetTop()
+	if left and top then
+		frame:ClearAllPoints()
+		frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+	end
+	frame:SetHeight(height)
+end
+
+local function fitHeight(count)
+	local most = math.max(1, math.min(count, rowsOnScreen()))
+	Primitives.setResizeBounds(frame, minWidth, heightFor(1), maxWidth, heightFor(most))
+	if not sizingFrom then
+		setHeightKeepingTop(heightFor(math.min(most, PLC.db.profile.lootResponseRows)))
+	end
+end
+
+-- Letting go of the grip keeps the height as the player's choice, in whole rows, if it changed:
+-- a plain click on the grip while fewer items have shrunk the window mustn't lower it.
+local function finishSizing()
+	local from = sizingFrom
+	sizingFrom = nil
+	if not from then
+		return
+	end
+	local height = frame:GetHeight() or from
+	if math.abs(height - from) >= 1 then
+		PLC.db.profile.lootResponseRows = math.max(1, math.floor((height - heightFor(0)) / ROW_HEIGHT + 0.5))
+	end
+	fitHeight(fittedCount or 1)
 end
 
 local function ensureFrame()
@@ -356,17 +411,22 @@ local function ensureFrame()
 	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
 	-- Comes to the front when a session opens it, like any window (Primitives.makeWindow).
 	Primitives.makeWindow(frame)
-	-- Height stays freely resizable -- a taller window genuinely shows more pending items at once.
-	frame:SetHeight(260)
-	frame:SetPoint("CENTER", 0, -80)
+	-- The height follows the items and the player's choice, see fitHeight.
+	frame:SetHeight(heightFor(1)) -- fitted to the items by Refresh
+	frame:SetPoint("TOP", UIParent, "CENTER", 0, 60)
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag("LeftButton")
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilLootFrame")
-	-- The bounds are set by applyResponseSets, once the buttons are known.
-	Primitives.makeResizable(frame, 1, 180, 2000, 600)
+	-- The bounds are set by fitHeight, once the buttons and the items are known.
+	local grip = Primitives.makeResizable(frame, 1, 1, 2000, 2000)
+	grip:HookScript("OnMouseDown", function()
+		sizingFrom = frame:GetHeight()
+	end)
+	grip:HookScript("OnMouseUp", finishSizing)
+	grip:HookScript("OnHide", finishSizing)
 
 	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
 	frame.bg:SetAllPoints()
@@ -417,7 +477,7 @@ local function ensureFrame()
 	-- bottom keeps clear of the resize grip.
 	local content = CreateFrame("Frame", nil, frame)
 	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 1, -1 - ROW_GAP)
-	content:SetPoint("BOTTOMRIGHT", -1, 14)
+	content:SetPoint("BOTTOMRIGHT", -1, BOTTOM_SPACE)
 
 	-- UI/Widgets/ScrollFrame.lua anchors dataTable.scroll to `content` itself, so no SetAllPoints
 	-- here -- calling it would override that anchoring.
@@ -458,6 +518,10 @@ function LootFrame:Refresh()
 
 	local f = ensureFrame()
 	applyResponseSets()
+	if #rows ~= fittedCount then
+		fittedCount = #rows
+		fitHeight(#rows)
+	end
 	dataTable:SetRows(rows)
 	updateHeaderOwner(rows)
 	f:Show()

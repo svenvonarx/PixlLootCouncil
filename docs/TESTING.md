@@ -207,6 +207,11 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   overlaps or clips at any width. Hovering a cut-short name or the icon shows the item.
 - Scrollbar: with more items than fit, the scrollbar shows at the right edge and the rows make room
   for it. Answer items until everything fits: the rows run edge to edge again.
+- Height (new): with 3 items the window is exactly three rows tall and can't be dragged taller. In a
+  preview with more items than fit, drag it down until all show: no scrollbar. Answer some: the
+  window shrinks from the bottom, the top edge staying put. Start another session with as many
+  items: it opens at the height you dragged to. Let go of the grip between two rows: it snaps to
+  whole rows. `/reload` keeps the height. On a small screen it never runs off the bottom.
 - Scrollbar behavior (shared by every scrollable list in the addon — this window,
   `UI/SessionFrame.lua`'s icon sidebar, and the embedded candidate grid inside it): seed enough
   items that the list actually overflows and needs to scroll. Confirm the scrollbar thumb is

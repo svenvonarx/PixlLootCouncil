@@ -28,6 +28,7 @@ local function stub(extra)
 		if k == "SetShown" then return function(s, v) s.shown = v and true or false end end
 		if k == "IsShown" then return function(s) return s.shown end end
 		if k == "SetScript" then return function(s, n, fn) s.scripts[n] = fn end end
+		if k == "HookScript" then return function(s, n, fn) s.scripts[n] = fn end end
 		if k == "SetValue" then return function(s, v) s.value = v end end
 		if k == "GetValue" then return function(s) return s.value or 0 end end
 		if k == "SetDrawLayer" then return function(s, layer, sub) s.layer, s.sublevel = layer, sub end end
@@ -39,8 +40,8 @@ end
 _G.CreateFrame = function() return stub() end
 _G.UIParent = stub()
 
-local bounds
-local PLC = { UI = { Widgets = {} } }
+local bounds, grip
+local PLC = { UI = { Widgets = {} }, db = { profile = { lootResponseRows = 8 } } }
 PLC.UI.Theme = { LAYOUT = { headerHeight = 32, buttonHeight = 28 } }
 PLC.UI.Widgets.Primitives = setmetatable({
 	color = function() return 1, 1, 1 end,
@@ -51,6 +52,7 @@ PLC.UI.Widgets.Primitives = setmetatable({
 			maxLetters = maxLetters, GetValue = function() return "" end })
 	end,
 	setResizeBounds = function(_, minW, minH, maxW, maxH) bounds = { minW, minH, maxW, maxH } end,
+	makeResizable = function() grip = stub(); return grip end,
 }, { __index = function() return function() return stub() end end })
 PLC.UI.Widgets.Button = { createButton = function(_, text)
 	return stub({ width = #text * 6 + 20, height = 28 })
@@ -99,15 +101,19 @@ end
 -- header, one row gap and the grip's 14px from the height.
 local frame, dataTable
 local function resize(width, height)
-	frame.width, frame.height = width, height or frame.height or 260
-	dataTable.scroll.width = width - 2
+	frame.width, frame.height = width or frame.width, height or frame.height
+	dataTable.scroll.width = frame.width - 2
 	dataTable.scroll.height = frame.height - 32 - 2 - 14
 	dataTable:Layout()
+end
+local function refresh()
+	LootFrame:Refresh()
+	resize() -- the game relays the window's new size to the table
 end
 items(3)
 LootFrame:Refresh()
 frame, dataTable = upvalue(LootFrame.Refresh, "frame"), upvalue(LootFrame.Refresh, "dataTable")
-resize(frame.width, 260)
+resize()
 
 local function shownRows()
 	local list = {}
@@ -152,14 +158,14 @@ check("W7", not name.shown and note(rows[1]).width == 120, "the narrowest window
 check("W8", name.text.wraps == false, "a long name is cut short on one line")
 
 -- The scrollbar --------------------------------------------------------------------------------------
-resize(opening, 200)
+resize(opening)
 items(9)
-LootFrame:Refresh()
+refresh()
 rows = shownRows()
 check("S1", rows[1].width == dataTable.scroll.width - 13 and note(rows[1]).width == 300 and nameWidth(rows[1]) == 157,
 	"rows make room for the scrollbar while it shows, the name giving way")
 items(2)
-LootFrame:Refresh()
+refresh()
 rows = shownRows()
 check("S2", rows[1].width == dataTable.scroll.width and note(rows[1]).width == 300, "and take it back when it goes")
 
@@ -178,6 +184,39 @@ resize(bounds[3])
 SET = { { key = "BIS", text = "BIS" } }
 LootFrame:Refresh()
 check("N3", frame.width == bounds[3] and bounds[3] < opening + 400, "within the new bounds")
+
+-- Height ---------------------------------------------------------------------------------------------
+local function tall(count) return 47 + 33 * count end
+local function drag(height)
+	grip.scripts.OnMouseDown(grip)
+	frame.height = height
+	grip.scripts.OnMouseUp(grip)
+	resize()
+end
+items(3)
+refresh()
+check("H1", frame.height == tall(3) and bounds[2] == tall(1) and bounds[4] == tall(3), "three items: exactly three rows tall, and it can't be dragged taller")
+check("H2", #shownRows() == 3 and not dataTable:needsBarRoom(), "with all of them in full, and no scrollbar")
+items(12)
+refresh()
+check("H3", frame.height == tall(8) and bounds[4] == tall(12) and dataTable:needsBarRoom(), "twelve: the usual eight rows, scrolling, and room to show all twelve")
+drag(tall(12))
+check("H4", PLC.db.profile.lootResponseRows == 12 and frame.height == tall(12) and not dataTable:needsBarRoom(), "dragged to show all twelve, that's remembered")
+items(4)
+refresh()
+check("H5", frame.height == tall(4) and PLC.db.profile.lootResponseRows == 12, "four items shrink it, without forgetting")
+drag(tall(4))
+check("H6", PLC.db.profile.lootResponseRows == 12, "a click on the grip changes nothing")
+items(12)
+refresh()
+check("H7", frame.height == tall(12), "and twelve grow it back")
+drag(tall(10) + 20)
+check("H8", PLC.db.profile.lootResponseRows == 11 and frame.height == tall(11), "a height between rows snaps to whole rows")
+UIParent.height = 500
+items(20)
+refresh()
+check("H9", bounds[4] == tall(math.floor((500 - 80 - 47) / 33)) and frame.height <= 500 - 80, "never taller than the screen has room for")
+UIParent.height = nil
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

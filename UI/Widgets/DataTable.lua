@@ -57,7 +57,8 @@ end
 -- scrolling to the end always brings the final row fully into view.
 local function fullRows(self)
 	local height = self.scroll:GetHeight() or 0
-	return math.max(1, math.floor((height + self.rowGap) / self.rowHeight))
+	-- A hair of slack: a height set to exactly n rows can come back a fraction short.
+	return math.max(1, math.floor((height + self.rowGap) / self.rowHeight + 0.01))
 end
 
 function Table:updateScrollRange()

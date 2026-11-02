@@ -73,6 +73,9 @@ PLC.Defaults = {
 		-- The Loot Session window was minimized into UI/LootTimersFrame.lua: `/plc` and auto-start
 		-- reopen that view instead of the full window.
 		sessionMinimized = false,
+		-- How many items the Loot Response window shows before it scrolls, set by resizing it. Fewer
+		-- items shrink it below this (UI/LootFrame.lua:fitHeight).
+		lootResponseRows = 8,
 		lootTimersWindow = { point = "RIGHT", x = -60, y = 120 }, -- LibWindow-1.1 position
 		-- Loot/MasterLooterList.lua: who becomes master looter when the group switches to Master Loot.
 		autoMasterLooter = true,

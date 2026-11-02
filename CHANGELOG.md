@@ -12,6 +12,10 @@
 - **The Loot Response window resizes in width.** Wider gives the note more room. Narrower cuts the
   item name short, then narrows the note, and finally hides the name; hovering the icon still shows
   the item.
+- **The Loot Response window fits its items.** It's never taller than the items need, so there's no
+  empty space and no scrollbar you don't need, and it can't be dragged taller than that. The
+  height you drag it to is remembered: fewer items shrink it, more grow it back to that height,
+  and only then does it scroll. It grows and shrinks at the bottom, in whole rows.
 
 ## 0.5.0-beta
 
