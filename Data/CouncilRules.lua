@@ -46,6 +46,49 @@ function CouncilRules:GetMasterLooterUnit()
 	return "player"
 end
 
+-- The unit whose word counts for loot, the way RC decides it: the master looter on Master Loot,
+-- the group leader otherwise.
+local function lootAuthorityUnit()
+	local masterLooter = CouncilRules:GetMasterLooterUnit()
+	if masterLooter then
+		return masterLooter
+	end
+	if IsInRaid() then
+		for i = 1, GetNumGroupMembers() do
+			if UnitIsGroupLeader("raid" .. i) then
+				return "raid" .. i
+			end
+		end
+	elseif IsInGroup() then
+		if UnitIsGroupLeader("player") then
+			return "player"
+		end
+		for i = 1, GetNumSubgroupMembers() do
+			if UnitIsGroupLeader("party" .. i) then
+				return "party" .. i
+			end
+		end
+	end
+	return nil
+end
+
+function CouncilRules:GetLootAuthorityName()
+	local unit = lootAuthorityUnit()
+	local name = unit and UnitName(unit)
+	return name ~= UNKNOWNOBJECT and name or nil
+end
+
+-- May this player speak for the group's loot? The group leader always may: the loot method lookup
+-- can lag right after a change.
+function CouncilRules:IsLootAuthority(sender)
+	local name = Ambiguate(sender, "none")
+	if UnitIsGroupLeader(name) then
+		return true
+	end
+	local unit = self:GetMasterLooterUnit()
+	return unit ~= nil and UnitIsUnit(unit, name)
+end
+
 function CouncilRules:IsMasterLooterUnit(unit)
 	local mlUnit = self:GetMasterLooterUnit()
 	return mlUnit ~= nil and UnitIsUnit(unit, mlUnit)

@@ -1,7 +1,6 @@
 local ADDON_NAME, PLC = ...
 
 local AceSerializer = LibStub("AceSerializer-3.0")
-local LibDeflate = LibStub("LibDeflate")
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 
 -- Getting RCLootCouncil's loot history into Data/History.lua. Since PLC stores entries in RC's
@@ -14,9 +13,6 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --   3. Pasting RC's "Player Export" string (lootHistory.lua PlayerExport/ImportPlayerExport).
 --   4. Reading RCLootCouncilLootDB directly when RC is installed on this character.
 local History = PLC.History
-
-local RC_PREFIX_MAIN = "RCLC"
-local RC_PREFIX_SYNC = "RCLCs"
 
 local pendingSync = {} -- [sender] = true once we've accepted their sync request
 
@@ -114,53 +110,6 @@ function History:ImportFromLocalRC()
 	return count
 end
 
-----------------------------------------------------------------------------------------------------
--- RC wire format (RCLootCouncil/Classes/Services/Comms.lua): Serialize(command, { args... }),
--- deflated, encoded for the addon channel.
-----------------------------------------------------------------------------------------------------
-
-local function encodeRC(command, ...)
-	local serialized = AceSerializer:Serialize(command, { ... })
-	return LibDeflate:EncodeForWoWAddonChannel(LibDeflate:CompressDeflate(serialized, { level = 3 }))
-end
-
-local function myFullName()
-	local realm = (GetNormalizedRealmName and GetNormalizedRealmName()) or GetRealmName():gsub("%s", "")
-	return UnitName("player") .. "-" .. realm
-end
-
-local function decodeRC(message)
-	local decoded = LibDeflate:DecodeForWoWAddonChannel(message)
-	if not decoded then
-		return nil
-	end
-	local decompressed = LibDeflate:DecompressDeflate(decoded)
-	if not decompressed then
-		return nil
-	end
-	local ok, command, data = AceSerializer:Deserialize(decompressed)
-	if not ok or type(command) ~= "string" or type(data) ~= "table" then
-		return nil
-	end
-	-- Cross-realm targets that can't be whispered get "xrealm" over the group channel, with the
-	-- real target and command prepended to the args.
-	if command == "xrealm" then
-		local target = table.remove(data, 1)
-		if target ~= myFullName() then
-			return nil
-		end
-		command = table.remove(data, 1)
-		if type(command) ~= "string" then
-			return nil
-		end
-	end
-	return command, data
-end
-
-local function sendRC(prefix, target, command, ...)
-	PLC:SendCommMessage(prefix, encodeRC(command, ...), "WHISPER", target)
-end
-
 local function shortName(sender)
 	return Ambiguate and Ambiguate(sender, "none") or (strsplit("-", sender))
 end
@@ -176,41 +125,40 @@ StaticPopupDialogs["PIXLLOOTCOUNCIL_RC_SYNC"] = {
 	button2 = DECLINE,
 	OnAccept = function(_, sender)
 		pendingSync[sender] = true
-		sendRC(RC_PREFIX_SYNC, sender, "syncAck", "history")
+		local Wire = PLC.Comms.RCWire
+		Wire:Send(Wire.SYNC, sender, "syncAck", "history")
 		print(L["CHAT_PREFIX"] .. string.format(L["HISTORY_RC_SYNC_RECEIVING"], shortName(sender)))
 	end,
 	OnCancel = function(_, sender)
-		sendRC(RC_PREFIX_SYNC, sender, "syncNack", "history", "user_declined")
+		local Wire = PLC.Comms.RCWire
+		Wire:Send(Wire.SYNC, sender, "syncNack", "history", "user_declined")
 	end,
 	timeout = 60,
 	whileDead = true,
 	hideOnEscape = true,
 }
 
-local function onRCSync(prefix, message, distribution, sender)
-	if prefix ~= RC_PREFIX_SYNC or not sender then
+local function onSyncRequest(data, sender)
+	if data[1] == "history" then
+		local dialog = StaticPopup_Show("PIXLLOOTCOUNCIL_RC_SYNC", shortName(sender))
+		if dialog then
+			dialog.data = sender
+		end
+	else
+		-- RC's own "'player' can't receive 'type'" reason -- PLC only takes the loot history.
+		local Wire = PLC.Comms.RCWire
+		Wire:Send(Wire.SYNC, sender, "syncNack", data[1], "unsupported")
+	end
+end
+
+local function onSyncData(data, sender)
+	-- Only from someone whose request we explicitly accepted.
+	if not pendingSync[sender] or data[1] ~= "history" then
 		return
 	end
-	local command, data = decodeRC(message)
-	if command == "syncR" then
-		if data[1] == "history" then
-			local dialog = StaticPopup_Show("PIXLLOOTCOUNCIL_RC_SYNC", shortName(sender))
-			if dialog then
-				dialog.data = sender
-			end
-		else
-			-- RC's own "'player' can't receive 'type'" reason -- PLC only takes the loot history.
-			sendRC(RC_PREFIX_SYNC, sender, "syncNack", data[1], "unsupported")
-		end
-	elseif command == "sync" then
-		-- Only from someone whose request we explicitly accepted.
-		if not pendingSync[sender] or data[1] ~= "history" then
-			return
-		end
-		pendingSync[sender] = nil
-		local count = History:ImportRCData(data[2])
-		print(L["CHAT_PREFIX"] .. string.format(L["HISTORY_RC_SYNC_DONE"], count, shortName(sender)))
-	end
+	pendingSync[sender] = nil
+	local count = History:ImportRCData(data[2])
+	print(L["CHAT_PREFIX"] .. string.format(L["HISTORY_RC_SYNC_DONE"], count, shortName(sender)))
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -218,76 +166,46 @@ end
 ----------------------------------------------------------------------------------------------------
 
 -- RC itself only accepts "history" from the master looter (or over GUILD, when the ML opted into
--- sending it there). The leader is accepted too, since RC Classic's ML is usually the leader and
--- the loot-method lookup can lag right after a change.
-local function isLootAuthority(sender)
-	local name = shortName(sender)
-	if UnitIsGroupLeader and UnitIsGroupLeader(name) then
-		return true
-	end
-	local getLootMethod = GetLootMethod or (C_PartyInfo and C_PartyInfo.GetLootMethod)
-	if not getLootMethod then
-		return false
-	end
-	local method, partyID, raidID = getLootMethod()
-	if method ~= "master" then
-		return false
-	end
-	local unit
-	if raidID then
-		unit = "raid" .. raidID
-	elseif partyID == 0 then
-		unit = "player"
-	elseif partyID then
-		unit = "party" .. partyID
-	end
-	return unit ~= nil and UnitIsUnit(unit, name)
+-- sending it there).
+local function mayMirror(sender, distribution)
+	return PLC.db.profile.historyMirrorRC
+		and (distribution == "GUILD" or PLC.CouncilRules:IsLootAuthority(sender))
 end
 
-local function onRCMain(prefix, message, distribution, sender)
-	if prefix ~= RC_PREFIX_MAIN or not sender or not PLC.db.profile.historyMirrorRC then
+local function onHistory(data, sender, distribution)
+	if not mayMirror(sender, distribution) then
 		return
 	end
-	local command, data = decodeRC(message)
-	if command == "history" then
-		if distribution ~= "GUILD" and not isLootAuthority(sender) then
-			return
-		end
-		local name, entry = data[1], data[2]
-		if type(name) == "string" and type(entry) == "table" then
-			History:ImportRCData({ [name] = { entry } })
-		end
-	elseif command == "delete_history" then
-		if distribution ~= "GUILD" and not isLootAuthority(sender) then
-			return
-		end
-		local id = data[1]
-		if not id then
-			return
-		end
-		for name, list in pairs(History:GetDB()) do
-			if type(list) == "table" then
-				for _, entry in ipairs(list) do
-					if entry.id == id then
-						History:DeleteEntry(name, entry)
-						return
-					end
+	local name, entry = data[1], data[2]
+	if type(name) == "string" and type(entry) == "table" then
+		History:ImportRCData({ [name] = { entry } })
+	end
+end
+
+local function onHistoryDeleted(data, sender, distribution)
+	if not mayMirror(sender, distribution) or not data[1] then
+		return
+	end
+	for name, list in pairs(History:GetDB()) do
+		if type(list) == "table" then
+			for _, entry in ipairs(list) do
+				if entry.id == data[1] then
+					History:DeleteEntry(name, entry)
+					return
 				end
 			end
 		end
 	end
 end
 
-local function isRCLoaded()
-	local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
-	return isLoaded and isLoaded("RCLootCouncil_Classic") and true or false
-end
-
 PLC:RegisterOnEnable(function()
+	local Wire = PLC.Comms.RCWire
 	-- With RC running here too, RC answers its own sync requests (two answers would confuse the
 	-- sender); the user can then pull it in with "Import from RCLootCouncil" instead.
-	if not isRCLoaded() then
-		PLC:RegisterComm(RC_PREFIX_SYNC, onRCSync)
+	if not Wire:IsRCRunning() then
+		Wire:Register(Wire.SYNC, "syncR", onSyncRequest)
+		Wire:Register(Wire.SYNC, "sync", onSyncData)
 	end
-	PLC:RegisterComm(RC_PREFIX_MAIN, onRCMain)
+	Wire:Register(Wire.MAIN, "history", onHistory)
+	Wire:Register(Wire.MAIN, "delete_history", onHistoryDeleted)
 end)
