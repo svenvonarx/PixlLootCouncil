@@ -9,7 +9,7 @@ local SliderWidget = PLC.UI.Widgets.Slider
 local PanelLayout = PLC.UI.Widgets.PanelLayout
 local Theme = PLC.UI.Theme
 
--- General / Auto Loot / Responses / Council / Appearance / Preview sidebar categories (spec §4.3), reading/writing
+-- General / Auto Loot / Responses / Council / Appearance / Preview / About sidebar categories (spec §4.3), reading/writing
 -- db.profile.* live -- no /reload needed to see a change take effect (AceDB itself handles
 -- writing the change through to disk on logout).
 local OptionsFrame = {}
@@ -627,6 +627,143 @@ local function buildPreviewPage(page)
 	page:HookScript("OnShow", refresh)
 end
 
+-- Who made this, what it's built on, and which version everyone in the group is running
+-- (Data/Presence.lua). Version data comes in as people answer, so the list redraws as it does.
+local VERSION_LIST_ROWS = 6
+local refreshAbout
+
+local function aboutLine(parent, y, label, value)
+	local name = Primitives.createText(parent, label, 11, "dim")
+	name:SetPoint("TOPLEFT", 0, y)
+	local text = Primitives.createText(parent, value, 11)
+	text:SetPoint("TOPLEFT", 92, y)
+	text:SetPoint("RIGHT", parent, "RIGHT")
+	text:SetJustifyH("LEFT")
+end
+
+local function versionRows()
+	local Presence = PLC.Presence
+	local rows = {}
+	for guid, entry in PLC.Roster:IterateGroup() do
+		local version = Presence.versions[guid]
+		if guid == UnitGUID("player") then
+			version = PLC.version or L["ABOUT_DEV_VERSION"]
+		end
+		local status, color
+		if version and Presence.newest and Presence.IsNewer(Presence.newest, version) then
+			status, color = L["ABOUT_STATUS_OUTDATED"], "warning"
+		elseif version then
+			status, color = L["ABOUT_STATUS_CURRENT"], "success"
+		elseif Presence:IsPresent(guid) then
+			version, status, color = L["ABOUT_VERSION_UNKNOWN"], L["ABOUT_STATUS_OUTDATED"], "warning"
+		else
+			version, status, color = "-", L["VOTINGFRAME_NO_ADDON"], "dim"
+		end
+		table.insert(rows, {
+			name = PLC.Roster:ShortName(entry.name),
+			class = entry.class,
+			version = version,
+			status = status,
+			color = color,
+		})
+	end
+	table.sort(rows, function(a, b) return a.name < b.name end)
+	return rows
+end
+
+local function buildAboutPage(page)
+	local logo = Primitives.createLogo(page, 34)
+	logo:SetPoint("TOPLEFT")
+	local title = Primitives.createText(page, ADDON_NAME, 20, "title")
+	title:SetPoint("TOPLEFT", logo, "TOPRIGHT", 12, -1)
+	local versionText = Primitives.createText(page, "", 11, "dim")
+	versionText:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -5)
+
+	local versionsLabel = Primitives.createText(page, L["ABOUT_VERSIONS"], 13, "white")
+	versionsLabel:SetPoint("TOPLEFT", 0, -54)
+	local checkButton = ButtonWidget.createButton(page, L["ABOUT_CHECK_GROUP"], 100)
+	checkButton:SetHeight(24)
+	checkButton:SetPoint("TOPRIGHT", 0, -49)
+	checkButton:SetScript("OnClick", function()
+		PLC.Presence:CheckGroup()
+	end)
+
+	local listHolder = CreateFrame("Frame", nil, page)
+	listHolder:SetPoint("TOPLEFT", 0, -78)
+	listHolder:SetPoint("TOPRIGHT", 0, -78)
+	listHolder:SetHeight(VERSION_LIST_ROWS * NAME_ROW_HEIGHT)
+	listHolder.border = Primitives.createBorder(listHolder, "borderDim")
+	local versionTable = PLC.UI.Widgets.DataTable.Create(listHolder, NAME_ROW_HEIGHT)
+	versionTable:SetColumns({
+		{
+			width = 130,
+			render = function(rowData)
+				local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[rowData.class]
+				if c then
+					return "  " .. rowData.name, c.r, c.g, c.b
+				end
+				return "  " .. rowData.name
+			end,
+		},
+		{
+			width = 100,
+			render = function(rowData)
+				return rowData.version
+			end,
+		},
+		{
+			width = 140,
+			render = function(rowData)
+				local r, g, b = Primitives.color(rowData.color)
+				return rowData.status, r, g, b
+			end,
+		},
+	})
+
+	local creditsTop = -(78 + VERSION_LIST_ROWS * NAME_ROW_HEIGHT + 20)
+	local creditsLabel = Primitives.createText(page, L["ABOUT_CREDITS"], 13, "white")
+	creditsLabel:SetPoint("TOPLEFT", 0, creditsTop)
+	aboutLine(page, creditsTop - 24, L["ABOUT_AUTHOR"], PLC.author or "?")
+	aboutLine(page, creditsTop - 42, L["ABOUT_LIBRARIES"], L["ABOUT_LIBRARIES_LIST"])
+	aboutLine(page, creditsTop - 60, L["ABOUT_FONT"], L["ABOUT_FONT_NAME"])
+	aboutLine(page, creditsTop - 78, L["ABOUT_THANKS"], L["ABOUT_THANKS_RC"])
+	aboutLine(page, creditsTop - 96, "", L["ABOUT_THANKS_GARGUL"])
+	aboutLine(page, creditsTop - 114, L["ABOUT_LICENSE"], L["ABOUT_LICENSE_NAME"])
+
+	-- The game can't open a browser, so the address is there to copy.
+	local websiteLabel = Primitives.createText(page, L["ABOUT_WEBSITE"], 11, "dim")
+	websiteLabel:SetPoint("TOPLEFT", 0, creditsTop - 138)
+	local website = Primitives.createEditBox(page, 290, 24)
+	website:SetPoint("TOPLEFT", 92, creditsTop - 132)
+	website:SetText(PLC.website or "")
+	website:SetScript("OnTextChanged", function(self, userInput)
+		if userInput then
+			self:SetText(PLC.website or "")
+			self:HighlightText()
+		end
+	end)
+	website:HookScript("OnEditFocusGained", function(self)
+		self:HighlightText()
+	end)
+
+	function refreshAbout()
+		local Presence = PLC.Presence
+		local mine = PLC.version or L["ABOUT_DEV_VERSION"]
+		if Presence.newest then
+			versionText:SetText(string.format(L["ABOUT_VERSION_LINE_OUTDATED"], mine, Presence.newest))
+		else
+			versionText:SetText(string.format(L["ABOUT_VERSION_LINE"], mine))
+		end
+		versionTable:SetRows(versionRows())
+	end
+
+	page:HookScript("OnShow", function()
+		refreshAbout()
+		PLC.Presence:CheckGroup()
+	end)
+	refreshAbout()
+end
+
 local DEFAULT_ACCENT = { r = 0.91, g = 0.64, b = 0.24 }
 
 local function buildAppearancePage(page)
@@ -702,6 +839,8 @@ local function ensurePanel()
 	panel:AddSidebarHeader(L["OPTIONS_SECTION_ADDON"])
 	buildPreviewPage(panel:AddTab("preview", L["OPTIONS_TAB_PREVIEW"],
 		{ icon = "nav_preview.png", description = L["OPTIONS_DESC_PREVIEW"] }))
+	buildAboutPage(panel:AddTab("about", L["OPTIONS_TAB_ABOUT"],
+		{ icon = "nav_about.png", description = L["OPTIONS_DESC_ABOUT"] }))
 
 	return panel
 end
@@ -713,6 +852,17 @@ function OptionsFrame:Open(tab)
 	end
 end
 
+-- From Data/Presence.lua, as version answers come in.
+function OptionsFrame:OnVersionsUpdated()
+	if refreshAbout and panel and panel.frame:IsShown() then
+		refreshAbout()
+	end
+end
+
 PLC:RegisterSlashCommand("options", "Open the options window", function()
 	OptionsFrame:Open()
+end)
+
+PLC:RegisterSlashCommand("about", "Show the version, the group's versions and the credits", function()
+	OptionsFrame:Open("about")
 end)

@@ -6,6 +6,14 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 
 AceAddon:NewAddon(PLC, ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0", "AceTimer-3.0", "AceComm-3.0", "AceBucket-3.0")
 
+-- The packager fills this in. Run straight from the repository it's still the placeholder, which
+-- isn't a version anyone can compare against.
+local getMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+local version = getMetadata(ADDON_NAME, "Version")
+PLC.version = (version and not version:find("@", 1, true)) and version or nil
+PLC.author = getMetadata(ADDON_NAME, "Author")
+PLC.website = getMetadata(ADDON_NAME, "X-Website")
+
 function PLC:OnInitialize()
 	self.db = AceDB:New(ADDON_NAME .. "DB", self.Defaults, true)
 	-- Loot history in its own SavedVariables, mirroring RCLootCouncil's RCLootCouncilLootDB:

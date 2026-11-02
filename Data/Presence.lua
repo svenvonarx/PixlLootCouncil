@@ -1,16 +1,52 @@
 local ADDON_NAME, PLC = ...
 
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
+
 -- Addon-wide presence tracking, independent of any loot session -- lets UI/VotingFrame.lua tell
 -- "has the addon, hasn't responded yet" apart from "no addon detected at all" for every roster
 -- member, not just whoever's actually voted. Every client (not just the holder) broadcasts a
 -- lightweight "presence" ping periodically; nothing here ever gates on being the master looter
--- or a session holder.
+-- or a session holder. The ping also carries the addon's version, which is what the Options ->
+-- About page lists and what tells someone that a newer version is around.
 local Presence = {}
 PLC.Presence = Presence
 
 local PRESENCE_TIMEOUT = 300 -- seconds; long enough to tolerate a missed broadcast or two
+local CHECK_COOLDOWN = 10 -- a version check makes the whole group answer, so not more often than this
+local ANSWER_COOLDOWN = 5
 
 Presence.lastSeen = {} -- [guid] = time()
+Presence.versions = {} -- [guid] = version string, from anyone on a version that sends one
+Presence.newest = nil -- the newest version seen in a group, if it's newer than ours
+
+local lastCheck, lastAnswer
+local notified = false
+
+-- major, minor, patch and whether it's a final release, or nil for anything else ("v0.3.0-beta").
+local function parseVersion(version)
+	local major, minor, patch, rest = tostring(version):match("^v?(%d+)%.(%d+)%.(%d+)(.*)$")
+	if not major then
+		return nil
+	end
+	return tonumber(major), tonumber(minor), tonumber(patch), rest == ""
+end
+
+-- Is `a` newer than `b`? Something unparseable, like a development copy, is never either.
+function Presence.IsNewer(a, b)
+	local aMajor, aMinor, aPatch, aFinal = parseVersion(a)
+	local bMajor, bMinor, bPatch, bFinal = parseVersion(b)
+	if not aMajor or not bMajor then
+		return false
+	end
+	if aMajor ~= bMajor then
+		return aMajor > bMajor
+	elseif aMinor ~= bMinor then
+		return aMinor > bMinor
+	elseif aPatch ~= bPatch then
+		return aPatch > bPatch
+	end
+	return aFinal and not bFinal
+end
 
 function Presence:MarkSeen(guid, ts)
 	if not guid then
@@ -26,7 +62,29 @@ end
 
 function Presence:OnPresenceReceived(data)
 	self:MarkSeen(data.guid)
+	self:RecordVersion(data.guid, data.version)
 	self:notifyVotingFrame()
+	self:notifyOptions()
+end
+
+function Presence:RecordVersion(guid, version)
+	if not guid or type(version) ~= "string" then
+		return
+	end
+	self.versions[guid] = version
+	if self.IsNewer(version, self.newest or PLC.version) then
+		self.newest = version
+		if not notified then
+			notified = true
+			print(L["CHAT_PREFIX"] .. string.format(L["ABOUT_UPDATE_NOTICE"], version))
+		end
+	end
+end
+
+function Presence:notifyOptions()
+	if PLC.UI and PLC.UI.OptionsFrame and PLC.UI.OptionsFrame.OnVersionsUpdated then
+		PLC.UI.OptionsFrame:OnVersionsUpdated()
+	end
 end
 
 -- Without this, a response grid rendered before someone's presence ping actually arrived (e.g.
@@ -45,7 +103,26 @@ end
 local function broadcastPresence()
 	local myGuid = UnitGUID("player")
 	Presence:MarkSeen(myGuid)
-	PLC.Comms.Sync:SendPresence(myGuid)
+	PLC.Comms.Sync:SendPresence(myGuid, PLC.version)
+end
+
+-- Asks everyone in the group for their version right now, instead of waiting for the next ping.
+function Presence:CheckGroup()
+	local now = GetTime()
+	if lastCheck and now - lastCheck < CHECK_COOLDOWN then
+		return
+	end
+	lastCheck = now
+	PLC.Comms.Sync:SendVersionCheck()
+end
+
+function Presence:OnVersionCheckReceived()
+	local now = GetTime()
+	if lastAnswer and now - lastAnswer < ANSWER_COOLDOWN then
+		return
+	end
+	lastAnswer = now
+	broadcastPresence()
 end
 
 PLC:RegisterOnEnable(function()

@@ -101,12 +101,21 @@ end
 
 -- Not session-scoped (no sessionId) -- every client broadcasts this periodically regardless of
 -- whether any loot session is running, see Data/Presence.lua.
-function Sync:SendPresence(guid)
+function Sync:SendPresence(guid, version)
 	local ch = channel()
 	if not ch then
 		return
 	end
-	Protocol:Send("presence", { guid = guid }, ch)
+	Protocol:Send("presence", { guid = guid, version = version }, ch)
+end
+
+-- Everyone answers with a presence ping -- see Data/Presence.lua:CheckGroup.
+function Sync:SendVersionCheck()
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("version_check", {}, ch)
 end
 
 -- Not session-scoped either, but unlike presence it's only ever sent at specific moments (a
@@ -201,6 +210,7 @@ Protocol:RegisterHandler("session_force_end", function(data) PLC.Session:OnForce
 Protocol:RegisterHandler("session_sync_request", function(data, sender) PLC.Session:OnSyncRequestReceived(data, sender) end)
 Protocol:RegisterHandler("session_sync_data", function(data) PLC.Session:OnSyncDataReceived(data) end)
 Protocol:RegisterHandler("presence", function(data) PLC.Presence:OnPresenceReceived(data) end)
+Protocol:RegisterHandler("version_check", function() PLC.Presence:OnVersionCheckReceived() end)
 Protocol:RegisterHandler("gear", function(data) PLC.Gear:OnGearReceived(data) end)
 Protocol:RegisterHandler("profession", function(data) PLC.Professions:OnProfessionReceived(data) end)
 Protocol:RegisterHandler("set_enchanter", function(data) PLC.Session:OnEnchanterReceived(data) end)
