@@ -40,6 +40,9 @@ addon zip, uploads it to CurseForge and creates a GitHub release. `docs/`, `.git
 3. Follow the run under the repository's *Actions* tab. When it's green, the file is on CurseForge.
    Most addon managers only offer beta files to users who opted into betas.
 
+The project page text lives in `docs/CURSEFORGE.md`. Paste it into the project's *Description* on
+CurseForge when features change.
+
 ## Building a zip locally (no upload)
 
 To test the packaged result without uploading anything:

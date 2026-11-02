@@ -45,6 +45,9 @@ uses RCLootCouncil's format.
   - stored in RCLootCouncil's exact format, browsable with date, name, class and response filters
   - exports to *TSV (Google Sheets & English Excel)* and *TSV (International Excel)*, so existing
     RC spreadsheets keep working
+- **Works alongside RCLootCouncil.** If your master looter runs RCLootCouncil, you don't need it too.
+  The items show up in your Loot Response window with their buttons and timer, your answer goes back
+  to the master looter, and the awards land in your loot history.
 - **Import from RCLootCouncil**:
   - receive a loot master's history in game via RC's own `/rc sync`
   - record an RC master looter's awards live during raids
@@ -58,7 +61,8 @@ uses RCLootCouncil's format.
 
 - TBC Anniversary Classic.
 - **Master Loot** for the full workflow (auto loot, sessions, trades).
-- Raiders need the addon to respond to a session. People without it show as *No addon detected*.
+- Raiders need this addon, or RCLootCouncil if the master looter uses that, to respond to a session.
+  People without it show as *No addon detected*.
 
 ## Getting started
 
@@ -116,11 +120,18 @@ The Loot Session window also has buttons to open the other windows.
   - You can also paste an RC *Player Export*.
   - Importing twice is safe; duplicates are skipped.
 - **Exports** use RC's TSV layout, so spreadsheets built on RC exports keep working.
-- **Running both**: raiders can keep RCLootCouncil installed. The master looter should use only one of
-  the two addons to run loot.
+- **Replacing RC as a raider**: you can disable RCLootCouncil and keep raiding with a loot master who
+  uses it. Their sessions open in your Loot Response window, with their buttons, timer and any note
+  requirement, and rolls work too. Turn this off under Options → General.
+- **Running both**: raiders can keep RCLootCouncil installed: while it runs, RC answers its own
+  sessions and this addon stays out of the way. The master looter should use only one of the two
+  addons to run loot.
 
 ## Known limitations
 
+- With an RCLootCouncil master looter you can respond and roll, but not vote as a council member:
+  that needs RC's voting window. There's no auto pass either, and tier tokens show no gear comparison
+  on the master looter's side. RC's `/rc version` lists you as not having RC.
 - Trade-time tracking reads the item tooltip and currently understands the **English** client only.
 - The interface is English only; translations are welcome.
 - History `votes` is always 0, because PixlLootCouncil has no council vote count.

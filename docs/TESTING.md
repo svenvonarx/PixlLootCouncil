@@ -664,3 +664,26 @@ Needs the addon on everyone taking part. Start it with `/plc preview` or Options
   backlog intact; raiders leave with `/plc preview`.
 - **Real loot:** loot a real epic during a preview: it ends at once, and the item is in your real list.
 - **Late player:** reload or join during a preview: they get the preview, marked PREVIEW.
+
+### 2.17 RCLootCouncil sessions (`Data/RCBridge.lua`, `Comms/RCWire.lua`)
+`luajit tests/rc_bridge_test.lua` plays an RC master against this code from the addon folder. This
+section needs the real thing: a master looter running RCLootCouncil, and you with RC disabled.
+- **Respond:** the master starts a session. Your Loot Response window opens with their items, buttons
+  and countdown. In the master's window you show as "selecting response", not "Offline or
+  RCLootCouncil not installed". Click a button with a note: your answer and note appear there.
+- **Pass and timeout:** Pass shows as Pass. Let one run out: it shows as "didn't respond on time".
+- **Their buttons:** the master renames a button or adds one: yours match. With separate button groups
+  (tokens, weapons), each item shows its own group.
+- **Required note:** the master requires a note on a button: without one, chat says so and it stays.
+- **Adding items:** the master adds an item mid-session: a new row appears.
+- **Rolls:** the master requests a roll from you: Roll does a real `/roll` and the result shows in their
+  window. Pass sends a dash. A roll request aimed at someone else shows you nothing.
+- **Catching up:** `/reload` during a session, or join the group mid-session: the items come back within
+  a few seconds.
+- **Ending:** the master ends the session: the window closes and chat says so.
+- **History:** the master awards an item, with Send history on in RC: it shows in `/plc history` for a
+  master looter who isn't the group leader too. Deleting it in RC removes it here.
+- **Out of the way:** with RC enabled on your client, only RC's window opens and the master gets one
+  answer. With Options → General's option off, nothing opens.
+- **Both at once:** a normal PixlLootCouncil preview still works with RC disabled, and its rows use its
+  own buttons.
