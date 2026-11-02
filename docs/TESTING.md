@@ -718,7 +718,7 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   Appearance, each card shows its own theme whichever one is on. Click each one with the Loot Session,
   Trades and Timers windows open: everything recolors at once, including the selected menu entry and
   icons, and it's still set after `/reload`. In a preview, trade times stay green, accent and red, and
-  Staged stays different from Awarded, on every theme. Pixl Gold looks exactly like before themes.
+  Staged stays different from Awarded, on every theme. Default looks exactly like before themes.
 - **Fonts:** the font list shows every registered font, each in its own font, and scrolls. Other
   dropdowns afterwards aren't stuck in a sample font. Picking one changes every open window at once and
   survives `/reload`. Disable the addon that registered your chosen font: the windows fall back to Inter
@@ -734,6 +734,11 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   inside an instance: nothing until you leave. With someone newer online in the guild but not the
   group, `/reload` on their side: you hear about it within seconds. Turn it off on About: silence.
 - **Website:** the box selects its text on click, and typing can't change it.
+- **Languages:** `luajit tests/locale_test.lua` checks trade time against every language's real game
+  strings, and that every translation is complete with its %s and %d intact. On a non-English client
+  (set in the Battle.net launcher): the windows are translated, the Trades Disenchant button casts, the
+  Enchanter list fills in, trade times are right, and on Korean or Chinese all text is readable. Check
+  long German labels on buttons, and the Font list's first entry reads Default on Korean or Chinese.
 - **Addon list:** on the character screen and in game: the icon is sharp beside the name, the addon is
   under Loot with Gargul and RCLootCouncil, and hovering it shows the new description.
 

@@ -44,7 +44,7 @@ The entire addon UI uses one design system of its own: fully custom `CreateFrame
 
 ### 4.1 Palette
 
-Defined in `UI/Theme.lua`: fixed colors (`text`, `dim`, `title`, `white`, `field`, `fieldHover`, `scroll`, `warning`, `success`) plus accent-tinted surfaces (`frame`, `header`, `sidebar`, `content`, `button`, `buttonHover`, `border`, `borderDim`) — each a neutral near-black base moved a small, per-surface fraction towards the accent, so the whole palette follows the accent. A theme (`Theme.THEMES`, Options → Appearance) sets the accent and shades the surfaces. **Default theme: Pixl Gold, accent `#E8A33D`** (warm gold), configurable under Options → Appearance.
+Defined in `UI/Theme.lua`: fixed colors (`text`, `dim`, `title`, `white`, `field`, `fieldHover`, `scroll`, `warning`, `success`) plus accent-tinted surfaces (`frame`, `header`, `sidebar`, `content`, `button`, `buttonHover`, `border`, `borderDim`) — each a neutral near-black base moved a small, per-surface fraction towards the accent, so the whole palette follows the accent. A theme (`Theme.THEMES`, Options → Appearance) sets the accent and shades the surfaces. **Default theme: `gold`, accent `#E8A33D`** (warm gold), configurable under Options → Appearance.
 
 ### 4.2 Construction primitives
 

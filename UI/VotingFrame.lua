@@ -384,14 +384,15 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton, bankButton)
 				holder.classIcon:SetPoint("LEFT", holder.roleIcon, "RIGHT", 4, 0)
 				holder.text = Primitives.createText(holder, "", 11)
 				holder.text:SetPoint("LEFT", holder.classIcon, "RIGHT", 4, 0)
-				holder.text:SetPoint("RIGHT", -20, 0) -- room for holder.received
 				holder.text:SetJustifyH("LEFT")
 				holder.text:SetWordWrap(false)
 				-- This item is already in their loot history. At the cell's right edge, not after the
-				-- name, so a whole raid reads as one column. Hovering says when.
+				-- name, so a whole raid reads as one column. Hovering says when. The name stops at
+				-- it, whether it's showing or not, and however long the word is in this language.
 				holder.received = Primitives.createText(holder, L["VOTINGFRAME_RECEIVED"], 11, "warning")
 				holder.received:SetPoint("RIGHT", -2, 0)
 				holder.received:Hide()
+				holder.text:SetPoint("RIGHT", holder.received, "LEFT", -2, 0)
 				-- Hovering the name shows what this candidate has already received (loot history,
 				-- including anything imported from RCLootCouncil) -- see UI/HistoryFrame.lua.
 				holder:EnableMouse(true)

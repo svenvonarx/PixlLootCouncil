@@ -46,6 +46,8 @@ uses RCLootCouncil's format.
     window's Trade button
   - **Follow** walks you to the other player
   - one-click **Disenchant** for items you disenchant yourself
+- **Every client language**: English, German, Spanish, French, Italian, Portuguese, Russian, Korean and
+  Simplified and Traditional Chinese.
 - **Themes and fonts**: pick one of eight themes under Options → Appearance, and any font your addons
   have registered.
 - **Version check**: Options → About lists the version everyone in your group runs. If yours is out
@@ -143,8 +145,7 @@ The Loot Session window also has buttons to open the other windows.
 - With an RCLootCouncil master looter you can respond and roll, but not vote as a council member:
   that needs RC's voting window. There's no auto pass either, and tier tokens show no gear comparison
   on the master looter's side. RC's `/rc version` lists you as not having RC.
-- Trade-time tracking reads the item tooltip and currently understands the **English** client only.
-- The interface is English only; translations are welcome.
+- Translations are machine-written, so some wording may be off. Corrections are welcome on GitHub.
 - History `votes` is always 0, because PixlLootCouncil has no council vote count.
 
 ## Reporting bugs

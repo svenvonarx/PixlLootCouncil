@@ -43,7 +43,7 @@ Try it first: `/plc preview`
 ## Good to know
 
 - With an RCLootCouncil loot master you can respond and roll, but council members still need RC to vote.
-- The interface is English only for now, and trade-time tracking needs the English client.
+- Available in every client language. The translations are machine-written, so corrections are welcome on GitHub.
 - There's no council vote count: the session holder makes the final call.
 
 Free software under the GPL-3.0. The source is on [GitHub](https://github.com/svenvonarx/PixlLootCouncil).

@@ -451,7 +451,7 @@ local shownWhenHas = cellHolder.received.shown
 nameCell.update(cellHolder, row(false))
 check("R15", shownWhenHas and not cellHolder.received.shown, "the tag follows the row, as cells get reused")
 check("R16", cellHolder.received.text == "VOTINGFRAME_RECEIVED" and cellHolder.received.points[1][1] == "RIGHT", "it sits at the cell's right edge")
-check("R17", cellHolder.text.wordWrap == false and cellHolder.text.points[2][1] == "RIGHT" and cellHolder.text.points[2][2] == -20, "and the name stops short of it")
+check("R17", cellHolder.text.wordWrap == false and cellHolder.text.points[2][1] == "RIGHT" and cellHolder.text.points[2][2] == cellHolder.received, "and the name stops short of it, however long the word is")
 
 local function linesFor(fn, ...)
 	local lines = {}

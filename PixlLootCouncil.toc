@@ -1,6 +1,16 @@
 ## Interface: 20506
 ## Title: PixlLootCouncil
 ## Notes: Loot council for TBC Anniversary. The master looter collects the raid's loot, the council reviews everyone's interest in one window, and every trade is guided from there. Raiders can also answer a master looter who runs RCLootCouncil.
+## Notes-deDE: Beuterat für TBC Anniversary. Der Plündermeister sammelt die Beute des Schlachtzugs, der Rat prüft das Interesse aller in einem Fenster, und jeder Handel wird von dort aus geführt. Spieler können auch einem Plündermeister mit RCLootCouncil antworten.
+## Notes-esES: Consejo de botín para TBC Anniversary. El maestro despojador recoge el botín de la banda, el consejo revisa el interés de todos en una ventana y cada comercio se guía desde ahí. Los jugadores también pueden responder a un maestro despojador con RCLootCouncil.
+## Notes-esMX: Consejo de botín para TBC Anniversary. El maestro despojador recoge el botín de la banda, el consejo revisa el interés de todos en una ventana y cada comercio se guía desde ahí. Los jugadores también pueden responder a un maestro despojador con RCLootCouncil.
+## Notes-frFR: Conseil de butin pour TBC Anniversary. Le responsable du butin collecte le butin du raid, le conseil examine l'intérêt de chacun dans une seule fenêtre, et chaque échange est guidé depuis celle-ci. Les joueurs peuvent aussi répondre à un responsable du butin sous RCLootCouncil.
+## Notes-itIT: Consiglio del bottino per TBC Anniversary. Il responsabile del bottino raccoglie il bottino dell'incursione, il consiglio esamina l'interesse di tutti in una finestra e ogni scambio viene guidato da lì. I giocatori possono anche rispondere a un responsabile che usa RCLootCouncil.
+## Notes-koKR: TBC Anniversary용 전리품 위원회입니다. 전리품 담당자가 공격대 전리품을 모으고, 위원회가 한 창에서 모두의 의사를 검토하며, 모든 거래를 그곳에서 안내합니다. RCLootCouncil을 쓰는 전리품 담당자에게도 응답할 수 있습니다.
+## Notes-ptBR: Conselho de saque para TBC Anniversary. O Mestre do Saque coleta o saque da raide, o conselho analisa o interesse de todos em uma janela e cada negociação é guiada a partir dali. Os jogadores também podem responder a um Mestre do Saque com RCLootCouncil.
+## Notes-ruRU: Совет по добыче для TBC Anniversary. Ответственный за добычу собирает добычу рейда, совет рассматривает интерес каждого в одном окне, а каждый обмен проходит с подсказками оттуда. Игроки могут отвечать и ответственному, который использует RCLootCouncil.
+## Notes-zhCN: TBC 周年服战利品委员会。分配者收集团队的战利品，委员会在一个窗口中审核所有人的需求，并由此引导每笔交易。玩家也可以回应使用 RCLootCouncil 的分配者。
+## Notes-zhTW: TBC 週年服戰利品委員會。分配者收集團隊的戰利品，委員會在一個視窗中審核所有人的需求，並由此引導每筆交易。玩家也可以回應使用 RCLootCouncil 的分配者。
 ## IconTexture: Interface\AddOns\PixlLootCouncil\textures\icon
 ## Category: Loot
 ## Category-deDE: Beute

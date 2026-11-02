@@ -100,7 +100,7 @@ for name, spec in pairs(BEFORE) do
 end
 unchanged = unchanged and same(gold.field, { 0.022, 0.026, 0.032 }) and same(gold.scroll, { 0.075, 0.085, 0.100 })
 	and same(gold.text, { 0.87, 0.88, 0.90 }) and same(gold.success, { 0.27, 0.84, 0.38 }) and same(gold.warning, { 1.00, 0.27, 0.27 })
-check("T1", unchanged, "Pixl Gold is exactly the old default look")
+check("T1", unchanged, "the Default theme is exactly the old default look")
 check("T2", Theme.THEMES[1].key == "gold" and Theme.DEFAULT == "gold" and PLC.Defaults.profile.theme == "gold", "and it's first, and the default")
 check("T3", PLC.Defaults.profile.accent == nil and PLC.Defaults.profile.font == "Inter", "the accent setting is gone, and Inter is the default font")
 

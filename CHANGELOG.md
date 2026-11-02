@@ -14,7 +14,12 @@ with themes and selectable fonts, and the master looter can be set automatically
   person on your list who's online in the group becomes master looter. Handing it to someone else
   afterwards sticks, and holding Shift skips it once. The same page can set the loot threshold at that
   moment too.
-- **Themes**: Options → Appearance now has eight themes instead of an accent color: Pixl Gold, which is
+- **Every client language**: the addon is translated into German, Spanish, French, Italian, Portuguese,
+  Russian, Korean and Simplified and Traditional Chinese, using Blizzard's own terms where they exist.
+  The translations are machine-written, so corrections are welcome. It also works properly on those
+  clients now: one-click Disenchant, finding the raid's Enchanter and trade timers relied on English,
+  and Korean and Chinese clients use the game's font, because Inter doesn't have those characters.
+- **Themes**: Options → Appearance now has eight themes instead of an accent color: Default, which is
   the look you already know, Sunwell, Fel, Zangarmarsh, Frost, Twilight, Arcane and Nether. Each has
   its own backgrounds, and they all keep the trade timers and Staged/Awarded easy to tell apart. A
   custom accent color isn't carried over.
