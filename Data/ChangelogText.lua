@@ -10,6 +10,12 @@ PLC.CHANGELOG_TEXT = [[
   window had a fixed place: Loot Response always covered the Loot Session window, which always
   covered Options, and Loot Trades covered everything. The game's confirmation pop-ups now always
   show above the addon's windows. Loot Timers stays below everything, out of the way.
+- **A more compact Loot Response window.** Rows run edge to edge, so the countdown crosses the
+  whole window, with a thin line between items. The icon, the buttons and the note are all one
+  height. The note is a single line of up to 50 characters, and wider by default.
+- **The Loot Response window resizes in width.** Wider gives the note more room. Narrower cuts the
+  item name short, then narrows the note, and finally hides the name; hovering the icon still shows
+  the item.
 
 ## 0.5.0-beta
 

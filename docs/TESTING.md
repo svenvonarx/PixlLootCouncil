@@ -194,22 +194,19 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   same fixed width — short labels like "OS" should hug their text with modest padding, while
   "Upgrade" is visibly wider to fit its longer label, and none of them look cramped or overly
   padded next to each other.
-- Note field — fixed size, capped length: confirm the note box is **the same height as the
-  response buttons** next to it and **the same width as the full button row** — a fixed size
-  that doesn't change when you resize the window (an in-between round made it dynamically resize
-  per-window-width instead, which was reverted — the window's width is fixed now anyway, see
-  1.6's resize note, so this no longer even comes up in practice). Confirm it shows "Optional
-  Note..." as placeholder text (gray, cleared on real input). Type a long note (60+ characters):
-  confirm the text wraps onto a second line
-  and then **stops accepting more characters** once it's about full — it should NOT keep growing
-  downward past the box's bottom border or past 2 lines; if you do manage to get a 3rd line's
-  worth of text in, that's a bug (the box clips its own content as a backstop, but the character
-  cap is what should actually prevent it in normal use). Vertical text alignment (fixed this
-  round): with the note box empty (just the "Optional Note..." placeholder) or holding a single
-  short line, confirm the text sits vertically centered in the box, level with the response
-  buttons' own centered labels right next to it — it previously sat pinned near the box's top
-  edge, which (even though the box's own border/frame was already the exact same height and
-  position as the buttons) read as the whole field being misaligned with them.
+- Row layout (`luajit tests/loot_window_test.lua` checks the sizes): rows run edge to edge inside the
+  window's border, starting right below the header, with a 1px gap between rows and the icon 3px in
+  from the left. The countdown fill starts at the window's left edge. The icon, the response buttons
+  and the note box are all the same height, and labels and the "Optional Note..." placeholder sit
+  centered in them.
+- Note field: one line. Type a long note: it never wraps, and stops at 50 characters. At the
+  width the window opens with, the note box is about 300px wide.
+- Width (new): drag the grip sideways. Wider: the note box grows. Narrower: the item name is cut
+  short with "..." first, then the note box shrinks, then the name disappears and the note takes its
+  place. The window stops at a width where the buttons and a short note box still fit, and nothing
+  overlaps or clips at any width. Hovering a cut-short name or the icon shows the item.
+- Scrollbar: with more items than fit, the scrollbar shows at the right edge and the rows make room
+  for it. Answer items until everything fits: the rows run edge to edge again.
 - Scrollbar behavior (shared by every scrollable list in the addon — this window,
   `UI/SessionFrame.lua`'s icon sidebar, and the embedded candidate grid inside it): seed enough
   items that the list actually overflows and needs to scroll. Confirm the scrollbar thumb is
@@ -243,14 +240,8 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   if that was the only pending item, the whole window auto-hides.
 - Stacking with the other windows is covered in 2.22.
 - Both windows are drag-resizable from a small corner grip, bottom-right (brightens to accent on
-  hover) — but **width is now fixed** (changed this round: `UI/LootFrame.lua` locked at 700,
-  `UI/SessionFrame.lua` at 630 — each window's own former minimum width, the narrowest that still
-  fits its columns without clipping). Confirm dragging the grip diagonally changes the window's
-  *height* but the *width* never moves at all, no matter how far sideways you drag — this is
-  deliberate: both windows' columns are fixed-width with no reflow, so letting the width change
-  never did anything but add or clip blank space on the right. Confirm height still resizes
-  freely within its usual bounds, and that a taller `UI/SessionFrame.lua` still shows more item
-  icons at once (the icon list is a real scrolling table, so it picks up the extra height).
+  hover). `UI/SessionFrame.lua`'s width is fixed: dragging sideways changes only its height, and a
+  taller window shows more item icons at once. This window resizes both ways, see 1.6's width note.
   Grip glyph: confirm it still shows as a small triangular cluster of 6 dots (3 along the very
   corner, 2 one step in, 1 furthest) and brightens to accent together on hover.
 - Every window's header (this one, Session, Options) now shows the brand logo to the left of the

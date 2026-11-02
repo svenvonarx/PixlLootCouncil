@@ -9,7 +9,9 @@ local ScrollFrame = PLC.UI.Widgets.ScrollFrame
 -- Column spec: either a text column { width, justify, render = function(rowData) return text,
 -- r, g, b end }, or a widget column { width, isWidget = true, create = function(row) return
 -- widget end, update = function(widget, rowData) end } -- used for VotingFrame's per-row Award
--- button.
+-- button. Either can have `inset` (pixels in from the column's left edge); a widget column can have
+-- `resize = function(widget, width)`, run on every layout, for columns whose width changes (see
+-- SetLayoutHandler).
 local DataTable = {}
 PLC.UI.Widgets.DataTable = DataTable
 
@@ -21,9 +23,18 @@ local DEFAULT_ROW_HEIGHT = 24
 -- Scrolls by row index (ScrollFrame.createRowScroll), not by pixels over a #rows-tall child
 -- frame -- the pixel version stopped scrolling past ~23000px, cutting long tables (the loot
 -- history) off partway. Rows are pooled and anchored to the clipped viewport itself.
-function DataTable.Create(parent, rowHeight)
+--
+-- `opts`, all optional:
+--   rowGap         pixels left empty below each row, out of rowHeight
+--   rowBackground  a theme color filling each row behind its content
+--   overlayBar     rows take the full width, and make room for the scrollbar only while it shows
+function DataTable.Create(parent, rowHeight, opts)
+	opts = opts or {}
 	local self = setmetatable({
 		rowHeight = rowHeight or DEFAULT_ROW_HEIGHT,
+		rowGap = opts.rowGap or 0,
+		rowBackground = opts.rowBackground,
+		overlayBar = opts.overlayBar,
 		columns = {},
 		rows = {}, -- pool of row frames, index 1..currently-visible
 		data = {}, -- full current dataset (array)
@@ -31,7 +42,7 @@ function DataTable.Create(parent, rowHeight)
 
 	local scroll = ScrollFrame.createRowScroll(parent, function()
 		self:Refresh()
-	end)
+	end, opts.overlayBar)
 	self.scroll = scroll
 	self.content = scroll
 
@@ -44,10 +55,18 @@ end
 
 -- Rows that fit completely; the last partially visible row is drawn but doesn't count, so
 -- scrolling to the end always brings the final row fully into view.
-function Table:updateScrollRange()
+local function fullRows(self)
 	local height = self.scroll:GetHeight() or 0
-	local fullRows = math.max(1, math.floor(height / self.rowHeight))
-	self.scroll:SetMaxOffset(#self.data - fullRows)
+	return math.max(1, math.floor((height + self.rowGap) / self.rowHeight))
+end
+
+function Table:updateScrollRange()
+	self.scroll:SetMaxOffset(#self.data - fullRows(self))
+end
+
+-- With overlayBar: whether the rows have to make room for the scrollbar right now.
+function Table:needsBarRoom()
+	return self.overlayBar and #self.data > fullRows(self) or false
 end
 
 local function getRow(self, index)
@@ -56,8 +75,14 @@ local function getRow(self, index)
 		return row
 	end
 	row = CreateFrame("Frame", nil, self.content)
-	row:SetHeight(self.rowHeight)
+	row:SetHeight(self.rowHeight - self.rowGap)
 	row.cells = {}
+
+	if self.rowBackground then
+		row.bg = Primitives.createTexture(row, "BACKGROUND", self.rowBackground)
+		row.bg:SetDrawLayer("BACKGROUND", -1) -- under the selection and timer fills
+		row.bg:SetAllPoints()
+	end
 
 	-- Optional row selection/click support (used by UI/SessionFrame.lua's item list) -- a row
 	-- is only clickable/highlightable when the table owner opts in via SetRowClickHandler.
@@ -120,12 +145,18 @@ function Table:Layout()
 		return
 	end
 
+	self.barRoom = self:needsBarRoom()
+	local rowWidth = width - (self.barRoom and ScrollFrame.OVERLAY_RESERVED_WIDTH or 0)
+	if self.onLayout then
+		self.onLayout(rowWidth)
+	end
+
 	local visible = math.max(1, math.floor(height / self.rowHeight) + 1)
 	for index = 1, visible do
 		local row = getRow(self, index)
 		row:ClearAllPoints()
 		row:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, -(index - 1) * self.rowHeight)
-		row:SetWidth(width)
+		row:SetWidth(rowWidth)
 
 		local x = 0
 		for colIndex, col in ipairs(self.columns) do
@@ -140,9 +171,11 @@ function Table:Layout()
 				row.cells[colIndex] = cell
 			end
 			cell:ClearAllPoints()
-			cell:SetPoint("LEFT", row, "LEFT", x, 0)
+			cell:SetPoint("LEFT", row, "LEFT", x + (col.inset or 0), 0)
 			if not col.isWidget then
 				cell:SetWidth(col.width)
+			elseif col.resize then
+				col.resize(cell, col.width)
 			end
 			x = x + col.width
 		end
@@ -159,8 +192,17 @@ end
 -- (items added/removed/reordered/scrolled), not for a single value changing on an existing row.
 function Table:SetRows(data)
 	self.data = data
+	if self:needsBarRoom() ~= (self.barRoom or false) then
+		self:Layout() -- the scrollbar comes or goes: the rows change width
+		return
+	end
 	self:updateScrollRange()
 	self:Refresh()
+end
+
+-- fn(rowWidth) runs before every layout, to fit the columns' widths to the room there is.
+function Table:SetLayoutHandler(fn)
+	self.onLayout = fn
 end
 
 function Table:Refresh()

@@ -10,28 +10,38 @@ PLC.UI.Widgets.ScrollFrame = ScrollFrame
 -- the bar only shows when there's something to scroll.
 --   createScrollFrame(parent)          pixel-based ScrollFrame, for content with its own height
 --                                      (the export/import text boxes): set a scroll child.
---   createRowScroll(parent, onScroll)  row-indexed, for UI/Widgets/DataTable.lua.
+--   createRowScroll(parent, onScroll, overlay)
+--                                      row-indexed, for UI/Widgets/DataTable.lua. With `overlay`,
+--                                      the viewport takes the full width and the bar sits inside its
+--                                      right edge: the rows make room only while it shows.
 local BAR_WIDTH = 7
 local BAR_GAP = 4
+local OVERLAY_INSET = 2 -- the overlaid bar's distance from the right edge
 ScrollFrame.RESERVED_WIDTH = BAR_WIDTH + BAR_GAP
+ScrollFrame.OVERLAY_RESERVED_WIDTH = BAR_WIDTH + BAR_GAP + OVERLAY_INSET
 
 local WHEEL_PIXELS = 36
 local WHEEL_ROWS = 2
 
-local function makeViewport(frameType, parent)
+local function makeViewport(frameType, parent, overlay)
 	local viewport = CreateFrame(frameType, nil, parent)
 	viewport:SetPoint("TOPLEFT")
-	viewport:SetPoint("BOTTOMRIGHT", -ScrollFrame.RESERVED_WIDTH, 0)
+	viewport:SetPoint("BOTTOMRIGHT", overlay and 0 or -ScrollFrame.RESERVED_WIDTH, 0)
 	viewport:EnableMouseWheel(true)
 	return viewport
 end
 
 -- The vertical bar to the right of `viewport`: a Slider with a dim track and accent thumb.
-local function makeBar(parent, viewport)
+local function makeBar(parent, viewport, overlay)
 	local bar = CreateFrame("Slider", nil, parent)
 	bar:SetWidth(BAR_WIDTH)
-	bar:SetPoint("TOPLEFT", viewport, "TOPRIGHT", BAR_GAP, 0)
-	bar:SetPoint("BOTTOMLEFT", viewport, "BOTTOMRIGHT", BAR_GAP, 0)
+	if overlay then
+		bar:SetPoint("TOPRIGHT", viewport, "TOPRIGHT", -OVERLAY_INSET, 0)
+		bar:SetPoint("BOTTOMRIGHT", viewport, "BOTTOMRIGHT", -OVERLAY_INSET, 0)
+	else
+		bar:SetPoint("TOPLEFT", viewport, "TOPRIGHT", BAR_GAP, 0)
+		bar:SetPoint("BOTTOMLEFT", viewport, "BOTTOMRIGHT", BAR_GAP, 0)
+	end
 	bar:SetOrientation("VERTICAL")
 	bar:SetMinMaxValues(0, 0)
 	bar:SetValueStep(1)
@@ -75,10 +85,10 @@ end
 -- scrolling somewhere past ~23000px, which cut long tables (the loot history) off partway.
 -- Returns a clipped viewport with :SetMaxOffset(n), :GetOffset() and :SetOffset(n) (clamped;
 -- calls onScroll(offset) when it changes).
-function ScrollFrame.createRowScroll(parent, onScroll)
-	local viewport = makeViewport("Frame", parent)
+function ScrollFrame.createRowScroll(parent, onScroll, overlay)
+	local viewport = makeViewport("Frame", parent, overlay)
 	viewport:SetClipsChildren(true)
-	local bar = makeBar(parent, viewport)
+	local bar = makeBar(parent, viewport, overlay)
 	if bar.SetObeyStepOnDrag then
 		bar:SetObeyStepOnDrag(true)
 	end

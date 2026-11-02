@@ -248,7 +248,8 @@ end
 -- A single- or multi-line input in the same flat style. EditBox has no placeholder support, so a
 -- dim placeholder is shown while empty and unfocused; read the value with :GetValue() (returns ""
 -- while the placeholder shows). Text is clipped to the box (an EditBox doesn't clip on its own).
--- Multi-line boxes cap input at `maxLetters` (default 80) instead of growing past their height.
+-- Multi-line boxes cap input at `maxLetters` (default 80) instead of growing past their height;
+-- single-line ones only when given one.
 function Primitives.createEditBox(parent, width, height, placeholder, multiline, maxLetters)
 	local box = CreateFrame("EditBox", nil, parent)
 	box:SetSize(width, height or 20)
@@ -264,6 +265,9 @@ function Primitives.createEditBox(parent, width, height, placeholder, multiline,
 		box:SetJustifyV("MIDDLE") -- lines up with buttons beside it while holding one line
 	else
 		box:SetTextInsets(6, 6, 0, 0)
+		if maxLetters then
+			box:SetMaxLetters(maxLetters)
+		end
 	end
 
 	box.bg = Primitives.createTexture(box, "BACKGROUND", "field")

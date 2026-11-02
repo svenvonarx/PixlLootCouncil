@@ -20,14 +20,31 @@ local dataTable
 local tickerHandle
 local builtSignature -- which response sets the buttons were built for, see applyResponseSets
 local builtSets = {} -- those sets, in order
+local columns -- the current ones, resized by fitColumns
+local buttonsWidth = 0 -- the widest set's buttons
+local openingWidth -- the width the window last opened at, see applyResponseSets
 
 -- Response buttons and the note field share one row, same as the original layout -- a stacked
 -- (buttons-then-note) layout was tried and made every row much taller than before for no real
--- gain. The note box has a fixed size -- same width as the full button row, same height as a
--- single button -- set once and never recalculated against the window's current width (an
--- in-between round made it dynamic, which just made its size unpredictable).
-local ROW_HEIGHT = Theme.LAYOUT.buttonHeight + 6
-local MAX_NOTE_WIDTH = 300 -- a long custom response set shouldn't double the window for the note
+-- gain. Rows run edge to edge, so the countdown fill crosses the whole window, and the icon, the
+-- buttons and the note are all one height.
+--
+-- The window resizes in width. It opens with the note at NOTE_WIDTH; wider, the note gets the extra
+-- room. Narrower, the name gives way first (down to NAME_MIN, truncated), then the note (down to
+-- NOTE_MIN), and then the name goes altogether; the icon's tooltip still names the item.
+local ICON_SIZE = 26
+local PAD = 3 -- around the icon, and at the row's right end
+local ROW_GAP = 1
+local ROW_HEIGHT = ICON_SIZE + 2 * PAD + ROW_GAP
+local ICON_COLUMN = PAD + ICON_SIZE + 8
+local NAME_WIDTH, NAME_MIN = 170, 90
+local NAME_GAP = 6
+local TIMER_COLUMN = 40
+local BUTTON_GAP = 6
+local NOTE_LEAD = 15 -- buttons to note, with the divider in the middle
+local NOTE_WIDTH, NOTE_MIN = 300, 120
+local NOTE_MAX_LETTERS = 50 -- about what NOTE_WIDTH shows at once, so a note stays one line
+local MAX_EXTRA_WIDTH = 400 -- how much wider than it opens the window can go
 
 local function myResponse(idx)
 	local responses = PLC.Session.responses[idx]
@@ -124,9 +141,9 @@ local function measureResponseButtonsWidth(set)
 	local width = 0
 	for _, resp in ipairs(set) do
 		local button = ButtonWidget.createButton(scratch, resp.text)
-		width = width + button:GetWidth() + 6
+		width = width + button:GetWidth() + BUTTON_GAP
 	end
-	return math.max(0, width - 6)
+	return math.max(0, width - BUTTON_GAP)
 end
 
 local function updateHeaderOwner(rows)
@@ -136,14 +153,16 @@ local function updateHeaderOwner(rows)
 end
 
 -- The response columns are built per response set, since a row's buttons are fixed once created.
+-- Columns 2 (the name) and 4 (buttons and note) change width with the window, see fitColumns.
 local function buildColumns()
 	return {
 		{
-			width = 28,
+			width = ICON_COLUMN,
+			inset = PAD,
 			isWidget = true,
 			create = function(row)
 				local holder = CreateFrame("Frame", nil, row)
-				holder:SetSize(24, 24)
+				holder:SetSize(ICON_SIZE, ICON_SIZE)
 				holder.texture = holder:CreateTexture(nil, "ARTWORK")
 				holder.texture:SetAllPoints()
 				Primitives.attachItemTooltip(holder)
@@ -155,18 +174,24 @@ local function buildColumns()
 			end,
 		},
 		{
-			-- A widget column now, not a plain text one -- a FontString has no SetScript, so
-			-- showing a tooltip on hover needs an actual Frame wrapping the text.
-			width = 170,
+			-- A widget column, not a plain text one -- a FontString has no SetScript, so showing a
+			-- tooltip on hover needs an actual Frame wrapping the text. One line, cut short with an
+			-- ellipsis when it doesn't fit; hidden at width 0.
+			width = NAME_WIDTH + NAME_GAP,
 			isWidget = true,
 			create = function(row)
 				local holder = CreateFrame("Frame", nil, row)
-				holder:SetSize(170, 24)
 				holder.text = Primitives.createText(holder, "", 11)
 				holder.text:SetPoint("LEFT")
+				holder.text:SetPoint("RIGHT")
 				holder.text:SetJustifyH("LEFT")
+				holder.text:SetWordWrap(false)
 				Primitives.attachItemTooltip(holder)
 				return holder
+			end,
+			resize = function(holder, width)
+				holder:SetSize(math.max(1, width - NAME_GAP), ICON_SIZE)
+				holder:SetShown(width > 0)
 			end,
 			update = function(holder, rowData)
 				holder.text:SetText(rowData.link or "?")
@@ -174,11 +199,9 @@ local function buildColumns()
 			end,
 		},
 		{
-			-- Just the number now -- the row's own depleting background (set up below via
-			-- SetRowTimerProvider) is the "bar", so this column no longer needs to carry one
-			-- itself. Narrower than the old text+bar column; the freed width goes to the
-			-- 5-button response row to its right.
-			width = 40,
+			-- Just the number -- the row's own depleting background (SetRowTimerProvider below) is
+			-- the "bar".
+			width = TIMER_COLUMN,
 			justify = "CENTER",
 			render = function(rowData)
 				if not rowData.deadlineAt then
@@ -192,10 +215,8 @@ local function buildColumns()
 			end,
 		},
 		{
-			-- Non-binding -- this is the last column in the row, so its declared width is never
-			-- used to position anything after it (see UI/Widgets/DataTable.lua:Layout). The
-			-- container below sizes itself to its own content instead.
-			width = 260,
+			-- The buttons, then the note, which takes whatever this column's width leaves.
+			width = buttonsWidth + NOTE_LEAD + NOTE_WIDTH + PAD,
 			isWidget = true,
 			create = function(row)
 				local container = CreateFrame("Frame", nil, row)
@@ -203,7 +224,6 @@ local function buildColumns()
 				-- an RC master resending the same settings makes new tables with the same buttons.
 				container.groups = {}
 
-				local BUTTON_GAP = 6
 				container.buttonsWidth = 0
 				for _, set in ipairs(builtSets) do
 					local group = {}
@@ -213,6 +233,7 @@ local function buildColumns()
 						-- UI/Widgets/Button.lua) -- a shared fixed width left short labels like "OS"
 						-- swimming in padding while "Upgrade" looked cramped against its own border.
 						local button = ButtonWidget.createButton(container, resp.text)
+						button:SetHeight(ICON_SIZE)
 						button:SetPoint("LEFT", x, 0)
 						x = x + button:GetWidth() + BUTTON_GAP
 						group[resp.key] = button
@@ -222,27 +243,20 @@ local function buildColumns()
 				end
 
 				container.divider = Primitives.createTexture(container, "ARTWORK", "borderDim")
-				container.divider:SetPoint("TOP", container.buttonsWidth + 6, -2)
-				container.divider:SetPoint("BOTTOM", container.buttonsWidth + 6, 2)
+				container.divider:SetPoint("TOP", container, "TOPLEFT", container.buttonsWidth + 7, -2)
+				container.divider:SetPoint("BOTTOM", container, "BOTTOMLEFT", container.buttonsWidth + 7, 2)
 				container.divider:SetWidth(1)
 
-				-- Fixed size, same height as a single button and the button row's width up to
-				-- MAX_NOTE_WIDTH, set once here and never resized afterward (a previous round
-				-- recalculated this dynamically against the row's current width on every render,
-				-- which read as the note field randomly changing size rather than having a stable,
-				-- predictable size "like the buttons").
-				-- `maxLetters` is sized to this exact width so typed text can realistically wrap
-				-- to at most ~2 lines -- SetClipsChildren (see Primitives.createEditBox) is a
-				-- backstop against overflow, not the primary control; relying on it alone let
-				-- someone type a wall of text that silently vanished past line 2.
-				local noteWidth = math.min(container.buttonsWidth, MAX_NOTE_WIDTH)
-				local maxLetters = math.max(20, math.floor((noteWidth - 12) / 5.5) * 2)
+				-- One line: a single-line box never wraps, and the letter cap keeps a note about as
+				-- long as the box shows at its usual width.
 				container.noteBox = Primitives.createEditBox(
-					container, noteWidth, Theme.LAYOUT.buttonHeight, L["LOOTFRAME_NOTE_PLACEHOLDER"], true, maxLetters)
-				container.noteBox:SetPoint("LEFT", container.buttonsWidth + 14, 0)
-
-				container:SetSize(container.buttonsWidth + 14 + noteWidth, Theme.LAYOUT.buttonHeight)
+					container, NOTE_WIDTH, ICON_SIZE, L["LOOTFRAME_NOTE_PLACEHOLDER"], false, NOTE_MAX_LETTERS)
+				container.noteBox:SetPoint("LEFT", container.buttonsWidth + NOTE_LEAD, 0)
 				return container
+			end,
+			resize = function(container, width)
+				container:SetSize(width, ICON_SIZE)
+				container.noteBox:SetWidth(math.max(1, width - container.buttonsWidth - NOTE_LEAD - PAD))
 			end,
 			-- Only resets the note box when this row-pool slot gets rebound to a DIFFERENT item
 			-- (container.id changes) -- not on every refresh/tick for the same still-pending
@@ -273,11 +287,37 @@ local function buildColumns()
 	}
 end
 
+-- Everything in a row but the name and the note, which share the rest.
+local function fixedWidth()
+	return ICON_COLUMN + TIMER_COLUMN + buttonsWidth + NOTE_LEAD + PAD
+end
+
+-- Splits the room between the name and the note (see the top of this file). Runs before every
+-- layout of the table, so on every resize.
+local function fitColumns(rowWidth)
+	if not columns then
+		return
+	end
+	local room = rowWidth - fixedWidth()
+	local name
+	if room >= NAME_WIDTH + NAME_GAP + NOTE_WIDTH then
+		name = NAME_WIDTH + NAME_GAP
+	elseif room >= NAME_MIN + NAME_GAP + NOTE_WIDTH then
+		name = room - NOTE_WIDTH
+	elseif room >= NAME_MIN + NAME_GAP + NOTE_MIN then
+		name = NAME_MIN + NAME_GAP
+	else
+		name = 0
+	end
+	columns[2].width = name
+	columns[4].width = buttonsWidth + NOTE_LEAD + math.max(NOTE_MIN, room - name) + PAD
+end
+
 -- Rebuilds the buttons and refits the window whenever the response sets differ from the ones they
 -- were built for: the holder's set arrives with session_start or the resync, so it can't be known
 -- when the window is first created. Width is derived from the widest set's real total width, not a
--- literal, and is fixed (min and max are the same): icon(28) + name(170) + countdown(40), the
--- buttons, a 14px gap, the note box, then the grid's scrollbar gutter and a small margin.
+-- literal. The window opens at the width that gives the note NOTE_WIDTH, and keeps a width the
+-- player chose, within the new bounds.
 local function applyResponseSets()
 	local sets = currentResponseSets()
 	local parts = {}
@@ -291,17 +331,21 @@ local function applyResponseSets()
 	builtSignature = signature
 	builtSets = sets
 
-	local buttonsWidth = 0
+	buttonsWidth = 0
 	for _, set in ipairs(sets) do
 		buttonsWidth = math.max(buttonsWidth, measureResponseButtonsWidth(set))
 	end
-	local ROW_RIGHT_MARGIN = 10
-	local rowContentWidth = 28 + 170 + 40 + buttonsWidth + 14 + math.min(buttonsWidth, MAX_NOTE_WIDTH)
-	local contentWidth = rowContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + ROW_RIGHT_MARGIN
-	local frameWidth = contentWidth + 20 -- content's own 10px left + 10px right insets
-	frame:SetWidth(frameWidth)
-	Primitives.setResizeBounds(frame, frameWidth, 180, frameWidth, 600)
-	dataTable:SetColumns(buildColumns())
+	local EDGES = 2 -- the window's 1px border, each side
+	local opening = fixedWidth() + NAME_WIDTH + NAME_GAP + NOTE_WIDTH + EDGES
+	local minWidth = fixedWidth() + NOTE_MIN + EDGES
+	local maxWidth = opening + MAX_EXTRA_WIDTH
+	local current = frame:GetWidth() or 0
+	local chosen = openingWidth and math.abs(current - openingWidth) >= 1
+	frame:SetWidth(chosen and math.max(minWidth, math.min(maxWidth, current)) or opening)
+	openingWidth = opening
+	Primitives.setResizeBounds(frame, minWidth, 180, maxWidth, 600)
+	columns = buildColumns()
+	dataTable:SetColumns(columns)
 end
 
 local function ensureFrame()
@@ -321,7 +365,7 @@ local function ensureFrame()
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 	tinsert(UISpecialFrames, "PixlLootCouncilLootFrame")
-	-- The width is set by applyResponseSet; this leaves height resizable between 180 and 600.
+	-- The bounds are set by applyResponseSets, once the buttons are known.
 	Primitives.makeResizable(frame, 1, 180, 2000, 600)
 
 	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
@@ -369,14 +413,16 @@ local function ensureFrame()
 
 	Primitives.createSeparator(frame, -Theme.LAYOUT.headerHeight)
 
+	-- Edge to edge inside the 1px border, starting one row gap below the header's separator. The
+	-- bottom keeps clear of the resize grip.
 	local content = CreateFrame("Frame", nil, frame)
-	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -10)
-	content:SetPoint("BOTTOMRIGHT", -10, 10)
+	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 1, -1 - ROW_GAP)
+	content:SetPoint("BOTTOMRIGHT", -1, 14)
 
-	-- UI/Widgets/ScrollFrame.lua anchors dataTable.scroll to `content` itself now (reserving its
-	-- own room for the scrollbar inside that), so no SetAllPoints here -- calling it would
-	-- override that anchoring and let the scrollbar stick out past the window's edge again.
-	dataTable = DataTable.Create(content, ROW_HEIGHT)
+	-- UI/Widgets/ScrollFrame.lua anchors dataTable.scroll to `content` itself, so no SetAllPoints
+	-- here -- calling it would override that anchoring.
+	dataTable = DataTable.Create(content, ROW_HEIGHT, { rowGap = ROW_GAP, rowBackground = "content", overlayBar = true })
+	dataTable:SetLayoutHandler(fitColumns)
 
 	-- Whole-row depleting background instead of the old column-local bar -- same math as the
 	-- countdown text column above, just relocated (see UI/Widgets/DataTable.lua).

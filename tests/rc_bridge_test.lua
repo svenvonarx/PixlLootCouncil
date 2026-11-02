@@ -185,6 +185,7 @@ PLC.UI.Widgets.DataTable = { Create = function()
 		SetColumns = function(_, c) columns = c; columnBuilds = columnBuilds + 1 end,
 		SetRows = function(_, r) rows = r end,
 		SetRowTimerProvider = function() end,
+		SetLayoutHandler = function() end,
 	}
 end }
 
