@@ -35,6 +35,7 @@ local function stub(extra)
 		if k == "HookScript" then return function(s, n, fn) s.hooks[n] = fn end end
 		if k == "SetText" then return function(s, v) s.text = v end end
 		if k == "GetText" then return function(s) return s.text end end
+		if k == "GetStringHeight" then return function() return 14 end end
 		if k == "SetWidth" then return function(s, v) s.width = v end end
 		if k == "SetHeight" then return function(s, v) s.height = v end end
 		if k == "SetSize" then return function(s, w, h) s.width, s.height = w, h end end
@@ -105,7 +106,19 @@ do
 		return slider
 	end
 end
-PLC.UI.Widgets.ScrollFrame = { RESERVED_WIDTH = 11 }
+PLC.UI.Widgets.ScrollFrame = { RESERVED_WIDTH = 11, createScrollFrame = function(parent)
+	local scroll = stub({ width = 360, parent = parent })
+	scroll.SetScrollChild = function(s, child) s.child = child end
+	scroll.GetWidth = function(s) return s.width end
+	return scroll
+end }
+PLC.Changelog = { Get = function()
+	return {
+		{ title = "1.1.0", items = { { level = 0, text = "Intro" }, { level = 1, text = "First" }, { level = 2, text = "Nested" } } },
+		{ title = "1.0.0", items = { { level = 1, text = "Older" } } },
+	}
+end }
+PLC.UI.WelcomeFrame = { Open = function() PLC.welcomeOpened = true end, ConfirmReset = function() PLC.resetAsked = true end }
 local tables = {}
 PLC.UI.Widgets.DataTable = { Create = function(_, rowHeight)
 	local t = { rowHeight = rowHeight, SetColumns = function(s, c) s.columns = c end, SetRows = function(s, r) s.rows = r end }
@@ -161,13 +174,13 @@ for _, t in ipairs(texts) do
 end
 local function leftOf(region) return region.points[1][2] end
 local titleX = leftOf(sectionTitles[1])
-local allFull, allAligned = #navRows == 8, true
+local allFull, allAligned = #navRows == 9, true
 for _, row in ipairs(navRows) do
 	local left, right = row.points[1], row.points[2]
 	allFull = allFull and left[1] == "TOPLEFT" and left[2] == 0 and right[1] == "TOPRIGHT" and right[2] == 0
 	allAligned = allAligned and row.icon.points[1][1] == "LEFT" and row.icon.points[1][2] == titleX
 end
-check("L1", allFull, "all 8 menu rows run from edge to edge")
+check("L1", allFull, "all 9 menu rows run from edge to edge")
 check("L2", allAligned, "every icon starts where the section titles start, x=" .. tostring(titleX))
 local sameTitles = #sectionTitles == 3
 for _, t in ipairs(sectionTitles) do sameTitles = sameTitles and leftOf(t) == titleX end
@@ -369,6 +382,42 @@ check("A7", answers == 1 and lastPing[1] == myGuid and lastPing[2] == "v0.4.0", 
 
 Presence:OnPresenceReceived({ guid = "Player-1-CCCC" })
 check("A8", Presence.versions["Player-1-CCCC"] == nil, "a client without a version field doesn't break anything")
+
+-- About: setup and reset ---------------------------------------------------------------------------
+local setupButton, resetButton
+for frame, tip in pairs(tooltips) do
+	if tip[2] == "TIP_SETUP_AGAIN" then setupButton = frame end
+	if tip[2] == "TIP_RESET" then resetButton = frame end
+end
+setupButton.scripts.OnClick()
+resetButton.scripts.OnClick()
+check("A10", PLC.welcomeOpened and PLC.resetAsked, "About can run the setup again, and reset, which asks first")
+check("L12", available >= 24 + 6 * 20 + 46 + 172 + 28, "the About page with its two new buttons still fits")
+
+-- Changelog -----------------------------------------------------------------------------------------
+local changelogTexts = {}
+for _, t in ipairs(texts) do changelogTexts[tostring(t.text)] = t end
+local before = changelogTexts["1.1.0"]
+check("C1", before == nil, "the changelog isn't built until its page is shown")
+local changelogPage
+for _, f in ipairs(frames) do
+	if rawget(f, "child") then changelogPage = f end
+end
+check("C2", changelogPage ~= nil, "the changelog page scrolls")
+-- Showing it builds and lays it out: headings, then paragraphs and bullets, indented by level.
+changelogPage.parent.hooks.OnShow(changelogPage.parent)
+local byText = {}
+for _, label in ipairs(texts) do byText[tostring(label.text)] = label end
+local function x(label) return label and label.points[#label.points][2] end
+check("C3", byText["1.1.0"] and byText["1.0.0"] and x(byText["1.1.0"]) == 0, "each version is a heading")
+check("C4", x(byText["Intro"]) == 0 and x(byText["First"]) > 0 and x(byText["Nested"]) > x(byText["First"]), "paragraphs sit at the edge, bullets indent by level")
+check("C5", byText["•"] ~= nil and byText["–"] ~= nil, "with a dot, or a dash one level deeper")
+local content = changelogPage.child
+check("C6", content and content.height and content.height > 14 * 5, "and the page scrolls as far as the text goes")
+changelogPage.parent.hooks.OnShow(changelogPage.parent)
+local headings = 0
+for _, label in ipairs(texts) do if label.text == "1.1.0" then headings = headings + 1 end end
+check("C7", headings == 1, "showing it again lays it out again, without building it twice")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

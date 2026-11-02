@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Welcome window**: the first time the addon loads, it asks whether you're a raider or the loot
+  master. Raiders are done in one click. A loot master can import their loot history and the
+  settings they changed in RCLootCouncil with one button, or pick the essentials: auto loot, the
+  council, raid chat announcements and the time to respond. `/plc setup` or Options → About shows it
+  again.
+- **Changelog** in Options, so you can see what changed in each version without leaving the game.
+- **Reset all data** under Options → About (or `/plc reset`) deletes every setting and the whole loot
+  history after a warning, then reloads.
 - **Sessions reach everyone, wherever they are.** Anyone on a loading screen when a session starts,
   or who misses part of one for any other reason, catches up by themselves within seconds: right
   after the loading screen, and otherwise at the session's next check-ins. Answers the master looter

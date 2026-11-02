@@ -49,9 +49,12 @@ Data\Responses.lua
 Data\ExcludedItems.lua
 Data\History.lua
 Data\HistoryImport.lua
+Data\RCImport.lua
 Data\Session.lua
 Data\Preview.lua
 Data\RCBridge.lua
+Data\ChangelogText.lua
+Data\Changelog.lua
 
 Comms\Protocol.lua
 Comms\Sync.lua
@@ -83,3 +86,4 @@ UI\VotingFrame.lua
 UI\TradeFrame.lua
 UI\HistoryFrame.lua
 UI\OptionsFrame.lua
+UI\WelcomeFrame.lua

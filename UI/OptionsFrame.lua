@@ -954,6 +954,21 @@ local function buildAboutPage(page)
 		self:HighlightText()
 	end)
 
+	local setupAgain = ButtonWidget.createButton(page, L["WELCOME_SETUP_AGAIN"], 170)
+	setupAgain:SetPoint("TOPLEFT", 0, creditsTop - 172)
+	setupAgain:SetScript("OnClick", function()
+		PLC.UI.WelcomeFrame:Open()
+	end)
+	Primitives.attachTooltip(setupAgain, L["WELCOME_SETUP_AGAIN"], L["TIP_SETUP_AGAIN"])
+	-- Asks first (UI/WelcomeFrame.lua), and its label is the warning color.
+	local reset = ButtonWidget.createButton(page, L["RESET_ALL"], 170)
+	reset:SetPoint("TOPRIGHT", 0, creditsTop - 172)
+	reset:SetScript("OnClick", function()
+		PLC.UI.WelcomeFrame:ConfirmReset()
+	end)
+	Theme:Track(reset.label, "text", "warning")
+	Primitives.attachTooltip(reset, L["RESET_ALL"], L["TIP_RESET"])
+
 	function refreshAbout()
 		local Presence = PLC.Presence
 		local mine = PLC.version or L["ABOUT_DEV_VERSION"]
@@ -970,6 +985,59 @@ local function buildAboutPage(page)
 		PLC.Presence:CheckGroup()
 	end)
 	refreshAbout()
+end
+
+-- CHANGELOG.md (Data/Changelog.lua). Built the first time the page shows, when it has a width,
+-- and laid out again on every show, so a change of font can't leave lines overlapping.
+local CHANGELOG_INDENT = { [0] = 0, [1] = 16, [2] = 34 }
+local function buildChangelogPage(page)
+	local scroll = PLC.UI.Widgets.ScrollFrame.createScrollFrame(page)
+	local content = CreateFrame("Frame", nil, scroll)
+	content:SetSize(1, 1)
+	scroll:SetScrollChild(content)
+	local lines
+
+	local function build()
+		lines = {}
+		for index, section in ipairs(PLC.Changelog:Get()) do
+			lines[#lines + 1] = { gap = index > 1 and 20 or 0, label = Primitives.createText(content, section.title, 16, "white"), indent = 0 }
+			for _, item in ipairs(section.items) do
+				local line = { gap = 6, indent = CHANGELOG_INDENT[item.level] or 0 }
+				line.label = Primitives.createText(content, item.text, 12, item.level == 0 and "dim" or "text")
+				line.label:SetJustifyH("LEFT")
+				line.label:SetWordWrap(true)
+				if item.level > 0 then
+					line.dot = Primitives.createText(content, item.level == 1 and "•" or "–", 12, "accent")
+				end
+				lines[#lines + 1] = line
+			end
+		end
+	end
+
+	local function layout()
+		local width = scroll:GetWidth()
+		if not width or width < 50 then
+			return
+		end
+		if not lines then
+			build()
+		end
+		content:SetWidth(width)
+		local y = 0
+		for _, line in ipairs(lines) do
+			y = y - line.gap
+			line.label:ClearAllPoints()
+			line.label:SetPoint("TOPLEFT", line.indent, y)
+			line.label:SetWidth(width - line.indent - 6)
+			if line.dot then
+				line.dot:ClearAllPoints()
+				line.dot:SetPoint("TOPRIGHT", line.label, "TOPLEFT", -5, 0)
+			end
+			y = y - line.label:GetStringHeight()
+		end
+		content:SetHeight(math.max(1, -y))
+	end
+	page:HookScript("OnShow", layout)
 end
 
 local THEME_CARD_HEIGHT = 46
@@ -1104,6 +1172,8 @@ local function ensurePanel()
 	panel:AddSidebarHeader(L["OPTIONS_SECTION_ADDON"])
 	buildPreviewPage(panel:AddTab("preview", L["OPTIONS_TAB_PREVIEW"],
 		{ icon = "nav_preview.png", description = L["OPTIONS_DESC_PREVIEW"] }))
+	buildChangelogPage(panel:AddTab("changelog", L["OPTIONS_TAB_CHANGELOG"],
+		{ icon = "nav_changelog.png", description = L["OPTIONS_DESC_CHANGELOG"] }))
 	buildAboutPage(panel:AddTab("about", L["OPTIONS_TAB_ABOUT"],
 		{ icon = "nav_about.png", description = L["OPTIONS_DESC_ABOUT"] }))
 

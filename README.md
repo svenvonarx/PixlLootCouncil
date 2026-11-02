@@ -77,6 +77,10 @@ arrive.
 
 ### Everything else
 
+- **Welcome window**: the first time, choose raider or loot master. Raiders are done in one click; a
+  loot master imports from RCLootCouncil in one click, or picks the essentials. `/plc setup` shows it
+  again.
+- **Changelog** in Options, for what changed in each version.
 - **Every client language**: English, German, Spanish, French, Italian, Portuguese, Russian, Korean and
   Simplified and Traditional Chinese.
 - **Themes and fonts**: eight themes under Options → Appearance, and any font your addons have
@@ -134,6 +138,8 @@ note if you like. Awarded items show up in **Loot Trades** with a **Trade** butt
 | `/plc sync` | Re-sync the current session from its holder |
 | `/plc forceend` | End a session whose holder stopped responding |
 | `/plc errors` | Show captured Lua errors (include these in bug reports) |
+| `/plc setup` | Show the welcome window again |
+| `/plc reset` | Delete all addon data, after a warning |
 | `/plc help` | List all commands |
 
 The Loot Session window also has buttons to open the other windows.
@@ -145,7 +151,11 @@ and it's designed so you can switch without losing anything.
 
 ### Bring your history
 
-Open `/plc history` and press **Import**:
+The welcome window, which opens the first time (or `/plc setup`), imports your history and the
+settings you changed in RCLootCouncil that mean the same here, in one click: the council, guild
+ranks, response buttons, time to respond, announcements and auto-start. It needs RCLootCouncil
+enabled on that character. You can also import only the history: open `/plc history` and press
+**Import**:
 
 - If RCLootCouncil is installed on your character, **Import from RCLootCouncil** copies its history
   directly.

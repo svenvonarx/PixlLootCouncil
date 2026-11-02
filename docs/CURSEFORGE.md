@@ -44,10 +44,13 @@ Group messages in WoW only reach whoever is there to receive them, so someone on
 
 PixlLootCouncil is built on the idea of RCLootCouncil, and you can switch without losing anything:
 
+- **One click on first launch.** The welcome window imports your loot history and the settings you changed in RCLootCouncil that work here too: council, response buttons, time to respond and announcements.
 - **Bring your history.** Import it directly from RCLootCouncil, receive it in game from your loot master through `/rc sync`, or paste a Player Export. Spreadsheets built on its exports keep working.
 - **Raid with a master looter who still uses it.** Raiders can disable RCLootCouncil: its sessions open in your Loot Response window with the same buttons, timer and note rules, your answer goes back, rolls work, and shared awards land in your history. Voting as a council member still needs RCLootCouncil.
 
 ## Getting started
+
+The first time, a welcome window asks whether you're a raider or the loot master, and sets you up.
 
 Master looter: set the group to **Master Loot** and open corpses as usual. Type `/plc` to open the Loot Session window, and **Options → Auto Loot** to choose who gets what.
 

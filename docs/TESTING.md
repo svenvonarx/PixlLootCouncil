@@ -742,6 +742,25 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
 - **Addon list:** on the character screen and in game: the icon is sharp beside the name, the addon is
   under Loot with Gargul and RCLootCouncil, and hovering it shows the new description.
 
+### 2.21 Welcome window, reset and changelog (`UI/WelcomeFrame.lua`, `Data/RCImport.lua`)
+`luajit tests/welcome_test.lua` and `luajit tests/changelog_test.lua` cover the rules. In game:
+- **Reset first:** Options → About → Reset all data. A warning with Delete everything and Cancel;
+  Cancel changes nothing. Delete everything reloads, with default settings and an empty history.
+- **First time:** after the reset, a few seconds after the loading screen the welcome window opens
+  with two big cards. Hover shows the accent border. Closing it with Escape or ✕ doesn't bring it back
+  on the next `/reload`.
+- **Raider:** `/plc setup`, Raider: the window closes with one chat line.
+- **Loot master without RCLootCouncil:** the essentials page. Untick a box, change the time, Finish,
+  then check Options → General, Auto Loot and Council show the same.
+- **Loot master with RCLootCouncil enabled:** Import and Start fresh cards. Import: the summary lists
+  the history count and what came over, and Options shows the council names, guild ranks, buttons
+  and time from RCLootCouncil. Settings never changed in RCLootCouncil keep this addon's defaults.
+- **RCLootCouncil installed but disabled on the character:** the essentials page, with a note on how
+  to import.
+- **In combat on login:** the window waits until combat ends.
+- **Changelog:** Options → Changelog shows every version as a heading, with bullets and bold text, and
+  scrolls. Switching the font keeps the lines from overlapping when you come back to it.
+
 ### 2.20 Sessions reaching everyone (`Data/Session.lua`)
 `luajit tests/delivery_test.lua` runs a whole raid on a simulated network that loses messages to
 anyone on a loading screen. In a real group, with the master looter and at least two raiders:
