@@ -31,6 +31,7 @@ L["RC_SESSION_STARTED"] = "%s started a loot session with RCLootCouncil."
 L["RC_SESSION_ENDED"] = "%s ended the RCLootCouncil session."
 L["RC_NOTE_REQUIRED"] = "The master looter requires a note for \"%s\"."
 
+
 L["ERROR_LOG_EMPTY"] = "No errors recorded."
 L["ERROR_LOG_ENTRY"] = "[%s] %s"
 
@@ -191,6 +192,10 @@ L["HISTORY_TIP_ITEM_RECIPIENTS"] = "Already received by (%d):"
 L["OPTIONS_TITLE"] = "PixlLootCouncil Options"
 L["OPTIONS_SECTION_COUNCIL"] = "LOOT COUNCIL"
 L["OPTIONS_SECTION_SETTINGS"] = "SETTINGS"
+L["OPTIONS_SECTION_ADDON"] = "ADDON"
+L["OPTIONS_GROUP_CHAT"] = "Raid chat"
+L["OPTIONS_GROUP_RC"] = "RCLootCouncil"
+L["OPTIONS_GROUP_SESSION"] = "Loot sessions"
 L["OPTIONS_TAB_GENERAL"] = "General"
 L["OPTIONS_TAB_RESPONSES"] = "Responses"
 L["OPTIONS_TAB_COUNCIL"] = "Council"

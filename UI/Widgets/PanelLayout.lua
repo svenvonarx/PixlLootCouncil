@@ -16,11 +16,17 @@ PLC.UI.Widgets.PanelLayout = PanelLayout
 local Panel = {}
 Panel.__index = Panel
 
-local NAV_INSET = 8 -- left/right margin of nav entries inside the column
+-- The one left edge of the window: the logo, every section title and every nav icon start here.
+-- Nav rows themselves run the full width of the column, so a selected row reaches both sides.
+local EDGE = 14
 local NAV_ROW_HEIGHT = 30
 local NAV_ICON_SIZE = 16
-local SECTION_GAP = 14 -- space above a section title (after the first)
-local PAGE_HEADER_HEIGHT = 58
+local NAV_LABEL_GAP = 10
+local NAV_TOP = 14 -- above the first section title
+local SECTION_TITLE_HEIGHT = 22
+local SECTION_GAP = 16 -- space above a section's divider, and below it
+local PAGE_HEADER_HEIGHT = 48 -- title, up to two lines of description, then the rule
+local PAGE_HEADER_GAP = 20 -- from that rule to the page
 local PAGE_FADE_SECONDS = 0.12
 
 local function buildTitleBar(frame, title)
@@ -31,7 +37,7 @@ local function buildTitleBar(frame, title)
 	Primitives.createTexture(bar, "BACKGROUND", "header"):SetAllPoints()
 
 	bar.logo = Primitives.createLogo(bar, 20)
-	bar.logo:SetPoint("LEFT", 10, 0)
+	bar.logo:SetPoint("LEFT", EDGE, 0)
 	bar.title = Primitives.createText(bar, title or "", 18, "title")
 	-- -2: a font string's LEFT anchor centers its whole line box (descender room included), so
 	-- large text sits visibly high without a small downward nudge.
@@ -70,8 +76,9 @@ function PanelLayout.Create(opts)
 
 	local nav = CreateFrame("Frame", nil, frame)
 	nav:SetWidth(Theme.LAYOUT.sidebarWidth)
-	nav:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -1)
-	nav:SetPoint("BOTTOMLEFT")
+	-- 1px in from the window's edges: a child frame would otherwise draw over the window's border.
+	nav:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 1, -1)
+	nav:SetPoint("BOTTOMLEFT", 1, 1)
 	Primitives.createTexture(nav, "BACKGROUND", "sidebar"):SetAllPoints()
 
 	local rule = Primitives.createTexture(frame, "ARTWORK", "borderDim")
@@ -81,7 +88,7 @@ function PanelLayout.Create(opts)
 
 	local content = CreateFrame("Frame", nil, frame)
 	content:SetPoint("TOPLEFT", nav, "TOPRIGHT", 1, 0)
-	content:SetPoint("BOTTOMRIGHT")
+	content:SetPoint("BOTTOMRIGHT", -1, 1)
 	Primitives.createTexture(content, "BACKGROUND", "content"):SetAllPoints()
 
 	frame:Hide()
@@ -91,7 +98,7 @@ function PanelLayout.Create(opts)
 		sidebar = nav,
 		content = content,
 		tabs = {}, -- [key] = { page, button, title }
-		cursorY = -12, -- next free y in the nav column
+		cursorY = -NAV_TOP, -- next free y in the nav column
 		sections = 0,
 	}, Panel)
 	-- The selected tab's accent colors follow accent changes.
@@ -107,17 +114,17 @@ end
 -- but the first.
 function Panel:AddSidebarHeader(text)
 	if self.sections > 0 then
-		self.cursorY = self.cursorY - SECTION_GAP / 2
+		self.cursorY = self.cursorY - SECTION_GAP
 		local divider = Primitives.createTexture(self.sidebar, "ARTWORK", "borderDim")
 		divider:SetHeight(1)
-		divider:SetPoint("TOPLEFT", NAV_INSET + 4, self.cursorY)
-		divider:SetPoint("TOPRIGHT", -(NAV_INSET + 4), self.cursorY)
-		self.cursorY = self.cursorY - SECTION_GAP / 2 - 4
+		divider:SetPoint("TOPLEFT", EDGE, self.cursorY)
+		divider:SetPoint("TOPRIGHT", -EDGE, self.cursorY)
+		self.cursorY = self.cursorY - SECTION_GAP
 	end
 	self.sections = self.sections + 1
 	local label = Primitives.createText(self.sidebar, text, 10, "accent")
-	label:SetPoint("TOPLEFT", NAV_INSET + 4, self.cursorY)
-	self.cursorY = self.cursorY - 20
+	label:SetPoint("TOPLEFT", EDGE, self.cursorY)
+	self.cursorY = self.cursorY - SECTION_TITLE_HEIGHT
 end
 
 -- Selected: accent side bar, an accent wash fading to the right, accent icon, white label.
@@ -152,9 +159,9 @@ end
 local function buildPageHeader(content, opts)
 	local padding = Theme.LAYOUT.contentPadding
 	local holder = CreateFrame("Frame", nil, content)
-	holder:SetPoint("TOPLEFT", padding, -padding + 2)
-	holder:SetPoint("TOPRIGHT", -padding, -padding + 2)
-	holder:SetHeight(PAGE_HEADER_HEIGHT - padding)
+	holder:SetPoint("TOPLEFT", padding, -padding)
+	holder:SetPoint("TOPRIGHT", -padding, -padding)
+	holder:SetHeight(PAGE_HEADER_HEIGHT)
 	holder:Hide()
 
 	holder.title = Primitives.createText(holder, opts.title, 17, "white")
@@ -185,15 +192,15 @@ function Panel:AddTab(key, text, opts)
 	local pageHeader = buildPageHeader(self.content, { title = text, description = opts.description })
 
 	local page = CreateFrame("Frame", nil, self.content)
-	page:SetPoint("TOPLEFT", padding, -(PAGE_HEADER_HEIGHT + padding))
+	page:SetPoint("TOPLEFT", padding, -(padding + PAGE_HEADER_HEIGHT + PAGE_HEADER_GAP))
 	page:SetPoint("BOTTOMRIGHT", -padding, padding)
 	page:Hide()
 
 	local button = CreateFrame("Button", nil, self.sidebar)
 	button:SetHeight(NAV_ROW_HEIGHT)
-	button:SetPoint("TOPLEFT", NAV_INSET, self.cursorY)
-	button:SetPoint("TOPRIGHT", -NAV_INSET, self.cursorY)
-	self.cursorY = self.cursorY - NAV_ROW_HEIGHT - 2
+	button:SetPoint("TOPLEFT", 0, self.cursorY)
+	button:SetPoint("TOPRIGHT", 0, self.cursorY)
+	self.cursorY = self.cursorY - NAV_ROW_HEIGHT
 
 	button.wash = button:CreateTexture(nil, "BACKGROUND")
 	button.wash:SetAllPoints()
@@ -204,12 +211,13 @@ function Panel:AddTab(key, text, opts)
 
 	button.icon = button:CreateTexture(nil, "ARTWORK")
 	button.icon:SetSize(NAV_ICON_SIZE, NAV_ICON_SIZE)
-	button.icon:SetPoint("LEFT", 10, 0)
+	button.icon:SetPoint("LEFT", EDGE, 0)
 	if opts.icon then
 		button.icon:SetTexture("Interface\\AddOns\\PixlLootCouncil\\textures\\UI\\" .. opts.icon)
 	end
 	button.label = Primitives.createText(button, text, 12)
-	button.label:SetPoint("LEFT", opts.icon and button.icon or button, opts.icon and "RIGHT" or "LEFT", opts.icon and 9 or 12, 0)
+	button.label:SetPoint("LEFT", opts.icon and button.icon or button, opts.icon and "RIGHT" or "LEFT",
+		opts.icon and NAV_LABEL_GAP or EDGE, 0)
 
 	paintTab(button, false, false)
 	button:SetScript("OnEnter", function(b) paintTab(b, self.selected == key, true) end)

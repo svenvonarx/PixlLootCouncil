@@ -47,8 +47,8 @@ Theme.LAYOUT = {
 	fieldWidth = 260,
 	fieldHeight = 28,
 	menuMaxRows = 7,
-	sidebarWidth = 140,
-	contentPadding = 16,
+	sidebarWidth = 150,
+	contentPadding = 20,
 }
 
 -- [region] = { kind = "fill" | "tint" | "text", color = name, alpha = number|nil }. Weak keys,

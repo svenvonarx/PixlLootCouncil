@@ -9,7 +9,7 @@ local SliderWidget = PLC.UI.Widgets.Slider
 local PanelLayout = PLC.UI.Widgets.PanelLayout
 local Theme = PLC.UI.Theme
 
--- General / Responses / Council / Appearance sidebar categories (spec §4.3), reading/writing
+-- General / Auto Loot / Responses / Council / Appearance / Preview sidebar categories (spec §4.3), reading/writing
 -- db.profile.* live -- no /reload needed to see a change take effect (AceDB itself handles
 -- writing the change through to disk on logout).
 local OptionsFrame = {}
@@ -17,86 +17,68 @@ PLC.UI.OptionsFrame = OptionsFrame
 
 local panel
 
+local NAME_ROW_HEIGHT = 20 -- the name lists on the Auto Loot, Council and About pages
+
+-- Vertical rhythm of a settings page: a group title, then its controls.
+local GROUP_TITLE_HEIGHT = 22
+local CHECKBOX_STEP = 26
+local SLIDER_STEP = 62
+local GROUP_GAP = 16
+
 local function buildGeneralPage(page)
 	local profile = PLC.db.profile
 	local y = 0
 
-	local announceStart = CheckboxWidget.createCheckbox(page, L["OPTIONS_ANNOUNCE_START"], function(checked)
-		profile.announce.sessionStart = checked
-	end)
-	announceStart:SetPoint("TOPLEFT", 0, y)
-	announceStart:SetChecked(profile.announce.sessionStart)
-	y = y - 30
+	local function group(title)
+		local label = Primitives.createText(page, title, 13, "white")
+		label:SetPoint("TOPLEFT", 0, y)
+		y = y - GROUP_TITLE_HEIGHT
+	end
 
-	local announceAward = CheckboxWidget.createCheckbox(page, L["OPTIONS_ANNOUNCE_AWARD"], function(checked)
-		profile.announce.award = checked
-	end)
-	announceAward:SetPoint("TOPLEFT", 0, y)
-	announceAward:SetChecked(profile.announce.award)
-	y = y - 30
+	local function checkbox(text, getValue, setValue)
+		local box = CheckboxWidget.createCheckbox(page, text, setValue)
+		box:SetPoint("TOPLEFT", 0, y)
+		box:SetChecked(getValue())
+		y = y - CHECKBOX_STEP
+	end
 
-	local mirrorRC = CheckboxWidget.createCheckbox(page, L["OPTIONS_MIRROR_RC"], function(checked)
-		profile.historyMirrorRC = checked
-	end)
-	mirrorRC:SetPoint("TOPLEFT", 0, y)
-	mirrorRC:SetChecked(profile.historyMirrorRC)
-	y = y - 30
+	local function slider(text, minValue, maxValue, step, key)
+		local widget = SliderWidget.createSlider(page, text, minValue, maxValue, step)
+		widget.container:SetPoint("TOPLEFT", 0, y)
+		widget:SetValue(profile[key])
+		widget.valueText:SetText(tostring(profile[key]))
+		widget:SetScript("OnValueChanged", function(_, value)
+			profile[key] = value
+			widget.valueText:SetText(tostring(value))
+		end)
+		y = y - SLIDER_STEP
+	end
 
-	local rcBridge = CheckboxWidget.createCheckbox(page, L["OPTIONS_RC_BRIDGE"], function(checked)
-		profile.rcBridge = checked
-	end)
-	rcBridge:SetPoint("TOPLEFT", 0, y)
-	rcBridge:SetChecked(profile.rcBridge)
-	y = y - 30
+	group(L["OPTIONS_GROUP_CHAT"])
+	checkbox(L["OPTIONS_ANNOUNCE_START"], function() return profile.announce.sessionStart end,
+		function(checked) profile.announce.sessionStart = checked end)
+	checkbox(L["OPTIONS_ANNOUNCE_AWARD"], function() return profile.announce.award end,
+		function(checked) profile.announce.award = checked end)
+	y = y - GROUP_GAP
 
-	local autoStart = CheckboxWidget.createCheckbox(page, L["OPTIONS_AUTO_START"], function(checked)
-		profile.autoStartSession = checked
-	end)
-	autoStart:SetPoint("TOPLEFT", 0, y)
-	autoStart:SetChecked(profile.autoStartSession)
-	y = y - 50
+	group(L["OPTIONS_GROUP_RC"])
+	checkbox(L["OPTIONS_MIRROR_RC"], function() return profile.historyMirrorRC end,
+		function(checked) profile.historyMirrorRC = checked end)
+	checkbox(L["OPTIONS_RC_BRIDGE"], function() return profile.rcBridge end,
+		function(checked) profile.rcBridge = checked end)
+	y = y - GROUP_GAP
 
-	local threshold = SliderWidget.createSlider(page, L["OPTIONS_LOOT_THRESHOLD"], 0, 5, 1)
-	threshold.container:SetPoint("TOPLEFT", 0, y)
-	threshold:SetValue(profile.lootThreshold)
-	threshold.valueText:SetText(tostring(profile.lootThreshold))
-	threshold:SetScript("OnValueChanged", function(_, value)
-		profile.lootThreshold = value
-		threshold.valueText:SetText(tostring(value))
-	end)
-	y = y - 70
-
-	local heartbeat = SliderWidget.createSlider(page, L["OPTIONS_HEARTBEAT_SECONDS"], 15, 180, 5)
-	heartbeat.container:SetPoint("TOPLEFT", 0, y)
-	heartbeat:SetValue(profile.sessionHeartbeatSeconds)
-	heartbeat.valueText:SetText(tostring(profile.sessionHeartbeatSeconds))
-	heartbeat:SetScript("OnValueChanged", function(_, value)
-		profile.sessionHeartbeatSeconds = value
-		heartbeat.valueText:SetText(tostring(value))
-	end)
-	y = y - 70
-
-	local forceEnd = SliderWidget.createSlider(page, L["OPTIONS_FORCE_END_MINUTES"], 1, 30, 1)
-	forceEnd.container:SetPoint("TOPLEFT", 0, y)
-	forceEnd:SetValue(profile.sessionForceEndMinutes)
-	forceEnd.valueText:SetText(tostring(profile.sessionForceEndMinutes))
-	forceEnd:SetScript("OnValueChanged", function(_, value)
-		profile.sessionForceEndMinutes = value
-		forceEnd.valueText:SetText(tostring(value))
-	end)
-	y = y - 70
-
+	group(L["OPTIONS_GROUP_SESSION"])
+	checkbox(L["OPTIONS_AUTO_START"], function() return profile.autoStartSession end,
+		function(checked) profile.autoStartSession = checked end)
+	y = y - 8
+	slider(L["OPTIONS_LOOT_THRESHOLD"], 0, 5, 1, "lootThreshold")
+	slider(L["OPTIONS_HEARTBEAT_SECONDS"], 15, 180, 5, "sessionHeartbeatSeconds")
+	slider(L["OPTIONS_FORCE_END_MINUTES"], 1, 30, 1, "sessionForceEndMinutes")
 	-- The holder's value at session start wins for every candidate -- see
 	-- Data/Session.lua:Start()/OnSessionStartReceived -- so changing this only affects sessions
 	-- this character goes on to hold, never a session already in progress.
-	local responseTimeout = SliderWidget.createSlider(page, L["OPTIONS_RESPONSE_TIMEOUT"], 15, 300, 5)
-	responseTimeout.container:SetPoint("TOPLEFT", 0, y)
-	responseTimeout:SetValue(profile.responseTimeoutSeconds)
-	responseTimeout.valueText:SetText(tostring(profile.responseTimeoutSeconds))
-	responseTimeout:SetScript("OnValueChanged", function(_, value)
-		profile.responseTimeoutSeconds = value
-		responseTimeout.valueText:SetText(tostring(value))
-	end)
+	slider(L["OPTIONS_RESPONSE_TIMEOUT"], 15, 300, 5, "responseTimeoutSeconds")
 end
 
 -- The game's color picker. Current clients set it up through SetupColorPickerAndShow (the old
@@ -498,7 +480,6 @@ end
 -- decide the council for everyone. Any change rebuilds the roster, which re-broadcasts the council
 -- if this client is holding a session (Session:OnRosterRebuilt).
 local MAX_RANKS = 10
-local NAME_ROW_HEIGHT = 20
 
 local function councilChanged()
 	PLC.Roster:Rebuild()
@@ -699,8 +680,8 @@ local function ensurePanel()
 
 	panel = PanelLayout.Create({
 		name = "PixlLootCouncilOptionsFrame",
-		width = 560,
-		height = 610, -- General stacks 5 checkboxes + 4 sliders under the page header
+		width = 580,
+		height = 640, -- General, the tallest page, is three groups of settings under the page header
 		title = L["OPTIONS_TITLE"],
 	})
 
@@ -708,23 +689,28 @@ local function ensurePanel()
 	buildGeneralPage(panel:AddTab("general", L["OPTIONS_TAB_GENERAL"],
 		{ icon = "nav_general.png", description = L["OPTIONS_DESC_GENERAL"] }))
 	buildAutoLootPage(panel:AddTab("autoloot", L["OPTIONS_TAB_AUTOLOOT"],
-		{ icon = "nav_general.png", description = L["OPTIONS_DESC_AUTOLOOT"] }))
+		{ icon = "nav_autoloot.png", description = L["OPTIONS_DESC_AUTOLOOT"] }))
 	buildResponsesPage(panel:AddTab("responses", L["OPTIONS_TAB_RESPONSES"],
 		{ icon = "nav_responses.png", description = L["OPTIONS_DESC_RESPONSES"] }))
 	buildCouncilPage(panel:AddTab("council", L["OPTIONS_TAB_COUNCIL"],
 		{ icon = "nav_council.png", description = L["OPTIONS_COUNCIL_INTRO"] }))
 
 	panel:AddSidebarHeader(L["OPTIONS_SECTION_SETTINGS"])
-	buildPreviewPage(panel:AddTab("preview", L["OPTIONS_TAB_PREVIEW"],
-		{ icon = "nav_general.png", description = L["OPTIONS_DESC_PREVIEW"] }))
 	buildAppearancePage(panel:AddTab("appearance", L["OPTIONS_TAB_APPEARANCE"],
 		{ icon = "nav_appearance.png", description = L["OPTIONS_DESC_APPEARANCE"] }))
+
+	panel:AddSidebarHeader(L["OPTIONS_SECTION_ADDON"])
+	buildPreviewPage(panel:AddTab("preview", L["OPTIONS_TAB_PREVIEW"],
+		{ icon = "nav_preview.png", description = L["OPTIONS_DESC_PREVIEW"] }))
 
 	return panel
 end
 
-function OptionsFrame:Open()
+function OptionsFrame:Open(tab)
 	ensurePanel():Show()
+	if tab then
+		panel:SelectTab(tab)
+	end
 end
 
 PLC:RegisterSlashCommand("options", "Open the options window", function()
