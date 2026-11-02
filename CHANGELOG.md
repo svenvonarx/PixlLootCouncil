@@ -22,6 +22,8 @@
   You get one chat notice when someone in your group has a newer version.
 - **Fixed** the Auto Loot exception list using the wrong row height.
 - **Fixed** Award All opening an empty Loot Trades window when nothing was left to trade.
+- **Fixed** the Stop Preview button in Options staying on Stop when a preview ended any other way, such
+  as End Session in the Loot Session window.
 - **Fixed** long item names running into the vote count in the Loot Session window. They're cut short
   now, and hovering shows the whole item. The vote count itself is shorter, as "25/25 voted".
 

@@ -671,6 +671,8 @@ Needs the addon on everyone taking part. Start it with `/plc preview` or Options
   row on both sides, and the last one ends the preview for everyone.
 - **No BoE in bags:** chat says so; × removes the row.
 - **Self-disenchant:** the Disenchant button does nothing in a preview.
+- **Options button:** with Options → Preview open, end the preview with End Session, `/plc preview` or the
+  last trade: the button goes back to Start right away. Starting with `/plc preview` flips it to Stop.
 - **Nothing kept:** the history has no new entries on any client.
 - **State comes back:** with real items in your backlog, and raiders with real "items to collect", run a
   preview: everything real is back afterwards. `/reload` as the holder ends it for you, with your real

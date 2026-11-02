@@ -35,11 +35,18 @@ local STASHED_FIELDS = {
 local stash
 local stopping = false
 
+local function notifyOptions()
+	if PLC.UI and PLC.UI.OptionsFrame and PLC.UI.OptionsFrame.OnPreviewChanged then
+		PLC.UI.OptionsFrame:OnPreviewChanged()
+	end
+end
+
 local function notifyAll()
 	local Session = PLC.Session
 	Session:notifyLootFrame()
 	Session:notifySessionFrame()
 	Session:notifyTradeFrame()
+	notifyOptions()
 end
 
 -- Sets this client's real session state aside. Called on the holder and on everyone who receives
@@ -59,6 +66,7 @@ function Preview:Enter()
 	Session.owner, Session.sessionId, Session.council, Session.responseSet = nil, nil, nil, nil
 	Session.isCollector = false
 	Session.preview = true
+	notifyOptions()
 end
 
 -- Puts the real session state back.

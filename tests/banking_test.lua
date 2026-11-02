@@ -394,5 +394,37 @@ check("R19", linesFor(PLC.UI.HistoryFrame.AddItemLines, LINK):find("HISTORY_TIP_
 history({ ["Mule-Realm"] = { won({ response = "BiS" }) } })
 check("R20", linesFor(PLC.UI.HistoryFrame.AddPlayerLines, "Mule-Realm", LINK):find("HISTORY_TIP_ALREADY_HAS", 1, true) ~= nil, "a real award still says so, with the date")
 
+-- A preview ending from outside the Options page ----------------------------------------------------
+assert(loadfile("Data/Preview.lua"))("PixlLootCouncil", PLC)
+local optionsTold = 0
+PLC.UI.OptionsFrame = { OnPreviewChanged = function() optionsTold = optionsTold + 1 end }
+Session.state, Session.preview = "ended", false
+local function runningPreview()
+	optionsTold = 0
+	PLC.Preview:Enter()
+	Session.state, Session.sessionId = "active", "s1"
+	Session.owner = { guid = ME, name = "Pixl-Realm" }
+	Session.items = {}
+end
+runningPreview()
+check("U1", optionsTold == 1, "the Options page hears when a preview starts, wherever from")
+Session:End()
+check("U2", Session.preview == false and optionsTold == 2, "pressing End Session ends it, and the Options page hears")
+
+runningPreview()
+Session.items = { [1] = { idx = 1, awarded = MULE } }
+Session:End()
+check("U3", Session.preview == true and optionsTold == 1, "with a trade left it keeps running, so the button stays on Stop")
+Session:MarkItemTraded(1)
+check("U4", Session.preview == false and optionsTold == 2, "and the last trade ends it")
+
+runningPreview()
+PLC.Preview:OnPreviewEndReceived({ sessionId = "s1" })
+check("U5", Session.preview == false and optionsTold == 2, "so does the holder ending it, for everyone else")
+
+runningPreview()
+PLC.Preview:Toggle()
+check("U6", Session.preview == false and optionsTold == 2, "and /plc preview")
+
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

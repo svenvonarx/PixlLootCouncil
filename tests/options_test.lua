@@ -249,6 +249,19 @@ check("P8", profile.masterLootThreshold == 2 and mlThreshold.displayText == "Unc
 mlThreshold.entries[1].onClick()
 check("P9", profile.masterLootThreshold == 0 and mlThreshold.entries[1].checked and mlThreshold.text.color[1] == 1 and mlThreshold.text.color[3] == 1, "going back to Don't change drops the color")
 
+local previewButton
+for _, f in ipairs(frames) do
+	if rawget(f, "caption") == "OPTIONS_PREVIEW_START" then previewButton = f end
+end
+PLC.UI.OptionsFrame:OnPreviewChanged()
+local previewIdle = previewButton.label.text
+PLC.Session.preview = true
+PLC.UI.OptionsFrame:OnPreviewChanged()
+local previewRunning = previewButton.label.text
+PLC.Session.preview = false
+PLC.UI.OptionsFrame:OnPreviewChanged()
+check("P10", previewIdle == "OPTIONS_PREVIEW_START" and previewRunning == "OPTIONS_PREVIEW_STOP" and previewButton.label.text == "OPTIONS_PREVIEW_START", "the Preview button follows the preview, however it starts or ends")
+
 -- Pages fit the window: a stub can't measure text, but it can add up what's stacked.
 local Theme = PLC.UI.Theme.LAYOUT
 local available = 640 - Theme.headerHeight - 2 - Theme.contentPadding * 2 - 48 - 20

@@ -811,6 +811,7 @@ local function buildCouncilPage(page)
 end
 
 -- A practice run for the whole group (Data/Preview.lua). Also /plc preview.
+local refreshPreview
 local function buildPreviewPage(page)
 	local text = Primitives.createText(page, L["OPTIONS_PREVIEW_HELP"], 12)
 	text:SetPoint("TOPLEFT")
@@ -822,14 +823,13 @@ local function buildPreviewPage(page)
 	button:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -16)
 	Primitives.attachTooltip(button, L["OPTIONS_TAB_PREVIEW"], L["TIP_PREVIEW"])
 
-	local function refresh()
+	function refreshPreview()
 		button.label:SetText(L[PLC.Session.preview and "OPTIONS_PREVIEW_STOP" or "OPTIONS_PREVIEW_START"])
 	end
 	button:SetScript("OnClick", function()
 		PLC.Preview:Toggle()
-		refresh()
 	end)
-	page:HookScript("OnShow", refresh)
+	page:HookScript("OnShow", refreshPreview)
 end
 
 -- Who made this, what it's built on, and which version everyone in the group is running
@@ -1062,6 +1062,13 @@ function OptionsFrame:Open(tab)
 end
 
 -- From Data/Presence.lua, as version answers come in.
+-- A preview can start or end from anywhere, not just this page's button (Data/Preview.lua).
+function OptionsFrame:OnPreviewChanged()
+	if refreshPreview then
+		refreshPreview()
+	end
+end
+
 function OptionsFrame:OnVersionsUpdated()
 	if refreshAbout and panel and panel.frame:IsShown() then
 		refreshAbout()
