@@ -885,7 +885,7 @@ function HistoryFrame.AddPlayerLines(tooltip, fullName, currentLink)
 
 	local currentID = currentLink and PLC.History.GetItemIDFromLink(currentLink)
 	for _, row in ipairs(rows) do
-		if currentID and PLC.History.GetItemIDFromLink(row.entry.lootWon) == currentID then
+		if currentID and PLC.History.GetItemIDFromLink(row.entry.lootWon) == currentID and PLC.History:WasReceived(row.entry) then
 			local r, g, b = Primitives.color("warning")
 			tooltip:AddLine(string.format(L["HISTORY_TIP_ALREADY_HAS"], row.entry.date or "?"), r, g, b)
 			break

@@ -35,6 +35,8 @@ uses RCLootCouncil's format.
   the session sees the master looter's set.
 - **Loot Session window** for the council:
   - every candidate's response and note, equipped items, item level difference and role
+  - a red **Has** next to anyone who has already received the item, from the loot history (banked
+    and disenchanted items don't count)
   - hover a name to see what that player has received; hover an item to see who already got it
   - the session holder stages a pick per item (or **Disenchant** to the raid's Enchanter, or
     **Banking** to keep it, which only records it), then commits everything with **Award All**

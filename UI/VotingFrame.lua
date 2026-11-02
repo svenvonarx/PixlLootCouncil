@@ -87,6 +87,14 @@ function Panel:buildRows()
 		equipLoc = loc
 	end
 
+	-- Same once-per-shown-item reasoning: this goes through the whole loot history.
+	local receivers = {}
+	if item and item.link then
+		for _, recipient in ipairs(PLC.History:GetItemRecipients(PLC.History.GetItemIDFromLink(item.link))) do
+			receivers[recipient.name] = true
+		end
+	end
+
 	for guid, entry in PLC.Roster:IterateGroup() do
 		local r = responses and responses[guid]
 		local row = {
@@ -99,6 +107,7 @@ function Panel:buildRows()
 			response = r and r.response,
 			note = r and r.note,
 			present = PLC.Presence:IsPresent(guid),
+			received = receivers[PLC.History.NormalizeName(entry.name)] == true,
 			-- Excludes a disenchant stage even when this candidate happens to BE the current
 			-- Enchanter -- they didn't win it as a candidate, so their own Award button shouldn't
 			-- read "Staged" just because the item is staged for disenchant (see Panel:Disenchant's
@@ -375,6 +384,14 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton, bankButton)
 				holder.classIcon:SetPoint("LEFT", holder.roleIcon, "RIGHT", 4, 0)
 				holder.text = Primitives.createText(holder, "", 11)
 				holder.text:SetPoint("LEFT", holder.classIcon, "RIGHT", 4, 0)
+				holder.text:SetPoint("RIGHT", -20, 0) -- room for holder.received
+				holder.text:SetJustifyH("LEFT")
+				holder.text:SetWordWrap(false)
+				-- This item is already in their loot history. At the cell's right edge, not after the
+				-- name, so a whole raid reads as one column. Hovering says when.
+				holder.received = Primitives.createText(holder, L["VOTINGFRAME_RECEIVED"], 11, "warning")
+				holder.received:SetPoint("RIGHT", -2, 0)
+				holder.received:Hide()
 				-- Hovering the name shows what this candidate has already received (loot history,
 				-- including anything imported from RCLootCouncil) -- see UI/HistoryFrame.lua.
 				holder:EnableMouse(true)
@@ -398,6 +415,7 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton, bankButton)
 				local r, g, b = classColor(rowData.class)
 				holder.text:SetText(rowData.shortName)
 				holder.text:SetTextColor(r, g, b)
+				holder.received:SetShown(rowData.received)
 			end,
 		},
 		{

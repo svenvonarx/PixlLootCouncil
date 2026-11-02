@@ -436,6 +436,9 @@ Award still just means "record the decision and tell the holder who to trade it 
   (not "Awarded: PlayerName"), and a staged disenchant reads "Staged: Disenchant (EnchanterName)"
   (not "Staged: EnchanterName"). Banking reads "Banked" and "Staged: Banking". Border colors stay
   the same success/accent as a regular award/stage, only the tooltip text branches.
+- **Has:** with history for an item, including imported RC history, review that item: the players who
+  received it show a red "Has" lined up at the right of the name cell, and hovering says when. Someone
+  who only banked or disenchanted that item shows nothing, and neither does anyone for other items.
 - Header row: with a long item name, the name is cut short with the vote count and both buttons
   clear of it, and the trade time still shows on ordinary names. Hovering shows the whole item.
 

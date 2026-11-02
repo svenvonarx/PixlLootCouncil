@@ -14,7 +14,7 @@ Raiders can drop RCLootCouncil and keep raiding with a loot master who still run
 - **Master looter list.** Choose who should run the loot, in order. Switch the group to Master Loot and the first of them who's online gets it. It can set the loot threshold at the same moment, and anything you change afterwards sticks.
 - **Excluded items.** Raid materials like Mark of the Illidari stay in the window for you to assign yourself.
 - **Loot Timers.** A small list of everything waiting for review, most urgent first, with the 2-hour trade time left on each item, so nothing expires in your bags.
-- **One review window.** See every candidate's response, note, equipped items and item level difference. Hover a name for what they've already received. Stage a pick for each item, then commit them all with **Award All**.
+- **One review window.** See every candidate's response, note, equipped items and item level difference. Anyone who already received the item is marked. Hover a name for what they've already received. Stage a pick for each item, then commit them all with **Award All**.
 - **Guided trades.** Loot Trades lists what you owe and what you're owed. **Trade** opens the trade and places the items, and **Follow** walks you to the other player.
 - **Preview mode.** Run the whole workflow with your group on fictional items before raid night. Nothing goes to the history, and your real loot list comes back afterwards.
 

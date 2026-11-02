@@ -1,7 +1,8 @@
 -- Run from the addon folder: luajit tests/banking_test.lua
 --
--- The real Data/Session.lua, Data/History.lua, Loot/Announce.lua, UI/VotingFrame.lua and
--- UI/SessionFrame.lua against a stubbed game and stubbed widgets.
+-- The real Data/Session.lua, Data/History.lua, Loot/Announce.lua, UI/VotingFrame.lua,
+-- UI/SessionFrame.lua and UI/HistoryFrame.lua against a stubbed game and stubbed widgets: Banking,
+-- and who already has the item being reviewed.
 local out = print
 local printed = {}
 _G.print = function(s) printed[#printed + 1] = tostring(s) end
@@ -125,7 +126,6 @@ local windows = {}
 PLC.UI.TradeFrame = { Open = function() windows.trades = (windows.trades or 0) + 1 end, OnSessionUpdated = noop }
 PLC.UI.LootFrame = { Refresh = noop }
 PLC.UI.LootTimersFrame = { OnSessionUpdated = noop, Hide = noop, IsShown = function() return false end }
-PLC.UI.HistoryFrame = { OnHistoryUpdated = noop, AddItemLines = noop, AddPlayerLines = noop }
 
 local sent = {}
 PLC.Comms = { Sync = setmetatable({}, { __index = function(_, command)
@@ -165,7 +165,7 @@ PLC.db = { char = {}, profile = {
 } }
 PLC.lootDB = { factionrealm = {} }
 
-for _, file in ipairs({ "Data/Session.lua", "Data/History.lua", "Loot/Announce.lua", "UI/VotingFrame.lua", "UI/SessionFrame.lua" }) do
+for _, file in ipairs({ "Data/Session.lua", "Data/History.lua", "Loot/Announce.lua", "UI/VotingFrame.lua", "UI/HistoryFrame.lua", "UI/SessionFrame.lua" }) do
 	assert(loadfile(file))("PixlLootCouncil", PLC)
 end
 local Session, History, SessionFrame = PLC.Session, PLC.History, PLC.UI.SessionFrame
@@ -316,6 +316,83 @@ end
 session()
 check("B34", status({ idx1 = 1, link1 = "x", awarded1 = ME, awardReason1 = "bank" }) == "SESSIONFRAME_BANKED", "the sidebar says Banked")
 check("B35", status({ idx1 = 1, link1 = "x", preAwardGuid1 = ME, preAwardReason1 = "bank" }) == "VOTINGFRAME_STAGED_BANKING", "and Staged: Banking")
+
+-- Who already has it ---------------------------------------------------------------------------------
+local LINK = "|cff|Hitem:100:0:0|h[Helm]|h|r"
+local function history(entries)
+	PLC.lootDB.factionrealm = entries
+end
+local function won(fields)
+	fields.lootWon = fields.lootWon or LINK
+	fields.date, fields.id = "2026/10/01", "1-" .. tostring(fields)
+	return fields
+end
+
+local db = { ["Mule-Realm"] = { won({ response = "BiS", responseID = 1 }) } }
+session(); history(db); panel:ShowItem(1)
+local seen = {}
+for _, row in ipairs(panel.rowsData) do seen[row.shortName] = row.received end
+check("R1", seen.Mule == true and seen.Other == false and seen.Pixl == false, "someone who got it is marked, the others aren't")
+
+local function markedFor(entry)
+	session()
+	history({ ["Mule-Realm"] = { entry } })
+	panel:ShowItem(1)
+	for _, row in ipairs(panel.rowsData) do
+		if row.shortName == "Mule" then return row.received end
+	end
+end
+check("R2", markedFor(won({ response = "BiS", responseID = 1 })) == true, "a normal response counts, even with response number 1")
+check("R3", markedFor(won({ lootWon = "|cff|Hitem:999:0:0|h[Other]|h|r", response = "BiS", responseID = 1 })) == false, "another item doesn't")
+check("R4", markedFor(won({ lootWon = "|cff|Hitem:100:2564:0|h[Helm]|h|r", response = "BiS", responseID = 1 })) == true, "the same item with an enchant does")
+check("R5", markedFor(won({ response = "VOTINGFRAME_BANKING", responseID = 2, isAwardReason = true })) == false, "banked isn't received")
+check("R6", markedFor(won({ response = "VOTINGFRAME_DISENCHANT", responseID = 1, isAwardReason = true })) == false, "disenchanted isn't either")
+check("R7", markedFor(won({ response = "Bank it", responseID = "2", isAwardReason = true })) == false, "RC's reason keeps counting when renamed, or stored as text")
+check("R21", markedFor(won({ response = "Shard it", responseID = 1, isAwardReason = true })) == false, "and a renamed Disenchant")
+check("R8", markedFor(won({ response = "VOTINGFRAME_DISENCHANT" })) == false, "an old RC entry with only the text is caught too")
+check("R9", markedFor(won({ response = "Free", responseID = 3, isAwardReason = true })) == true, "RC's Free award is received")
+check("R10", markedFor(won({ response = "VOTINGFRAME_AWARD", responseID = 0, isAwardReason = true })) == true, "so is an award to someone who didn't respond")
+
+session()
+history({ ["Mule-Realm"] = { won({ response = "BiS" }) }, ["Mule-OtherRealm"] = {} })
+panel:ShowItem(1)
+history({ ["Mule-OtherRealm"] = { won({ response = "BiS" }) } })
+panel:ShowItem(1)
+seen = {}
+for _, row in ipairs(panel.rowsData) do seen[row.shortName] = row.received end
+check("R11", seen.Mule == false, "a namesake on another realm doesn't count")
+
+ROSTER[MULE].name = "Mule-Some Realm"
+check("R12", markedFor(won({ response = "BiS" })) == false, "(no entry under the name with a space)")
+session(); history({ ["Mule-SomeRealm"] = { won({ response = "BiS" }) } }); panel:ShowItem(1)
+for _, row in ipairs(panel.rowsData) do seen[row.shortName] = row.received end
+check("R13", seen.Mule == true, "a realm with a space matches how the history stores it")
+ROSTER[MULE].name = "Mule-Realm"
+
+session(); history({})
+Session.items[1].link = nil
+check("R14", pcall(function() panel:ShowItem(1) end), "an item with no link yet doesn't break the grid")
+
+local nameCell = panel.dataTable.columns[1]
+local cellHolder = nameCell.create(frame())
+local function row(isReceived) return { shortName = "Mule", class = "ROGUE", received = isReceived } end
+nameCell.update(cellHolder, row(true))
+local shownWhenHas = cellHolder.received.shown
+nameCell.update(cellHolder, row(false))
+check("R15", shownWhenHas and not cellHolder.received.shown, "the tag follows the row, as cells get reused")
+check("R16", cellHolder.received.text == "VOTINGFRAME_RECEIVED" and cellHolder.received.points[1][1] == "RIGHT", "it sits at the cell's right edge")
+check("R17", cellHolder.text.wordWrap == false and cellHolder.text.points[2][1] == "RIGHT" and cellHolder.text.points[2][2] == -20, "and the name stops short of it")
+
+local function linesFor(fn, ...)
+	local lines = {}
+	fn({ AddLine = function(_, text) lines[#lines + 1] = tostring(text) end, AddDoubleLine = function(_, text) lines[#lines + 1] = tostring(text) end }, ...)
+	return table.concat(lines, "|")
+end
+history({ ["Mule-Realm"] = { won({ response = "VOTINGFRAME_BANKING", responseID = 2, isAwardReason = true }) } })
+check("R18", not linesFor(PLC.UI.HistoryFrame.AddPlayerLines, "Mule-Realm", LINK):find("HISTORY_TIP_ALREADY_HAS", 1, true), "the hover doesn't say a banked item was received")
+check("R19", linesFor(PLC.UI.HistoryFrame.AddItemLines, LINK):find("HISTORY_TIP_ITEM_NONE", 1, true) ~= nil, "nor does the item's own tooltip")
+history({ ["Mule-Realm"] = { won({ response = "BiS" }) } })
+check("R20", linesFor(PLC.UI.HistoryFrame.AddPlayerLines, "Mule-Realm", LINK):find("HISTORY_TIP_ALREADY_HAS", 1, true) ~= nil, "a real award still says so, with the date")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -8,6 +8,9 @@
   moment too.
 - **Banking**: next to Disenchant in the Loot Session window, for items you keep. It's recorded in the
   loot history as Banking, the same way RCLootCouncil records it, and nothing shows up in Loot Trades.
+- **Already has it**: the Loot Session window marks everyone who has received the item you're
+  reviewing with a red **Has** next to their name, from the loot history. Hovering the name says when.
+  Banked and disenchanted items don't count, here or in the history tooltips.
 - **Options overhaul**: a selected menu entry now runs the full width of the menu, and the logo,
   section titles and icons share one left edge. Pages have more room, and General is split into Raid
   chat, RCLootCouncil, Loot and Timing. Auto Loot, Master Looter, Preview and About have their own

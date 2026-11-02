@@ -256,6 +256,15 @@ end
 
 -- One player's entries, newest first, as { entry = e } rows. Unfiltered -- the hover tooltips
 -- answer "what has this player received", not "what does the history window currently show".
+-- False for loot that passed through someone without being theirs: disenchanted or banked. Those
+-- are RC's default award reasons 1 and 2, which this addon writes too. RC's older entries have no
+-- such id, only the text.
+function History:WasReceived(entry)
+	local reasonID = entry.isAwardReason and tonumber(entry.responseID)
+	return not (reasonID == 1 or reasonID == 2
+		or entry.response == L["VOTINGFRAME_DISENCHANT"] or entry.response == L["VOTINGFRAME_BANKING"])
+end
+
 function History:GetPlayerEntries(fullName)
 	local rows = {}
 	local list = fullName and self:GetDB()[normalizeName(fullName)]
@@ -277,7 +286,7 @@ function History:GetItemRecipients(itemID)
 	for name, list in pairs(self:GetDB()) do
 		if type(list) == "table" then
 			for _, entry in ipairs(list) do
-				if History.GetItemIDFromLink(entry.lootWon) == itemID then
+				if History.GetItemIDFromLink(entry.lootWon) == itemID and self:WasReceived(entry) then
 					table.insert(rows, { name = name, entry = entry })
 				end
 			end
