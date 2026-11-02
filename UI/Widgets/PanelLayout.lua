@@ -55,12 +55,9 @@ end
 
 function PanelLayout.Create(opts)
 	local frame = CreateFrame("Frame", opts.name, UIParent)
-	Primitives.refreshFontsOnShow(frame)
+	Primitives.makeWindow(frame)
 	frame:SetSize(opts.width or 760, opts.height or 540)
 	frame:SetPoint("CENTER")
-	-- Below the Loot Session window (DIALOG) and Loot Response (FULLSCREEN_DIALOG): settings are
-	-- the least urgent thing on screen.
-	frame:SetFrameStrata("HIGH")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag("LeftButton")

@@ -1182,6 +1182,7 @@ end
 
 function OptionsFrame:Open(tab)
 	ensurePanel():Show()
+	Primitives.bringToFront(panel.frame)
 	if tab then
 		panel:SelectTab(tab)
 	end

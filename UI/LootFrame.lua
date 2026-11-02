@@ -310,15 +310,11 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilLootFrame", UIParent)
-	Primitives.refreshFontsOnShow(frame)
+	-- Comes to the front when a session opens it, like any window (Primitives.makeWindow).
+	Primitives.makeWindow(frame)
 	-- Height stays freely resizable -- a taller window genuinely shows more pending items at once.
 	frame:SetHeight(260)
 	frame:SetPoint("CENTER", 0, -80)
-	-- Top of the three main windows on purpose -- one tier above UI/SessionFrame.lua's "DIALOG"
-	-- (itself one tier above UI/OptionsFrame.lua's "HIGH") -- responding to loot always needs to
-	-- be reachable, so this window must never end up hidden behind either of the others
-	-- regardless of which was clicked/opened more recently.
-	frame:SetFrameStrata("FULLSCREEN_DIALOG")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag("LeftButton")
@@ -430,6 +426,7 @@ function LootFrame:Open()
 		return
 	end
 	self:Refresh()
+	Primitives.bringToFront(frame)
 end
 
 PLC:RegisterSlashCommand("loot", L["SLASH_LOOT"], function()

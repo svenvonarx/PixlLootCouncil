@@ -241,11 +241,7 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   (stamped fresh the moment `Start()` broadcasts, not however long ago the item was actually
   bagged), that row disappears on its own (checked every second while the window is open) — and
   if that was the only pending item, the whole window auto-hides.
-- Open this window with `UI/SessionFrame.lua` and `UI/OptionsFrame.lua` also open and
-  overlapping — confirm the stacking order is always Options (bottom) → Session (middle) →
-  this one (top), regardless of which was clicked or opened most recently (three separate
-  frame-strata tiers now: "HIGH"/"DIALOG"/"FULLSCREEN_DIALOG" — this was the actual overlap bug,
-  Options and Session used to share the same "DIALOG" tier with undefined relative order).
+- Stacking with the other windows is covered in 2.22.
 - Both windows are drag-resizable from a small corner grip, bottom-right (brightens to accent on
   hover) — but **width is now fixed** (changed this round: `UI/LootFrame.lua` locked at 700,
   `UI/SessionFrame.lua` at 630 — each window's own former minimum width, the narrowest that still
@@ -741,6 +737,21 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   long German labels on buttons, and the Font list's first entry reads Default on Korean or Chinese.
 - **Addon list:** on the character screen and in game: the icon is sharp beside the name, the addon is
   under Loot with Gargul and RCLootCouncil, and hovering it shows the new description.
+
+### 2.22 Windows stacking (`Primitives.makeWindow` in `UI/Widgets/Primitives.lua`)
+`luajit tests/appearance_test.lua` checks every window goes through it. In game, open the Loot
+Session window, Options, Loot History and, in a preview, Loot Response and Loot Trades, overlapping:
+- **Click:** clicking any of them, on its title, a button, a list row or empty space, brings the
+  whole window to the front, with nothing of the window behind drawing through it.
+- **Open:** a window that opens comes to the front. Opening one that's already open behind the
+  others (`/plc options`, `/plc history`, the toolbar buttons) brings it forward.
+- **Updates don't steal the front:** while you work in Options, answers arriving in the open Loot
+  Session window behind it leave it behind.
+- **Pop-ups and tooltips:** Remove All in the Loot Session window, and Reset all data in Options,
+  show their pop-up above the window. Item tooltips show above every window, Loot Trades included.
+- **Loot Timers** stays below the game's own windows (bags, character), as before.
+- **Many clicks:** click back and forth between two windows a few dozen times: they keep stacking
+  correctly.
 
 ### 2.21 Welcome window, reset and changelog (`UI/WelcomeFrame.lua`, `Data/RCImport.lua`)
 `luajit tests/welcome_test.lua` and `luajit tests/changelog_test.lua` cover the rules. In game:

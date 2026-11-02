@@ -659,17 +659,12 @@ local function ensureFrame()
 	end
 
 	frame = CreateFrame("Frame", "PixlLootCouncilSessionFrame", UIParent)
-	Primitives.refreshFontsOnShow(frame)
+	Primitives.makeWindow(frame)
 	-- Width is fixed (set at the very end of this function, once VotingFrame.GRID_WIDTH is known
 	-- -- see the comment down there) but every child below positions itself via relative anchors,
 	-- not absolute pixel coordinates, so building them before the frame has a final size is fine;
 	-- WoW only resolves actual pixel positions at render time, well after ensureFrame() returns.
 	frame:SetPoint("CENTER", 0, 50)
-	-- Deliberately stays at "DIALOG" -- the middle of the three main windows: UI/OptionsFrame.lua
-	-- (built on UI/Widgets/PanelLayout.lua) sits one tier below at "HIGH", UI/LootFrame.lua sits
-	-- one tier above at "FULLSCREEN_DIALOG", so responding to loot is always reachable regardless
-	-- of which window was clicked/opened more recently.
-	frame:SetFrameStrata("DIALOG")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag("LeftButton")
@@ -948,6 +943,7 @@ local function showFullWindow()
 	local f = ensureFrame()
 	refresh()
 	f:Show()
+	Primitives.bringToFront(f)
 	PLC.UI.LootTimersFrame:Hide()
 end
 

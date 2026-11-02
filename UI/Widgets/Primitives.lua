@@ -210,6 +210,25 @@ function Primitives.refreshFontsOnShow(frame)
 	frame:HookScript("OnShow", Primitives.RefreshFonts)
 end
 
+-- Every window here shares one strata and stacks like windows on a desktop: the one opened or
+-- clicked last is on top. Toplevel frames are raised by the game itself when clicked anywhere,
+-- children included. "HIGH" keeps them above the game's own panels and below its confirmation
+-- pop-ups, menus and tooltips.
+Primitives.WINDOW_STRATA = "HIGH"
+
+-- Call once per window right after creating it, instead of refreshFontsOnShow.
+function Primitives.makeWindow(frame)
+	Primitives.refreshFontsOnShow(frame)
+	frame:SetFrameStrata(Primitives.WINDOW_STRATA)
+	frame:SetToplevel(true)
+	frame:HookScript("OnShow", Primitives.bringToFront)
+end
+
+-- For opening a window that may already be open somewhere behind the others.
+function Primitives.bringToFront(frame)
+	frame:Raise()
+end
+
 PLC.Events:RegisterHandler("PLAYER_ENTERING_WORLD", function()
 	Primitives.RefreshFonts()
 	for _, delay in ipairs({ 1, 3, 8 }) do

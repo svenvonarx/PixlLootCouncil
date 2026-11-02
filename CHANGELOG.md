@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **The window you open or click comes to the front**, like windows on a desktop. Before, each
+  window had a fixed place: Loot Response always covered the Loot Session window, which always
+  covered Options, and Loot Trades covered everything. The game's confirmation pop-ups now always
+  show above the addon's windows. Loot Timers stays below everything, out of the way.
+
 ## 0.5.0-beta
 
 Loot sessions now reach everyone, wherever they are and whatever they missed, the addon speaks every

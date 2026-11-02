@@ -298,5 +298,44 @@ check("B5", upButton.width == 24 and upButton.height == 24 and downButton.width 
 check("B6", upButton.label.text == "" and upButton.arrow.point[1] == "CENTER", "with no text, and the arrow in the middle")
 check("B7", upButton.arrow.mouse == nil, "the arrow doesn't catch the clicks meant for the button")
 
+-- Windows stack like on a desktop --------------------------------------------------------------------
+local raised = 0
+local window = frame({
+	HookScript = function(f, name, fn)
+		local before = f.scripts[name]
+		f.scripts[name] = before and function(...) before(...); fn(...) end or fn
+	end,
+	SetFrameStrata = function(f, strata) f.strata = strata end,
+	SetToplevel = function(f, on) f.toplevel = on end,
+	Raise = function() raised = raised + 1 end,
+})
+Primitives.makeWindow(window)
+check("S1", window.strata == "HIGH" and window.toplevel == true, "a window shares the one strata and comes forward when clicked")
+window.scripts.OnShow(window)
+check("S2", raised == 1, "and when it opens")
+
+-- Every window goes through makeWindow: they used to call refreshFontsOnShow and pick a strata of
+-- their own, which pinned one window over another however they were clicked.
+local function source(path)
+	local file = assert(io.open(path))
+	local text = file:read("*a")
+	file:close()
+	return text
+end
+local strays = {}
+for _, path in ipairs({ "UI/HistoryFrame.lua", "UI/LootFrame.lua", "UI/LootTimersFrame.lua", "UI/OptionsFrame.lua",
+	"UI/SessionFrame.lua", "UI/TradeFrame.lua", "UI/VotingFrame.lua", "UI/WelcomeFrame.lua", "UI/Widgets/PanelLayout.lua" }) do
+	local text = source(path)
+	local _, strata = text:gsub("SetFrameStrata%(", "")
+	local _, fonts = text:gsub("refreshFontsOnShow%(", "")
+	local expected = path == "UI/LootTimersFrame.lua" and 1 or 0 -- kept below everything, on purpose
+	if strata ~= expected or fonts ~= expected then
+		strays[#strays + 1] = path
+	end
+end
+check("S3", #strays == 0, "no window picks its own strata, except Loot Timers " .. table.concat(strays, ", "))
+local _, windows = source("UI/HistoryFrame.lua"):gsub("Primitives%.makeWindow%(", "")
+check("S4", windows == 3, "History, its export and its import are all windows")
+
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

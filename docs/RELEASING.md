@@ -27,7 +27,8 @@ addon zip, uploads it to CurseForge and creates a GitHub release. `docs/`, `.git
 
 ## Making a release
 
-1. Add a section for the new version at the top of `CHANGELOG.md`, run
+1. Rename the `Unreleased` section at the top of `CHANGELOG.md` to the new version (changes are
+   collected there between releases), or add one if there is none, run
    `python3 tools/make_changelog_lua.py` so the changelog in Options matches, and commit.
    `tests/changelog_test.lua` fails if you forget.
 2. Tag the commit and push the branch and the tag:

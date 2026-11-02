@@ -249,10 +249,9 @@ local function ensureFrame()
 		return frame
 	end
 	frame = CreateFrame("Frame", "PixlLootCouncilWelcome", UIParent)
-	Primitives.refreshFontsOnShow(frame)
+	Primitives.makeWindow(frame)
 	frame:SetSize(WIDTH, HEIGHT)
 	frame:SetPoint("CENTER", 0, 40)
-	frame:SetFrameStrata("DIALOG")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag("LeftButton")
@@ -311,6 +310,7 @@ function WelcomeFrame:Open()
 	ensureFrame()
 	self:ShowStep("role")
 	frame:Show()
+	Primitives.bringToFront(frame)
 end
 
 function WelcomeFrame:IsShown()

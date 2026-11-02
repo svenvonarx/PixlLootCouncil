@@ -153,8 +153,8 @@ local function ensureFrame()
 	frame = CreateFrame("Frame", "PixlLootCouncilLootTimersFrame", UIParent)
 	Primitives.refreshFontsOnShow(frame)
 	frame:SetSize(rowContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + 20, 140)
-	-- Below every other window here (History MEDIUM, Options HIGH, Session DIALOG, Loot
-	-- FULLSCREEN_DIALOG, Trades TOOLTIP): it's meant to stay up during a raid, out of everything's way.
+	-- The one window outside Primitives.makeWindow's stack, below the others and the game's own
+	-- panels: it's meant to stay up during a raid, out of everything's way.
 	frame:SetFrameStrata("LOW")
 	frame:EnableMouse(true)
 	LibWindow.RegisterConfig(frame, PLC.db.profile.lootTimersWindow)

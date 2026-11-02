@@ -310,10 +310,9 @@ local function ensureExportFrame()
 	end
 	local width, height = 700, 360
 	exportFrame = CreateFrame("Frame", "PixlLootCouncilHistoryExportFrame", UIParent)
-	Primitives.refreshFontsOnShow(exportFrame)
+	Primitives.makeWindow(exportFrame)
 	exportFrame:SetSize(width, height)
 	exportFrame:SetPoint("CENTER")
-	exportFrame:SetFrameStrata("FULLSCREEN_DIALOG")
 	exportFrame:SetMovable(true)
 	exportFrame:EnableMouse(true)
 	exportFrame:RegisterForDrag("LeftButton")
@@ -417,10 +416,9 @@ local function ensureImportFrame()
 	end
 	local width, height = 560, 340
 	importFrame = CreateFrame("Frame", "PixlLootCouncilHistoryImportFrame", UIParent)
-	Primitives.refreshFontsOnShow(importFrame)
+	Primitives.makeWindow(importFrame)
 	importFrame:SetSize(width, height)
 	importFrame:SetPoint("CENTER")
-	importFrame:SetFrameStrata("FULLSCREEN_DIALOG")
 	importFrame:SetMovable(true)
 	importFrame:EnableMouse(true)
 	importFrame:RegisterForDrag("LeftButton")
@@ -689,13 +687,9 @@ local function ensureFrame()
 	local frameWidth = mainWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + 20
 
 	frame = CreateFrame("Frame", "PixlLootCouncilHistoryFrame", UIParent)
-	Primitives.refreshFontsOnShow(frame)
+	Primitives.makeWindow(frame)
 	frame:SetSize(frameWidth, 480)
 	frame:SetPoint("CENTER")
-	-- Its own strata, below every other window here (Options HIGH, Session DIALOG, Loot
-	-- FULLSCREEN_DIALOG, Trades TOOLTIP) -- sharing a strata with another window makes their child
-	-- frames interleave, so one window's contents draw through the other.
-	frame:SetFrameStrata("MEDIUM")
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag("LeftButton")
@@ -956,6 +950,7 @@ end
 function HistoryFrame:Open()
 	local f = ensureFrame()
 	f:Show()
+	Primitives.bringToFront(f)
 	refresh()
 end
 
