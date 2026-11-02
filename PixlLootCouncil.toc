@@ -20,6 +20,7 @@ Core\Events.lua
 Data\Roster.lua
 Data\CouncilRules.lua
 Data\Presence.lua
+Data\UpdateNotice.lua
 Data\Gear.lua
 Data\Professions.lua
 Data\Responses.lua

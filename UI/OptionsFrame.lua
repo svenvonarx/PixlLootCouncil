@@ -925,7 +925,14 @@ local function buildAboutPage(page)
 		},
 	})
 
-	local creditsTop = -(78 + VERSION_LIST_ROWS * NAME_ROW_HEIGHT + 20)
+	local notices = CheckboxWidget.createCheckbox(page, L["ABOUT_UPDATE_NOTICES"], function(checked)
+		PLC.db.profile.updateNotices = checked
+	end)
+	notices:SetPoint("TOPLEFT", 0, -(78 + VERSION_LIST_ROWS * NAME_ROW_HEIGHT + 10))
+	notices:SetChecked(PLC.db.profile.updateNotices)
+	Primitives.attachTooltip(notices, L["ABOUT_UPDATE_NOTICES"], L["TIP_UPDATE_NOTICES"])
+
+	local creditsTop = -(78 + VERSION_LIST_ROWS * NAME_ROW_HEIGHT + 46)
 	local creditsLabel = Primitives.createText(page, L["ABOUT_CREDITS"], 13, "white")
 	creditsLabel:SetPoint("TOPLEFT", 0, creditsTop)
 	aboutLine(page, creditsTop - 24, L["ABOUT_AUTHOR"], PLC.author or "?")

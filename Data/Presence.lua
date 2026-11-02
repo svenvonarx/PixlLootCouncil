@@ -7,20 +7,23 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- member, not just whoever's actually voted. Every client (not just the holder) broadcasts a
 -- lightweight "presence" ping periodically; nothing here ever gates on being the master looter
 -- or a session holder. The ping also carries the addon's version, which is what the Options ->
--- About page lists and what tells someone that a newer version is around.
+-- About page lists and what tells someone that a newer version is around (Data/UpdateNotice.lua).
+-- The guild hears that version once, at login, so people find out before they're in a raid. Nobody
+-- answers that one: a whole guild replying to every login isn't worth it.
 local Presence = {}
 PLC.Presence = Presence
 
 local PRESENCE_TIMEOUT = 300 -- seconds; long enough to tolerate a missed broadcast or two
 local CHECK_COOLDOWN = 10 -- a version check makes the whole group answer, so not more often than this
 local ANSWER_COOLDOWN = 5
+local MAX_VERSION_LENGTH = 32
+local GUILD_DELAY = 10 -- like the login broadcast below, plus time for the guild channel to be up
 
 Presence.lastSeen = {} -- [guid] = time()
 Presence.versions = {} -- [guid] = version string, from anyone on a version that sends one
 Presence.newest = nil -- the newest version seen in a group, if it's newer than ours
 
 local lastCheck, lastAnswer
-local notified = false
 
 -- major, minor, patch and whether it's a final release, or nil for anything else ("v0.3.0-beta").
 local function parseVersion(version)
@@ -48,6 +51,22 @@ function Presence.IsNewer(a, b)
 	return aFinal and not bFinal
 end
 
+-- A whole version ahead, not just a patch: 0.4.0 over 0.3.2.
+function Presence.IsBigUpdate(a, b)
+	local aMajor, aMinor = parseVersion(a)
+	local bMajor, bMinor = parseVersion(b)
+	if not aMajor or not bMajor then
+		return false
+	end
+	return aMajor > bMajor or (aMajor == bMajor and aMinor > bMinor)
+end
+
+-- These come from other players and end up in chat, so only what a version really looks like.
+local function isVersion(version)
+	return type(version) == "string" and #version <= MAX_VERSION_LENGTH
+		and version:match("^v?%d+%.%d+%.%d+[%w%.%-]*$") ~= nil
+end
+
 function Presence:MarkSeen(guid, ts)
 	if not guid then
 		return
@@ -68,16 +87,24 @@ function Presence:OnPresenceReceived(data)
 end
 
 function Presence:RecordVersion(guid, version)
-	if not guid or type(version) ~= "string" then
+	if not guid or not isVersion(version) then
 		return
 	end
 	self.versions[guid] = version
-	if self.IsNewer(version, self.newest or PLC.version) then
+	self:NoteVersion(version)
+end
+
+-- Anyone's version, in the group or not.
+function Presence:NoteVersion(version)
+	if not isVersion(version) then
+		return
+	end
+	if version == self.newest then
+		PLC.UpdateNotice:Remember(version)
+	elseif self.IsNewer(version, self.newest or PLC.version) then
 		self.newest = version
-		if not notified then
-			notified = true
-			print(L["CHAT_PREFIX"] .. string.format(L["ABOUT_UPDATE_NOTICE"], version))
-		end
+		PLC.UpdateNotice:Remember(version)
+		PLC.UpdateNotice:Notify()
 	end
 end
 
@@ -133,4 +160,7 @@ PLC:RegisterOnEnable(function()
 	Presence:MarkSeen(UnitGUID("player"))
 	PLC:ScheduleTimer(broadcastPresence, 2)
 	PLC:ScheduleRepeatingTimer(broadcastPresence, 120)
+	PLC:ScheduleTimer(function()
+		PLC.Comms.Sync:SendVersionToGuild(PLC.version)
+	end, GUILD_DELAY)
 end)

@@ -107,13 +107,15 @@ assert(loadfile("UI/Widgets/PanelLayout.lua"))("PixlLootCouncil", PLC)
 
 assert(loadfile("Core/Defaults.lua"))("PixlLootCouncil", PLC)
 local function copy(v) if type(v) ~= "table" then return v end local o = {} for k, x in pairs(v) do o[k] = copy(x) end return o end
-PLC.db = { profile = copy(PLC.Defaults.profile), char = {} }
+PLC.db = { profile = copy(PLC.Defaults.profile), char = {}, global = {} }
 PLC.CouncilRules = { GetGuildRanks = function() return {} end }
 PLC.Responses = { MAX_COUNT = 7, MAX_TEXT_LETTERS = 12, GetConfigured = function() return {} end, Save = function() end, Reset = function() end, NewKey = function() return "K" end }
 PLC.Loot.AutoLoot = { SELF = "self", LEAVE = "leave" }
 PLC.ExcludedItems = { [32897] = true }
 PLC.Session = { preview = false }
 PLC.Preview = { Toggle = function() end }
+local updateNotices = 0
+PLC.UpdateNotice = { Remember = function() end, Notify = function() updateNotices = updateNotices + 1 end }
 PLC.author, PLC.website, PLC.version = "Pixl", "https://example.invalid", "v0.4.0"
 local myGuid = "Player-1-AAAA"
 _G.UnitGUID = function() return myGuid end
@@ -267,6 +269,7 @@ local Theme = PLC.UI.Theme.LAYOUT
 local available = 640 - Theme.headerHeight - 2 - Theme.contentPadding * 2 - 48 - 20
 local width = 580 - 2 - Theme.sidebarWidth - 1 - Theme.contentPadding * 2
 check("L8", available >= 456, "General's 456 of stacked settings fit in " .. available)
+check("L10", available >= 400, "the About page's 400 fit too")
 check("L9", width >= 384 and 130 + 100 + 140 + 11 <= width and 92 + 290 <= width, "the widest rows fit in " .. width)
 
 -- Versions ------------------------------------------------------------------------------------------
@@ -277,12 +280,10 @@ check("V3", N("v0.3.0", "v0.3.0-beta") and not N("v0.3.0-beta", "v0.3.0") and no
 check("V4", not N("@project-version@", "v0.3.0") and not N("v0.3.0", "@project-version@") and not N("v0.3.0", nil), "a development copy is never newer or older")
 
 Presence:RecordVersion("Player-1-BBBB", "v0.4.0")
-check("V5", Presence.newest == nil and #printed == 0, "the same version says nothing")
+check("V5", Presence.newest == nil and updateNotices == 0, "the same version says nothing")
 Presence:RecordVersion("Player-1-EEEE", "v0.5.0")
 Presence:RecordVersion("Player-1-FFFF", "v0.6.0")
-local notices = 0
-for _, line in ipairs(printed) do if line:find("ABOUT_UPDATE_NOTICE", 1, true) then notices = notices + 1 end end
-check("V6", Presence.newest == "v0.6.0" and notices == 1, "one notice, and the newest version is kept")
+check("V6", Presence.newest == "v0.6.0", "the newest version is kept")
 Presence:RecordVersion("Player-1-GGGG", "v0.5.5")
 check("V7", Presence.newest == "v0.6.0", "an older one doesn't replace it")
 

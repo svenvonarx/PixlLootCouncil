@@ -110,6 +110,13 @@ function Sync:SendPresence(guid, version)
 end
 
 -- Everyone answers with a presence ping -- see Data/Presence.lua:CheckGroup.
+-- A development copy has no version to send.
+function Sync:SendVersionToGuild(version)
+	if version and IsInGuild() then
+		Protocol:Send("version", { version = version }, "GUILD")
+	end
+end
+
 function Sync:SendVersionCheck()
 	local ch = channel()
 	if not ch then
@@ -205,6 +212,7 @@ Protocol:RegisterHandler("response", function(data) PLC.Session:OnResponseReceiv
 Protocol:RegisterHandler("award", function(data) PLC.Session:OnAwardReceived(data) end)
 Protocol:RegisterHandler("session_heartbeat", function(data) PLC.Session:OnHeartbeatReceived(data) end)
 Protocol:RegisterHandler("session_end", function(data) PLC.Session:OnSessionEndReceived(data) end)
+Protocol:RegisterHandler("version", function(data) PLC.Presence:NoteVersion(data.version) end)
 Protocol:RegisterHandler("preview_end", function(data) PLC.Preview:OnPreviewEndReceived(data) end)
 Protocol:RegisterHandler("session_force_end", function(data) PLC.Session:OnForceEndReceived(data) end)
 Protocol:RegisterHandler("session_sync_request", function(data, sender) PLC.Session:OnSyncRequestReceived(data, sender) end)

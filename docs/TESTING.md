@@ -716,8 +716,13 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
 - **About:** `/plc about`. In a group, the list fills as people answer. Someone on 0.3.0-beta shows as
   "older" and Outdated, someone without the addon as No addon detected. A packaged copy shows its
   version; a copy run from the repository shows "development copy".
-- **Update notice:** with a packaged copy, group with someone on a newer one: one chat line, and the
-  version line on About names the newer version.
+- **Update notice:** `luajit tests/update_notice_test.lua` covers the rules. A copy run from the
+  repository never gets a notice, so this needs packaged copies, or a real version in the TOC for the
+  test. Group with someone on a newer patch: one chat line, and the version line on About names the
+  newer version. `/reload`: no second line. Be a whole version behind out in the world: one pop-up, and
+  Where to get it opens About. Keyboard movement keeps working with it open. Be a whole version behind
+  inside an instance: nothing until you leave. With someone newer online in the guild but not the
+  group, `/reload` on their side: you hear about it within seconds. Turn it off on About: silence.
 - **Website:** the box selects its text on click, and typing can't change it.
 
 ### 2.19 Master looter list (`Loot/MasterLooterList.lua`)

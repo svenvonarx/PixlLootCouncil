@@ -46,8 +46,9 @@ uses RCLootCouncil's format.
     window's Trade button
   - **Follow** walks you to the other player
   - one-click **Disenchant** for items you disenchant yourself
-- **Version check**: Options → About lists the version everyone in your group runs, and you get a
-  chat notice when someone has a newer one.
+- **Version check**: Options → About lists the version everyone in your group runs. If yours is out
+  of date you get a quiet reminder: one chat line a day, and one pop-up if you're a whole version
+  behind, never in combat, an instance or a loot session. You can turn it off on the same page.
 - **Loot history**:
   - stored in RCLootCouncil's exact format, browsable with date, name, class and response filters
   - exports to *TSV (Google Sheets & English Excel)* and *TSV (International Excel)*, so existing

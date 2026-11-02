@@ -6,6 +6,7 @@ local ADDON_NAME, PLC = ...
 PLC.Defaults = {
 	global = {
 		errors = {}, -- ring buffer, see Core/ErrorHandler.lua
+		update = {}, -- the newest version heard of and what's been said about it, Data/UpdateNotice.lua
 	},
 	profile = {
 		accent = { r = 0.91, g = 0.64, b = 0.24 }, -- #E8A33D, see docs/SPECIFICATION.md §4.1
@@ -74,6 +75,8 @@ PLC.Defaults = {
 		autoMasterLooter = true,
 		masterLooterList = {}, -- names, the first found in the group gets it
 		masterLootThreshold = 0, -- item quality to set when switching to Master Loot, 0 leaves it
+
+		updateNotices = true, -- Data/UpdateNotice.lua
 	},
 	char = {
 		activeSession = nil, -- Data/Session.lua persists the held session here; nil = not currently a holder
