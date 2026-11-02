@@ -21,10 +21,25 @@ local NAME_ROW_HEIGHT = 20 -- the name lists on the Auto Loot, Council and About
 local ML_ROW_HEIGHT = 26 -- the master looter list has buttons in its rows
 
 -- Vertical rhythm of a settings page: a group title, then its controls.
-local GROUP_TITLE_HEIGHT = 22
+local GROUP_TITLE_HEIGHT = 24
 local CHECKBOX_STEP = 26
-local SLIDER_STEP = 62
-local GROUP_GAP = 16
+local FIELD_STEP = 36
+local SLIDER_STEP = 52
+local GROUP_GAP = 18
+
+local QUALITIES = { 2, 3, 4, 5 } -- uncommon to legendary
+
+local function qualityName(quality)
+	return _G["ITEM_QUALITY" .. quality .. "_DESC"] or tostring(quality)
+end
+
+local function secondsText(value)
+	return string.format(L["OPTIONS_SECONDS"], value)
+end
+
+local function minutesText(value)
+	return string.format(L[value == 1 and "OPTIONS_MINUTE" or "OPTIONS_MINUTES"], value)
+end
 
 local function buildGeneralPage(page)
 	local profile = PLC.db.profile
@@ -36,50 +51,88 @@ local function buildGeneralPage(page)
 		y = y - GROUP_TITLE_HEIGHT
 	end
 
-	local function checkbox(text, getValue, setValue)
+	local function checkbox(text, tip, getValue, setValue)
 		local box = CheckboxWidget.createCheckbox(page, text, setValue)
 		box:SetPoint("TOPLEFT", 0, y)
 		box:SetChecked(getValue())
+		Primitives.attachTooltip(box, text, tip)
 		y = y - CHECKBOX_STEP
 	end
 
-	local function slider(text, minValue, maxValue, step, key)
-		local widget = SliderWidget.createSlider(page, text, minValue, maxValue, step)
+	local function slider(text, tip, minValue, maxValue, step, key, format)
+		local widget = SliderWidget.createSlider(page, text, minValue, maxValue, step, format)
 		widget.container:SetPoint("TOPLEFT", 0, y)
+		widget.container:SetPoint("TOPRIGHT", 0, y)
 		widget:SetValue(profile[key])
-		widget.valueText:SetText(tostring(profile[key]))
+		widget:ShowValue(profile[key])
 		widget:SetScript("OnValueChanged", function(_, value)
 			profile[key] = value
-			widget.valueText:SetText(tostring(value))
+			widget:ShowValue(value)
 		end)
+		Primitives.attachTooltip(widget.container, text, tip)
 		y = y - SLIDER_STEP
 	end
 
+	-- By name and in the game's own colors: nobody knows what "quality 4" is.
+	local function qualityField(text, tip)
+		local label = Primitives.createText(page, text, 12)
+		label:SetPoint("TOPLEFT", 0, y - 7)
+		local dropdown = DropdownWidget.createDropdownButton(page)
+		dropdown:SetSize(150, Theme.LAYOUT.fieldHeight)
+		dropdown:SetPoint("TOPRIGHT", 0, y)
+		local function refresh()
+			local entries = {}
+			for _, quality in ipairs(QUALITIES) do
+				table.insert(entries, {
+					text = qualityName(quality),
+					color = ITEM_QUALITY_COLORS[quality],
+					checked = quality == profile.lootThreshold,
+					onClick = function()
+						profile.lootThreshold = quality
+						refresh()
+					end,
+				})
+			end
+			DropdownWidget.setEntries(dropdown, qualityName(profile.lootThreshold), entries)
+			local color = ITEM_QUALITY_COLORS[profile.lootThreshold]
+			if color then
+				dropdown.text:SetTextColor(color.r, color.g, color.b)
+			end
+		end
+		refresh()
+		page:HookScript("OnShow", refresh)
+		Primitives.attachTooltip(dropdown, text, tip)
+		y = y - FIELD_STEP
+	end
+
 	group(L["OPTIONS_GROUP_CHAT"])
-	checkbox(L["OPTIONS_ANNOUNCE_START"], function() return profile.announce.sessionStart end,
+	checkbox(L["OPTIONS_ANNOUNCE_START"], L["TIP_ANNOUNCE_START"], function() return profile.announce.sessionStart end,
 		function(checked) profile.announce.sessionStart = checked end)
-	checkbox(L["OPTIONS_ANNOUNCE_AWARD"], function() return profile.announce.award end,
+	checkbox(L["OPTIONS_ANNOUNCE_AWARD"], L["TIP_ANNOUNCE_AWARD"], function() return profile.announce.award end,
 		function(checked) profile.announce.award = checked end)
 	y = y - GROUP_GAP
 
 	group(L["OPTIONS_GROUP_RC"])
-	checkbox(L["OPTIONS_MIRROR_RC"], function() return profile.historyMirrorRC end,
-		function(checked) profile.historyMirrorRC = checked end)
-	checkbox(L["OPTIONS_RC_BRIDGE"], function() return profile.rcBridge end,
+	checkbox(L["OPTIONS_RC_BRIDGE"], L["TIP_RC_BRIDGE"], function() return profile.rcBridge end,
 		function(checked) profile.rcBridge = checked end)
+	checkbox(L["OPTIONS_MIRROR_RC"], L["TIP_MIRROR_RC"], function() return profile.historyMirrorRC end,
+		function(checked) profile.historyMirrorRC = checked end)
 	y = y - GROUP_GAP
 
-	group(L["OPTIONS_GROUP_SESSION"])
-	checkbox(L["OPTIONS_AUTO_START"], function() return profile.autoStartSession end,
+	group(L["OPTIONS_GROUP_LOOT"])
+	checkbox(L["OPTIONS_AUTO_START"], L["TIP_AUTO_START"], function() return profile.autoStartSession end,
 		function(checked) profile.autoStartSession = checked end)
-	y = y - 8
-	slider(L["OPTIONS_LOOT_THRESHOLD"], 0, 5, 1, "lootThreshold")
-	slider(L["OPTIONS_HEARTBEAT_SECONDS"], 15, 180, 5, "sessionHeartbeatSeconds")
-	slider(L["OPTIONS_FORCE_END_MINUTES"], 1, 30, 1, "sessionForceEndMinutes")
+	y = y - 4
+	qualityField(L["OPTIONS_LOOT_THRESHOLD"], L["TIP_LOOT_THRESHOLD"])
+	y = y - GROUP_GAP + 8
+
+	group(L["OPTIONS_GROUP_TIMING"])
 	-- The holder's value at session start wins for every candidate -- see
 	-- Data/Session.lua:Start()/OnSessionStartReceived -- so changing this only affects sessions
 	-- this character goes on to hold, never a session already in progress.
-	slider(L["OPTIONS_RESPONSE_TIMEOUT"], 15, 300, 5, "responseTimeoutSeconds")
+	slider(L["OPTIONS_RESPONSE_TIMEOUT"], L["TIP_RESPONSE_TIMEOUT"], 15, 300, 5, "responseTimeoutSeconds", secondsText)
+	slider(L["OPTIONS_HEARTBEAT_SECONDS"], L["TIP_HEARTBEAT"], 15, 180, 5, "sessionHeartbeatSeconds", secondsText)
+	slider(L["OPTIONS_FORCE_END_MINUTES"], L["TIP_FORCE_END"], 1, 30, 1, "sessionForceEndMinutes", minutesText)
 end
 
 -- The game's color picker. Current clients set it up through SetupColorPickerAndShow (the old
@@ -173,6 +226,8 @@ local function buildResponsesPage(page)
 			end)
 		end)
 
+		Primitives.attachTooltip(row.swatch, L["TIP_RESPONSE_COLOR_TITLE"], L["TIP_RESPONSE_COLOR"])
+
 		row.box = Primitives.createEditBox(row, 180, 24)
 		row.box:SetMaxLetters(Responses.MAX_TEXT_LETTERS)
 		row.box:SetPoint("LEFT", row.swatch, "RIGHT", 8, 0)
@@ -216,8 +271,11 @@ local function buildResponsesPage(page)
 		end)
 	end)
 
+	Primitives.attachTooltip(addButton, L["OPTIONS_RESPONSES_ADD"], L["TIP_RESPONSES_ADD"])
+
 	local resetButton = ButtonWidget.createButton(page, L["OPTIONS_ACCENT_RESET"], 130)
 	resetButton:SetPoint("LEFT", addButton, "RIGHT", 8, 0)
+	Primitives.attachTooltip(resetButton, L["OPTIONS_ACCENT_RESET"], L["TIP_RESPONSES_RESET"])
 	resetButton:SetScript("OnClick", function()
 		Responses:Reset()
 		refreshRows()
@@ -343,6 +401,9 @@ local function buildAutoLootPage(page)
 		settings.outsideInstances = checked
 	end)
 	outside:SetPoint("TOPLEFT", 0, -52)
+	Primitives.attachTooltip(enabled, L["OPTIONS_AUTOLOOT_ENABLED"], L["TIP_AUTOLOOT_ENABLED"])
+	Primitives.attachTooltip(gold, L["OPTIONS_AUTOLOOT_GOLD"], L["TIP_AUTOLOOT_GOLD"])
+	Primitives.attachTooltip(outside, L["OPTIONS_AUTOLOOT_OUTSIDE"], L["TIP_AUTOLOOT_OUTSIDE"])
 
 	local reviewLabel = Primitives.createText(page, L["OPTIONS_AUTOLOOT_REVIEW"], 13, "white")
 	reviewLabel:SetPoint("TOPLEFT", 0, -86)
@@ -350,6 +411,8 @@ local function buildAutoLootPage(page)
 		settings.reviewTarget = target
 	end)
 	review.dropdown:SetPoint("TOPLEFT", reviewLabel, "BOTTOMLEFT", 0, -6)
+	Primitives.attachTooltip(review.dropdown, L["OPTIONS_AUTOLOOT_REVIEW"], L["TIP_AUTOLOOT_REVIEW"])
+	Primitives.attachTooltip(review.box, L["OPTIONS_AUTOLOOT_PLAYERS"], L["TIP_AUTOLOOT_NAMES"])
 
 	local otherLabel = Primitives.createText(page, L["OPTIONS_AUTOLOOT_OTHER"], 13, "white")
 	otherLabel:SetPoint("TOPLEFT", 0, -142)
@@ -357,6 +420,8 @@ local function buildAutoLootPage(page)
 		settings.otherTarget = target
 	end)
 	other.dropdown:SetPoint("TOPLEFT", otherLabel, "BOTTOMLEFT", 0, -6)
+	Primitives.attachTooltip(other.dropdown, L["OPTIONS_AUTOLOOT_OTHER"], L["TIP_AUTOLOOT_OTHER"])
+	Primitives.attachTooltip(other.box, L["OPTIONS_AUTOLOOT_PLAYERS"], L["TIP_AUTOLOOT_NAMES"])
 
 	local exceptionLabel = Primitives.createText(page, L["OPTIONS_AUTOLOOT_EXCEPTIONS"], 13, "white")
 	exceptionLabel:SetPoint("TOPLEFT", 0, -198)
@@ -366,6 +431,7 @@ local function buildAutoLootPage(page)
 	local exceptionTarget = createTargetPicker(page, 120, 90)
 	exceptionTarget.dropdown:SetPoint("LEFT", itemBox, "RIGHT", 4, 0)
 	exceptionTarget:Set(AutoLoot.LEAVE)
+	Primitives.attachTooltip(itemBox, L["OPTIONS_AUTOLOOT_EXCEPTIONS"], L["TIP_AUTOLOOT_EXCEPTIONS"])
 	local addButton = ButtonWidget.createButton(page, L["OPTIONS_AUTOLOOT_ADD"], 52)
 	addButton:SetHeight(Theme.LAYOUT.fieldHeight)
 	addButton:SetPoint("LEFT", exceptionTarget.box, "RIGHT", 4, 0)
@@ -615,6 +681,7 @@ local function buildCouncilPage(page)
 	end)
 	raidAssist:SetPoint("TOPLEFT", 0, 0)
 	raidAssist:SetChecked(council.raidAssist)
+	Primitives.attachTooltip(raidAssist, L["OPTIONS_COUNCIL_RAIDASSIST"], L["TIP_COUNCIL_RAIDASSIST"])
 
 	-- Guild ranks: one checkbox per rank, two columns, rebuilt whenever the page is shown (rank
 	-- names load lazily, and can change).
@@ -630,6 +697,7 @@ local function buildCouncilPage(page)
 			councilChanged()
 		end)
 		box:SetWidth(180)
+		Primitives.attachTooltip(box, L["OPTIONS_COUNCIL_GUILD_RANKS"], L["TIP_COUNCIL_RANKS"])
 		local column, row = (i - 1) % 2, math.floor((i - 1) / 2)
 		box:SetPoint("TOPLEFT", ranksLabel, "BOTTOMLEFT", column * 190, -8 - row * 24)
 		box:Hide()
@@ -643,6 +711,7 @@ local function buildCouncilPage(page)
 
 	local nameBox = Primitives.createEditBox(page, 200, 24, L["OPTIONS_COUNCIL_NAME_PLACEHOLDER"])
 	nameBox:SetPoint("TOPLEFT", namesLabel, "BOTTOMLEFT", 0, -8)
+	Primitives.attachTooltip(nameBox, L["OPTIONS_COUNCIL_NAMES"], L["TIP_COUNCIL_NAMES"])
 	local addButton = ButtonWidget.createButton(page, L["OPTIONS_COUNCIL_ADD"], 70)
 	addButton:SetHeight(24)
 	addButton:SetPoint("LEFT", nameBox, "RIGHT", 6, 0)
@@ -737,6 +806,7 @@ local function buildPreviewPage(page)
 
 	local button = ButtonWidget.createButton(page, L["OPTIONS_PREVIEW_START"], 160)
 	button:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -16)
+	Primitives.attachTooltip(button, L["OPTIONS_TAB_PREVIEW"], L["TIP_PREVIEW"])
 
 	local function refresh()
 		button.label:SetText(L[PLC.Session.preview and "OPTIONS_PREVIEW_STOP" or "OPTIONS_PREVIEW_START"])
@@ -923,6 +993,8 @@ local function buildAppearancePage(page)
 	swatch:SetScript("OnLeave", function(self)
 		Primitives.setBorderColor(self.border, "border")
 	end)
+
+	Primitives.attachTooltip(swatch, L["OPTIONS_ACCENT_COLOR"], L["TIP_ACCENT"])
 
 	local reset = ButtonWidget.createButton(page, L["OPTIONS_ACCENT_RESET"], 130)
 	reset:SetPoint("TOPLEFT", swatch, "BOTTOMLEFT", 0, -14)

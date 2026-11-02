@@ -17,6 +17,8 @@ _G.UIFrameFadeIn = function() end
 _G.hooksecurefunc = function() end
 _G.C_Item = { GetItemInfo = function() return nil end, GetItemInfoInstant = function() return nil end }
 _G.CreateColor = function() return {} end
+_G.ITEM_QUALITY2_DESC, _G.ITEM_QUALITY3_DESC, _G.ITEM_QUALITY4_DESC, _G.ITEM_QUALITY5_DESC = "Uncommon", "Rare", "Epic", "Legendary"
+_G.ITEM_QUALITY_COLORS = { [2] = { r = 0.1, g = 1, b = 0 }, [3] = { r = 0, g = 0.4, b = 0.9 }, [4] = { r = 0.6, g = 0.2, b = 0.9 }, [5] = { r = 1, g = 0.5, b = 0 } }
 
 local frames = {}
 local function stub(extra)
@@ -44,7 +46,8 @@ end
 _G.CreateFrame = function() return stub() end
 _G.ColorPickerFrame = stub()
 
-local loc = setmetatable({}, { __index = function(_, k) return k end })
+local loc = setmetatable({ OPTIONS_SECONDS = "%d seconds", OPTIONS_MINUTE = "%d minute", OPTIONS_MINUTES = "%d minutes" },
+	{ __index = function(_, k) return k end })
 _G.LibStub = function() return { GetLocale = function() return loc end } end
 
 local PLC = { UI = { Widgets = {} }, Loot = {}, Comms = { Sync = {} } }
@@ -54,6 +57,7 @@ function PLC:ScheduleTimer() return {} end
 function PLC:ScheduleRepeatingTimer() return {} end
 assert(loadfile("UI/Theme.lua"))("PixlLootCouncil", PLC)
 local texts = {} -- every label, with the text it was created with
+local tooltips = {} -- [frame] = { title, text }
 PLC.UI.Widgets.Primitives = setmetatable({
 	color = function() return 1, 1, 1, 1 end,
 	createText = function(_, text) local t = stub({ text = text }); texts[#texts + 1] = t; return t end,
@@ -63,11 +67,35 @@ PLC.UI.Widgets.Primitives = setmetatable({
 	createSeparator = function() return stub() end,
 	createCloseButton = function() return stub() end,
 	createEditBox = function() local b = stub(); b.GetValue = function(s) return s.text or "" end; return b end,
+	attachTooltip = function(frame, title, text) tooltips[frame] = { title, text } end,
 }, { __index = function() return function() return stub() end end })
 PLC.UI.Widgets.Button = { createButton = function(_, text, width) return stub({ width = width, label = stub({ text = text }), caption = text }) end }
-PLC.UI.Widgets.Checkbox = { createCheckbox = function() return stub({ label = stub() }) end }
-PLC.UI.Widgets.Slider = { createSlider = function() return stub({ container = stub(), valueText = stub() }) end }
-PLC.UI.Widgets.Dropdown = { createDropdownButton = function() return stub() end, setEntries = function(d, text) d.displayText = text end }
+local checkboxes, dropdowns = {}, {}
+PLC.UI.Widgets.Checkbox = { createCheckbox = function(_, text)
+	local box = stub({ label = stub(), caption = text })
+	box.SetChecked = function() end
+	checkboxes[#checkboxes + 1] = box
+	return box
+end }
+PLC.UI.Widgets.Dropdown = {
+	createDropdownButton = function()
+		local d = stub({ text = stub() })
+		d.text.SetTextColor = function(s, r, g, b) s.color = { r, g, b } end
+		dropdowns[#dropdowns + 1] = d
+		return d
+	end,
+	setEntries = function(d, text, entries) d.displayText, d.entries = text, entries end,
+}
+assert(loadfile("UI/Widgets/Slider.lua"))("PixlLootCouncil", PLC)
+local sliders = {}
+do
+	local create = PLC.UI.Widgets.Slider.createSlider
+	PLC.UI.Widgets.Slider.createSlider = function(...)
+		local slider = create(...)
+		sliders[#sliders + 1] = slider
+		return slider
+	end
+end
 PLC.UI.Widgets.ScrollFrame = { RESERVED_WIDTH = 11 }
 local tables = {}
 PLC.UI.Widgets.DataTable = { Create = function(_, rowHeight)
@@ -149,11 +177,72 @@ local nameTables = 0
 for _, t in ipairs(tables) do if t.rowHeight == 20 then nameTables = nameTables + 1 end end
 check("L7", nameTables == 3, "the Auto Loot, Council and About lists all get their row height: " .. nameTables)
 
+-- The right-hand side -------------------------------------------------------------------------------
+local stretched = #sliders == 3
+for _, slider in ipairs(sliders) do
+	local first, second = slider.container.points[1], slider.container.points[2]
+	stretched = stretched and first[1] == "TOPLEFT" and second and second[1] == "TOPRIGHT" and second[2] == 0
+	local track = slider.points
+	stretched = stretched and track[1][1] == "BOTTOMLEFT" and track[2][1] == "BOTTOMRIGHT"
+end
+check("S1", stretched, "sliders run the full width of the page")
+local shown = {}
+for _, t in ipairs(texts) do if t.points and t.points[1] and t.points[1][1] == "TOPRIGHT" and t.text then shown[#shown + 1] = t.text end end
+check("S2", table.concat(shown, ","):find("60 seconds", 1, true) ~= nil and table.concat(shown, ","):find("10 minutes", 1, true) ~= nil, "values are lined up on the right, with units: " .. table.concat(shown, ", "))
+local quality
+for _, d in ipairs(dropdowns) do if d.displayText == "Epic" then quality = d end end
+check("S3", quality ~= nil and quality.text.color[1] == 0.6, "minimum quality reads Epic, in its color")
+quality.entries[2].onClick()
+check("S4", PLC.db.profile.lootThreshold == 3 and quality.displayText == "Rare" and quality.entries[2].checked, "choosing Rare saves it")
+PLC.db.profile.lootThreshold = 4
+local names = {}
+for i, entry in ipairs(quality.entries) do names[i] = entry.text end
+check("S5", table.concat(names, ",") == "Uncommon,Rare,Epic,Legendary" and quality.entries[3].color == ITEM_QUALITY_COLORS[4], "the choices are names, in the game's colors")
+
+-- Tooltips ------------------------------------------------------------------------------------------
+local bare = {}
+for _, box in ipairs(checkboxes) do
+	if not tooltips[box] or tostring(tooltips[box][2]):sub(1, 4) ~= "TIP_" then bare[#bare + 1] = tostring(box.caption) end
+end
+for _, slider in ipairs(sliders) do
+	if not tooltips[slider.container] then bare[#bare + 1] = "slider" end
+end
+if not tooltips[quality] then bare[#bare + 1] = "quality" end
+check("T1", #bare == 0, "every checkbox, slider and the quality choice explains itself (" .. #checkboxes .. " checkboxes, " .. #sliders .. " sliders)" .. (#bare > 0 and ": missing " .. table.concat(bare, ", ") or ""))
+
+-- The master looter list ----------------------------------------------------------------------------
+local mlTable
+for _, t in ipairs(tables) do if t.rowHeight == 26 then mlTable = t end end
+check("P1", mlTable ~= nil and #mlTable.columns == 4, "the list has names, up, down and remove")
+local profile = PLC.db.profile
+local nameBox, addButton
+for _, f in ipairs(frames) do
+	if rawget(f, "caption") == "OPTIONS_COUNCIL_ADD" then addButton = f end
+end
+for frame, tip in pairs(tooltips) do if tip[2] == "TIP_ML_LIST" then nameBox = frame end end
+nameBox.points = nameBox.points
+local function add(name) nameBox.text = name; nameBox.scripts.OnEnterPressed() end
+add("mule"); add("Backup"); add("MULE"); add("   ")
+check("P2", table.concat(profile.masterLooterList, ",") == "Mule,Backup", "names are capitalized, duplicates and blanks skipped: " .. table.concat(profile.masterLooterList, ","))
+check("P3", mlTable.rows[2].name == "Backup" and mlTable.columns[1].render(mlTable.rows[2]) == "  2.  Backup", "the order shows as numbers")
+local up = stub({ points = {} })
+mlTable.columns[2].update(up, mlTable.rows[2])
+up.scripts.OnClick()
+check("P4", profile.masterLooterList[1] == "Backup", "moving someone up changes who's first")
+local firstUp = stub()
+mlTable.columns[2].update(firstUp, mlTable.rows[1])
+check("P5", firstUp.shown == false, "the first row has no up button")
+local remove = stub()
+mlTable.columns[4].update(remove, mlTable.rows[1])
+remove.scripts.OnClick()
+check("P6", #profile.masterLooterList == 1 and profile.masterLooterList[1] == "Mule", "removing someone")
+profile.masterLooterList = {}
+
 -- Pages fit the window: a stub can't measure text, but it can add up what's stacked.
 local Theme = PLC.UI.Theme.LAYOUT
 local available = 640 - Theme.headerHeight - 2 - Theme.contentPadding * 2 - 48 - 20
 local width = 580 - 2 - Theme.sidebarWidth - 1 - Theme.contentPadding * 2
-check("L8", available >= 482, "General's 482 of stacked settings fit in " .. available)
+check("L8", available >= 456, "General's 456 of stacked settings fit in " .. available)
 check("L9", width >= 384 and 130 + 100 + 140 + 11 <= width and 92 + 290 <= width, "the widest rows fit in " .. width)
 
 -- Versions ------------------------------------------------------------------------------------------
