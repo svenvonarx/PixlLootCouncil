@@ -1,12 +1,8 @@
 # PixlLootCouncil
 
-**Loot council for TBC Anniversary Classic.** The master looter collects the raid's loot as it drops, the council reviews everyone's interest in one window, and a single click hands it all out. Every award lands in a history that uses RCLootCouncil's format.
+**Loot council for TBC Anniversary Classic.** The master looter collects the raid's loot as it drops, the council reviews everyone's interest in one window, and a single click hands it all out. Trades are guided, and every award is kept in a loot history you can browse and export.
 
 > **Beta.** This is an early test version. Please report what you find on [GitHub](https://github.com/svenvonarx/PixlLootCouncil/issues).
-
-## Your master looter uses RCLootCouncil? You don't have to.
-
-Raiders can drop RCLootCouncil and keep raiding with a loot master who still runs it. Their items open in your Loot Response window with their buttons, timer and note rules. Your answer goes back to them, rolls work, you catch up if you reload mid-session, and the awards they share land in your own loot history.
 
 ## For the master looter
 
@@ -14,23 +10,38 @@ Raiders can drop RCLootCouncil and keep raiding with a loot master who still run
 - **Master looter list.** Choose who should run the loot, in order. Switch the group to Master Loot and the first of them who's online gets it. It can set the loot threshold at the same moment, and anything you change afterwards sticks.
 - **Excluded items.** Raid materials like Mark of the Illidari stay in the window for you to assign yourself.
 - **Loot Timers.** A small list of everything waiting for review, most urgent first, with the 2-hour trade time left on each item, so nothing expires in your bags.
-- **One review window.** See every candidate's response, note, equipped items and item level difference. Anyone who already received the item is marked. Hover a name for what they've already received. Stage a pick for each item, then commit them all with **Award All**.
-- **Guided trades.** Loot Trades lists what you owe and what you're owed. **Trade** opens the trade and places the items, and **Follow** walks you to the other player.
-- **Themes and fonts.** Eight themes, and any font your addons have registered.
 - **Preview mode.** Run the whole workflow with your group on fictional items before raid night. Nothing goes to the history, and your real loot list comes back afterwards.
+
+## For the council
+
+- **One review window.** See every candidate's response, note, equipped items and item level difference. Anyone who already received the item is marked, and hovering a name shows what they've received.
+- **Stage, then commit.** Pick a winner for each item, send it to the raid's Enchanter, or keep it as **Banking**, then hand everything out with **Award All**.
+- **You decide who's on it**: raid leader and assistants, guild ranks, or individual names.
 
 ## For raiders
 
 - A clean **Loot Response** window with a countdown and an optional note.
-- Your awards show up in **Loot Trades** with a Trade button.
+- Your awards show up in **Loot Trades**, where **Trade** opens the trade and places the items and **Follow** walks you to the other player.
 - The master looter can customize the response buttons, and everyone in the session sees the same ones.
 
 ## Loot history
 
-- Stored in RCLootCouncil's exact format, with date, name, class and response filters.
-- Items you keep can be recorded as **Banking**, with nothing left to trade.
-- Exports to TSV for Google Sheets and Excel, so spreadsheets built on RC exports keep working.
-- Import your old history: RC's own `/rc sync`, a pasted Player Export, or directly from RC's saved data.
+- Every award is recorded, with date, name, class and response filters.
+- Exports to TSV for Google Sheets and Excel.
+- Shared with everyone in the group who has the addon.
+
+## Also
+
+- **Every client language**, translated throughout.
+- **Eight themes**, and any font your addons have registered.
+- **A quiet update reminder** when your version is out of date.
+
+## Coming from RCLootCouncil
+
+PixlLootCouncil is built on the idea of RCLootCouncil, and you can switch without losing anything:
+
+- **Bring your history.** Import it directly from RCLootCouncil, receive it in game from your loot master through `/rc sync`, or paste a Player Export. Spreadsheets built on its exports keep working.
+- **Raid with a master looter who still uses it.** Raiders can disable RCLootCouncil: its sessions open in your Loot Response window with the same buttons, timer and note rules, your answer goes back, rolls work, and shared awards land in your history. Voting as a council member still needs RCLootCouncil.
 
 ## Getting started
 
@@ -42,8 +53,11 @@ Try it first: `/plc preview`
 
 ## Good to know
 
-- With an RCLootCouncil loot master you can respond and roll, but council members still need RC to vote.
-- Available in every client language. The translations are machine-written, so corrections are welcome on GitHub.
+- Translations are machine-written, so corrections are welcome on GitHub.
 - There's no council vote count: the session holder makes the final call.
+
+## Credits
+
+Inspired by [RCLootCouncil](https://github.com/evil-morfar/RCLootCouncil2), whose loot council idea this addon builds on, and whose history format it keeps for compatibility. Auto loot ideas come from Gargul's PackMule.
 
 Free software under the GPL-3.0. The source is on [GitHub](https://github.com/svenvonarx/PixlLootCouncil).

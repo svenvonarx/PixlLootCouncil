@@ -2,79 +2,78 @@
 
 A loot council addon for **World of Warcraft: TBC Anniversary Classic**. The master looter collects the
 raid's loot as it drops, the council reviews everyone's interest in one window, and a single
-**Award All** hands everything out. Trades are guided, and every award lands in a loot history that
-uses RCLootCouncil's format.
+**Award All** hands everything out. Trades are guided, and every award is kept in a loot history you
+can browse and export.
 
 > **Beta.** This is an early test version. Expect rough edges, and please report what you find (see
 > [Reporting bugs](#reporting-bugs)).
 
 ## Features
 
-- **Auto loot.** As master looter you just open the corpse. Items at or above your quality threshold
-  (Epic by default) and all patterns go straight into your bags, and the full session window stays
-  closed mid-pull. Under Options → Auto Loot you choose who gets what, send other master loot to a
-  mule, add exceptions for single items, and turn the whole thing off. Hold Shift while opening loot
-  to do that corpse by hand.
-- **Trade-time tracking.** Each bagged item shows how long it can still be traded: soulbound loot
-  has a 2-hour trade window, and BoE recipes from the raid have no limit. You get a chat reminder at
-  20 and 5 minutes, and expired items are flagged.
-- **Loot Timers window.** Minimize the Loot Session window to a small list of what you've picked up
-  for review, most urgent first, with each item's trade time left. It appears by itself when new
-  loot reaches your bags.
+### For the master looter
+
+- **Auto loot.** Open a corpse and the loot goes where it should. Items at or above your quality
+  threshold (Epic by default) and all patterns go straight into your bags, and everything else can go
+  to a mule, with fallback names if someone's bags are full. Add exceptions for single items, or turn
+  it off under Options → Auto Loot. Hold Shift while opening loot to do that corpse by hand.
 - **Master looter list.** Choose who should run the loot, in order. When you switch the group to
   Master Loot, the first of them who's online in the group gets it, and the loot threshold can be set
-  at the same moment. Changing either afterwards sticks. Set it up under Options → Master Looter.
+  at the same moment. Changing either afterwards sticks.
 - **Excluded items.** Raid materials such as Mark of the Illidari stay in the loot window for you to
   assign through Blizzard's list. The curated list is in `Data/ExcludedItems.lua`, and your exceptions
   override it.
-- **Preview mode.** `/plc preview` or Options → Preview runs the whole workflow in your group with
+- **Trade-time tracking.** Each item in your bags shows how long it can still be traded: soulbound
+  loot has a 2-hour trade window, and BoE recipes from the raid have no limit. You get a chat reminder
+  at 20 and 5 minutes, and expired items are flagged.
+- **Loot Timers window.** Minimize the Loot Session window to a small list of what you've picked up
+  for review, most urgent first, with each item's trade time left. It appears by itself when new loot
+  reaches your bags.
+- **Auto-start.** Collecting loot can start a session by itself a few seconds later.
+- **Preview mode.** `/plc preview` or Options → Preview runs the whole workflow with your group on
   fictional items and trade timers. Nothing is saved to the history, and your real loot list comes
   back afterwards.
-- **Loot Response window** for raiders: BiS / Upgrade / PvP / OS / Pass plus an optional note, with
-  a countdown. The master looter can change these buttons under Options → Responses, and everyone in
-  the session sees the master looter's set.
-- **Loot Session window** for the council:
-  - every candidate's response and note, equipped items, item level difference and role
-  - a red **Has** next to anyone who has already received the item, from the loot history (banked
-    and disenchanted items don't count)
-  - hover a name to see what that player has received; hover an item to see who already got it
-  - the session holder stages a pick per item (or **Disenchant** to the raid's Enchanter, or
-    **Banking** to keep it, which only records it), then commits everything with **Award All**
-  - the council sees staged picks live
-- **Loot Trades window** listing what you still have to hand out or collect, with trade time left:
-  - **Trade** opens a trade and puts the awarded items in for you; you still click the trade
-    window's Trade button
-  - **Follow** walks you to the other player
-  - one-click **Disenchant** for items you disenchant yourself
+
+### For the council
+
+- **One review window** with every candidate's response and note, equipped items, item level
+  difference and role.
+- A red **Has** next to anyone who has already received the item. Hover a name to see what that
+  player has received, or the item to see who already got it.
+- The session holder stages a pick per item: **Award** to a candidate, **Disenchant** to the raid's
+  Enchanter, or **Banking** to keep it, which only records it. **Award All** commits everything at
+  once, and the council sees staged picks live.
+- **You decide who's on it**: the master looter always is, and you can add the raid leader and
+  assistants, guild ranks, or individual names. Only the council sees responses, and only the session
+  holder awards.
+
+### For raiders
+
+- A clean **Loot Response** window with a countdown and an optional note. The master looter can change
+  the buttons under Options → Responses, and everyone in the session sees the same set.
+- **Loot Trades** lists what you're owed. **Trade** opens the trade and places the items, **Follow**
+  walks you to the other player, and items you disenchant yourself get a one-click **Disenchant**.
+
+### Loot history
+
+- Every award is recorded, browsable with date, name, class and response filters.
+- Exports to TSV for Google Sheets and English Excel, or for International Excel.
+- Shared with everyone in the group who has the addon, so the whole raid keeps the same record.
+
+### Everything else
+
 - **Every client language**: English, German, Spanish, French, Italian, Portuguese, Russian, Korean and
   Simplified and Traditional Chinese.
-- **Themes and fonts**: pick one of eight themes under Options → Appearance, and any font your addons
-  have registered.
-- **Version check**: Options → About lists the version everyone in your group runs. If yours is out
-  of date you get a quiet reminder: one chat line a day, and one pop-up if you're a whole version
-  behind, never in combat, an instance or a loot session. You can turn it off on the same page.
-- **Loot history**:
-  - stored in RCLootCouncil's exact format, browsable with date, name, class and response filters
-  - exports to *TSV (Google Sheets & English Excel)* and *TSV (International Excel)*, so existing
-    RC spreadsheets keep working
-- **Works alongside RCLootCouncil.** If your master looter runs RCLootCouncil, you don't need it too.
-  The items show up in your Loot Response window with their buttons and timer, your answer goes back
-  to the master looter, and the awards land in your loot history.
-- **Import from RCLootCouncil**:
-  - receive a loot master's history in game via RC's own `/rc sync`
-  - record an RC master looter's awards live during raids
-  - paste RC's *Player Export*
-- **Council you control**:
-  - the master looter is always on it; add raid leader & assistants, guild ranks, or individual names
-  - only the council sees votes, and only the session holder can award
-- **Auto-start**: collecting loot as master looter can start a session by itself.
+- **Themes and fonts**: eight themes under Options → Appearance, and any font your addons have
+  registered.
+- **Version check**: Options → About lists the version everyone in your group runs. If yours is out of
+  date you get a quiet reminder: one chat line a day, and one pop-up if you're a whole version behind,
+  never in combat, an instance or a loot session.
 
 ## Requirements
 
 - TBC Anniversary Classic.
 - **Master Loot** for the full workflow (auto loot, sessions, trades).
-- Raiders need this addon, or RCLootCouncil if the master looter uses that, to respond to a session.
-  People without it show as *No addon detected*.
+- Raiders need the addon to respond to a session. People without it show as *No addon detected*.
 
 ## Getting started
 
@@ -125,28 +124,41 @@ The Loot Session window also has buttons to open the other windows.
 
 ## Coming from RCLootCouncil
 
-- **History**: open `/plc history` → **Import**.
-  - If RCLootCouncil is installed on your character, **Import from RCLootCouncil** copies its history
-    directly.
-  - Otherwise, ask the loot master to open `/rc sync`, choose *Loot History*, and pick you. You'll get
-    an accept prompt.
-  - You can also paste an RC *Player Export*.
-  - Importing twice is safe; duplicates are skipped.
-- **Exports** use RC's TSV layout, so spreadsheets built on RC exports keep working.
-- **Replacing RC as a raider**: you can disable RCLootCouncil and keep raiding with a loot master who
-  uses it. Their sessions open in your Loot Response window, with their buttons, timer and any note
-  requirement, and rolls work too. Turn this off under Options → General.
-- **Running both**: raiders can keep RCLootCouncil installed: while it runs, RC answers its own
-  sessions and this addon stays out of the way. The master looter should use only one of the two
-  addons to run loot.
+PixlLootCouncil is built on the idea of [RCLootCouncil](https://github.com/evil-morfar/RCLootCouncil2),
+and it's designed so you can switch without losing anything.
+
+### Bring your history
+
+Open `/plc history` and press **Import**:
+
+- If RCLootCouncil is installed on your character, **Import from RCLootCouncil** copies its history
+  directly.
+- Otherwise, ask the loot master to open `/rc sync`, choose *Loot History*, and pick you. You'll get an
+  accept prompt.
+- You can also paste an RCLootCouncil *Player Export*.
+
+Importing twice is safe, as entries you already have are skipped. The history is stored in the same
+format and exports use the same TSV layout, so spreadsheets built on RCLootCouncil exports keep
+working.
+
+### Raid with a master looter who still uses RCLootCouncil
+
+You can disable RCLootCouncil and keep raiding. Their sessions open in your Loot Response window with
+their buttons, timer and any note requirement, your answer goes back to them, and rolls work. If they
+share awards with the raid, those land in your loot history too. Turn this off under Options → General.
+
+If you keep RCLootCouncil enabled, it answers its own sessions and PixlLootCouncil stays out of the
+way. The master looter should run loot with only one of the two.
+
+What doesn't carry over to an RCLootCouncil master looter: you can't vote as a council member, as that
+needs RCLootCouncil's voting window. There's no auto pass either, tier tokens show no gear comparison
+on their side, and their `/rc version` lists you as not having RCLootCouncil.
 
 ## Known limitations
 
-- With an RCLootCouncil master looter you can respond and roll, but not vote as a council member:
-  that needs RC's voting window. There's no auto pass either, and tier tokens show no gear comparison
-  on the master looter's side. RC's `/rc version` lists you as not having RC.
 - Translations are machine-written, so some wording may be off. Corrections are welcome on GitHub.
-- History `votes` is always 0, because PixlLootCouncil has no council vote count.
+- There's no council vote count: the session holder makes the call, and the history's vote count is
+  always 0.
 
 ## Reporting bugs
 
@@ -161,10 +173,12 @@ Please open an issue on [GitHub](https://github.com/svenvonarx/PixlLootCouncil/i
 PixlLootCouncil is free software under the **GNU General Public License v3.0 or later**; see
 [LICENSE](LICENSE).
 
+- **[RCLootCouncil](https://github.com/evil-morfar/RCLootCouncil2)** (GPL-3.0) is where the idea comes
+  from: a loot council run from one review window, with responses, notes and gear comparisons. For
+  compatibility, the loot history format, the TSV export layout, the in-game sync and session protocol,
+  and a few item helpers follow RCLootCouncil.
 - Auto loot's idea of rules, fallback targets and Shift to skip is inspired by the PackMule module in
   [Gargul](https://www.curseforge.com/wow/addons/gargul). No Gargul code is used.
-- The loot history format, the TSV export layout, the in-game sync protocol and a few item helpers
-  follow [RCLootCouncil](https://github.com/evil-morfar/RCLootCouncil2) (GPL-3.0) for compatibility.
 - Bundled libraries:
   - [Ace3](https://www.wowace.com/projects/ace3) (BSD-style license)
   - [LibDeflate](https://github.com/SafeteeWoW/LibDeflate) (zlib license)
