@@ -36,8 +36,9 @@
 - **Fixed** Award All opening an empty Loot Trades window when nothing was left to trade.
 - **Fixed** the Stop Preview button in Options staying on Stop when a preview ended any other way, such
   as End Session in the Loot Session window.
-- **Fixed** long item names running into the vote count in the Loot Session window. They're cut short
-  now, and hovering shows the whole item. The vote count itself is shorter, as "25/25 voted".
+- **Fixed** long item names running into the vote count in the Loot Session window. Text in that row
+  is cut short only where something else needs the room. Hovering shows the whole text, and an item's
+  tooltip now includes its trade time. The vote count itself is shorter, as "25/25 voted".
 
 ## 0.3.0-beta
 

@@ -52,6 +52,7 @@ local tickerHandle
 -- Item name plus its trade status ("Tradable for 1h 52m", Loot/BagTracker.lua) in the detail header.
 local function setDetailLabel(item)
 	local tradeText, tradeColor = PLC.Loot.BagTracker:StatusText(item)
+	detailItemHover.tradeText, detailItemHover.tradeColor = tradeText, tradeColor
 	if tradeText then
 		local r, g, b = Primitives.color(tradeColor)
 		detailItemLabel:SetText(string.format("%s  |cff%02x%02x%02x%s|r", item.link or "?",
@@ -413,14 +414,28 @@ end
 -- SetEnchanter are no-ops the whole time Remove would be shown anyway), so showing one always
 -- means hiding the other, never both or neither.
 --
--- The vote count sits left of the buttons, or takes their place for council members, who don't get
--- them and need the room: their count also has to fit what's staged.
-local function anchorVoteCount(besideButtons)
+-- The item name gets the row up to whatever else is on it:
+--   "buttons"  the holder: the vote count sits left of Banking and Disenchant
+--   "count"    a council member, who has no buttons and needs the room: their count also has to
+--              fit what's staged
+--   "remove"   the Remove button
+--   nil        nothing, the whole row
+local function layoutDetailHeader(rowContent)
 	detailVoteCountText:ClearAllPoints()
-	if besideButtons then
+	if rowContent == "buttons" then
 		detailVoteCountText:SetPoint("TOPRIGHT", detailBankButton, "TOPLEFT", -10, -8)
 	else
 		detailVoteCountText:SetPoint("TOPRIGHT", detailDisenchantButton, "TOPRIGHT", 0, -8)
+	end
+
+	detailItemHover:ClearAllPoints()
+	detailItemHover:SetPoint("TOPLEFT")
+	if rowContent == "buttons" or rowContent == "count" then
+		detailItemHover:SetPoint("RIGHT", detailVoteCountText, "LEFT", -10, 0)
+	elseif rowContent == "remove" then
+		detailItemHover:SetPoint("RIGHT", detailRemoveButton, "LEFT", -10, 0)
+	else
+		detailItemHover:SetPoint("RIGHT", detailDisenchantButton, "RIGHT")
 	end
 end
 
@@ -440,15 +455,17 @@ function showDetailFor(idx)
 		detailBankButton:Hide()
 		detailVoteCountText:Hide()
 		detailContainer:Hide()
+		layoutDetailHeader(nil)
 	elseif item then
 		setDetailLabel(item)
 		detailItemHover.itemLink = item.link
 		local active = PLC.Session.state == "active"
-		detailRemoveButton:SetShown(not active and not item.awarded and PLC.Session:CanManage())
+		local canRemove = not active and not item.awarded and PLC.Session:CanManage()
+		detailRemoveButton:SetShown(canRemove)
 		local isHolder = PLC.Session:IsHolder()
 		detailDisenchantButton:SetShown(active and isHolder)
 		detailBankButton:SetShown(active and isHolder)
-		anchorVoteCount(active and isHolder)
+		layoutDetailHeader((active and (isHolder and "buttons" or "count")) or (canRemove and "remove") or nil)
 		detailVoteCountText:SetShown(active)
 		detailContainer:Show()
 		votingPanel:ShowItem(idx)
@@ -460,6 +477,7 @@ function showDetailFor(idx)
 		detailBankButton:Hide()
 		detailVoteCountText:Hide()
 		detailContainer:Hide()
+		layoutDetailHeader(nil)
 	end
 end
 
@@ -833,23 +851,29 @@ local function ensureFrame()
 	detailBankButton:SetPoint("RIGHT", detailDisenchantButton, "LEFT", -4, 0)
 
 	detailVoteCountText = Primitives.createText(detailArea, "", 11, "dim")
-	anchorVoteCount(true)
 
 	-- A Frame wrapping the label, not the label itself -- a FontString has no SetScript, so
-	-- showing a tooltip on hover needs an actual Frame to own OnEnter/OnLeave. RIGHT is reserved
-	-- against the vote-count text's own left edge (not a fixed number), so it stays correct
-	-- regardless of exactly where that text and the button end up. The label stops at the same
-	-- edge, so a long item name is cut short instead of running into the vote count: hovering it
-	-- shows the whole item.
+	-- showing a tooltip on hover needs an actual Frame to own OnEnter/OnLeave. Its right edge is
+	-- up to layoutDetailHeader, and the label stops at the same edge, so anything too long is cut
+	-- short instead of running into what's next to it: hovering shows all of it.
 	detailItemHover = CreateFrame("Frame", nil, detailArea)
-	detailItemHover:SetPoint("TOPLEFT")
-	detailItemHover:SetPoint("RIGHT", detailVoteCountText, "LEFT", -10, 0)
 	detailItemHover:SetHeight(20)
+	layoutDetailHeader(nil)
 	Primitives.attachItemTooltip(detailItemHover)
-	-- Appends "who already received this item" below the item's own tooltip (UI/HistoryFrame.lua).
+	-- An item's own tooltip has its whole name. Below that go what the label may have lost to being
+	-- cut, the trade time, and "who already received this item" (UI/HistoryFrame.lua). Anything
+	-- else only needs a tooltip if it really was cut.
 	detailItemHover:HookScript("OnEnter", function(self)
 		if self.itemLink then
+			if self.tradeText then
+				local r, g, b = Primitives.color(self.tradeColor)
+				GameTooltip:AddLine(self.tradeText, r, g, b)
+			end
 			PLC.UI.HistoryFrame.AddItemLines(GameTooltip, self.itemLink)
+			GameTooltip:Show()
+		elseif detailItemLabel:IsTruncated() then
+			GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
+			GameTooltip:SetText(detailItemLabel:GetText(), 1, 1, 1, 1, true)
 			GameTooltip:Show()
 		end
 	end)

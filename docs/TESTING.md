@@ -440,7 +440,9 @@ Award still just means "record the decision and tell the holder who to trade it 
   received it show a red "Has" lined up at the right of the name cell, and hovering says when. Someone
   who only banked or disenchanted that item shows nothing, and neither does anyone for other items.
 - Header row: with a long item name, the name is cut short with the vote count and both buttons
-  clear of it, and the trade time still shows on ordinary names. Hovering shows the whole item.
+  clear of it, and the trade time still shows on ordinary names. Hovering shows the whole item with
+  its trade time. Outside a session, a long name stops short of Remove. With no items, the whole
+  message shows. With a wide font that cuts it, hovering shows it in full; if it fits, nothing does.
 
 ### 2.6 Chat announcements, exactly once (Stage 6, reworked after first playtest)
 - With a real session and award happening, confirm the session-start summary line (one line

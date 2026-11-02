@@ -34,7 +34,10 @@ local noop = function() end
 local frameMethods = {
 	SetScript = function(f, name, fn) f.scripts[name] = fn end,
 	GetScript = function(f, name) return f.scripts[name] end,
-	HookScript = function(f, name, fn) f.scripts[name] = fn end,
+	HookScript = function(f, name, fn)
+		local previous = f.scripts[name]
+		f.scripts[name] = previous and function(...) previous(...); fn(...) end or fn
+	end,
 	SetPoint = function(f, ...) f.points[#f.points + 1] = { ... } end,
 	ClearAllPoints = function(f) f.points = {} end,
 	SetShown = function(f, shown) f.shown = shown and true or false end,
@@ -51,6 +54,7 @@ local frameMethods = {
 	GetHeight = function() return 100 end,
 	GetVerticalScroll = function() return 0 end,
 	GetFrameLevel = function() return 1 end,
+	IsTruncated = function(f) return f.truncated end,
 }
 local function frame(props)
 	local f = props or {}
@@ -67,6 +71,11 @@ frameMethods.CreateFontString = function() return frame() end
 _G.CreateFrame = function() return frame() end
 _G.UIParent = frame()
 _G.GameTooltip = frame()
+local tooltipLines = {}
+function GameTooltip:AddLine(text, r, g, b) tooltipLines[#tooltipLines + 1] = { text = tostring(text), r = r, g = g, b = b } end
+function GameTooltip:AddDoubleLine(text) self:AddLine(text) end
+function GameTooltip:SetText(text, _, _, _, _, wrap) self:AddLine(text); self.wrapped = wrap end
+function GameTooltip:SetHyperlink(link) self:AddLine("item:" .. link) end
 _G.UISpecialFrames = {}
 _G.StaticPopupDialogs = {}
 
@@ -100,8 +109,13 @@ PLC.UI.Theme = { LAYOUT = setmetatable({}, { __index = function() return 20 end 
 PLC.UI.Widgets.Primitives = setmetatable({
 	color = function(name) if name == "accent" then return 1, 0, 0, 1 end return 1, 1, 1, 1 end,
 	attachTooltip = function(f, title, text) f.tipTitle, f.tipText = title, text end,
-	createText = function(_, text)
-		local label = frame({ text = text })
+	attachItemTooltip = function(f)
+		f.scripts.OnEnter = function(self)
+			if self.itemLink then GameTooltip:SetHyperlink(self.itemLink) end
+		end
+	end,
+	createText = function(parent, text, size)
+		local label = frame({ text = text, parent = parent, size = size })
 		texts[#texts + 1] = label
 		return label
 	end,
@@ -293,13 +307,69 @@ session(MULE); panel:ShowItem(1); SessionFrame:OnSessionUpdated()
 check("B32", count.points[1][2] == disenchant and count.points[1][3] == "TOPRIGHT", "a council member's takes their place")
 check("B33", bank.width + 4 + disenchant.width == 144 and LOCALE["VOTINGFRAME_VOTE_COUNT"] == "%d/%d voted", "the row leaves the room the item name and trade time need")
 
-local cutShort = false
+local itemLabel
 for _, label in ipairs(texts) do
-	local right = false
-	for _, point in ipairs(label.points) do right = right or point[1] == "RIGHT" end
-	cutShort = cutShort or (label.wordWrap == false and right)
+	if label.size == 13 and label.wordWrap == false then itemLabel = label end
 end
-check("B37", cutShort, "a long item name is cut short at the vote count")
+local itemRow = itemLabel and itemLabel.parent
+local labelRight = false
+for _, point in ipairs(itemLabel and itemLabel.points or {}) do labelRight = labelRight or point[1] == "RIGHT" end
+check("B37", labelRight, "the item name stops at the edge of its row, so it's cut short")
+
+-- What's at the end of the item name's row: which frame, and which side of it.
+local function rowEnd()
+	for _, point in ipairs(itemRow.points) do
+		if point[1] == "RIGHT" then return point[2], point[3] end
+	end
+end
+local removeButton = buttons["SESSIONFRAME_REMOVE"]
+session(); panel:ShowItem(1); SessionFrame:OnSessionUpdated()
+local target, side = rowEnd()
+check("H1", target == count and side == "LEFT", "the holder's name stops at the vote count, itself left of the buttons")
+session(MULE); SessionFrame:OnSessionUpdated()
+target, side = rowEnd()
+check("H2", target == count and side == "LEFT", "so does a council member's, with more room")
+
+session()
+Session.state = "inactive"
+function Session:CanManage() return true end
+SessionFrame:OnSessionUpdated()
+target, side = rowEnd()
+check("H3", removeButton.shown and target == removeButton and side == "LEFT", "outside a session the name stops at Remove, not underneath it")
+
+Session.items = {}
+SessionFrame:OnSessionUpdated()
+target, side = rowEnd()
+check("H4", itemLabel.text == "SESSIONFRAME_NO_ITEMS" and target == disenchant and side == "RIGHT", "with no items, the message gets the whole row")
+check("H5", not count.shown and not bank.shown and not disenchant.shown and not removeButton.shown, "as nothing else is on it")
+
+local function hover()
+	for k in pairs(tooltipLines) do tooltipLines[k] = nil end
+	itemRow.scripts.OnEnter(itemRow)
+	local joined = {}
+	for i, line in ipairs(tooltipLines) do joined[i] = line.text end
+	return table.concat(joined, "|")
+end
+itemLabel.truncated = false
+check("H6", hover() == "", "text that fits doesn't need a tooltip")
+itemLabel.truncated = true
+check("H7", hover() == "SESSIONFRAME_NO_ITEMS" and GameTooltip.wrapped == true, "text that's cut shows in full, wrapped")
+itemLabel.truncated = false
+
+session()
+PLC.Loot.BagTracker.StatusText = function() return "Tradable for 1h 52m", "success" end
+SessionFrame:OnSessionUpdated()
+local shown = hover()
+check("H8", shown:find("item:", 1, true) == 1 and shown:find("Tradable for 1h 52m", 1, true) ~= nil, "an item's tooltip always has its trade time, the part a cut would lose")
+check("H9", tooltipLines[2].text == "Tradable for 1h 52m" and tooltipLines[2].r ~= nil, "right below the item, in its color")
+PLC.Loot.BagTracker.StatusText = function() return nil end
+SessionFrame:OnSessionUpdated()
+check("H10", not hover():find("Tradable", 1, true), "and nothing when the item has none")
+Session.items = {}
+SessionFrame:OnSessionUpdated()
+PLC.Loot.BagTracker.StatusText = noop
+Session.CanManage = nil
+function Session:CanManage() return false end
 
 -- Sidebar tooltips ----------------------------------------------------------------------------------
 local cell
