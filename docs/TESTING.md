@@ -716,5 +716,11 @@ Options → Master Looter:
 - **Shift:** hold Shift while switching: it stays with you.
 - **Combat:** switch during combat: it moves when combat ends.
 - **Login:** with Master Loot on and someone else as master looter, `/reload` or relog: nothing changes.
-- **Threshold:** check the loot threshold is what you set after the change. If this moves it, the
-  code needs to set it back, as MRT does.
+- **Threshold:** set "Set the loot threshold to" to Rare, set a list, and switch to Master Loot from
+  Group Loot: about two seconds later the threshold is Rare and the game says so in chat, with the
+  master looter already moved. If our chat line says the game didn't accept it instead, the game
+  refuses the threshold once someone else is master looter, and the order needs changing.
+- **Threshold, by hand:** change the threshold afterwards: it stays. Shift while switching skips it too.
+- **Threshold, untouched:** on "Don't change", note the threshold, then switch with a list set: it
+  should stay the same. If the game moves it by itself, that's the game, and picking a threshold on
+  this page is the way around it.

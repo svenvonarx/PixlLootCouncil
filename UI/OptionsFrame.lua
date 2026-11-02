@@ -28,6 +28,7 @@ local SLIDER_STEP = 52
 local GROUP_GAP = 18
 
 local QUALITIES = { 2, 3, 4, 5 } -- uncommon to legendary
+local LOOT_THRESHOLDS = { 2, 3, 4 } -- the ones the game's own menu offers
 
 local function qualityName(quality)
 	return _G["ITEM_QUALITY" .. quality .. "_DESC"] or tostring(quality)
@@ -39,6 +40,48 @@ end
 
 local function minutesText(value)
 	return string.format(L[value == 1 and "OPTIONS_MINUTE" or "OPTIONS_MINUTES"], value)
+end
+
+-- By name and in the game's own colors: nobody knows what "quality 4" is. With noneText, there's a
+-- first choice for no quality, stored as 0.
+local function createQualityField(page, y, text, tip, key, qualities, noneText)
+	local profile = PLC.db.profile
+	local label = Primitives.createText(page, text, 12)
+	label:SetPoint("TOPLEFT", 0, y - 7)
+	local dropdown = DropdownWidget.createDropdownButton(page)
+	dropdown:SetSize(150, Theme.LAYOUT.fieldHeight)
+	dropdown:SetPoint("TOPRIGHT", 0, y)
+	local function refresh()
+		local entries = {}
+		local function addEntry(quality, name, color)
+			table.insert(entries, {
+				text = name,
+				color = color,
+				checked = quality == profile[key],
+				onClick = function()
+					profile[key] = quality
+					refresh()
+				end,
+			})
+		end
+		if noneText then
+			addEntry(0, noneText)
+		end
+		for _, quality in ipairs(qualities) do
+			addEntry(quality, qualityName(quality), ITEM_QUALITY_COLORS[quality])
+		end
+		local current = profile[key]
+		DropdownWidget.setEntries(dropdown, current == 0 and noneText or qualityName(current), entries)
+		local color = current ~= 0 and ITEM_QUALITY_COLORS[current]
+		if color then
+			dropdown.text:SetTextColor(color.r, color.g, color.b)
+		else
+			dropdown.text:SetTextColor(Primitives.color("text"))
+		end
+	end
+	refresh()
+	page:HookScript("OnShow", refresh)
+	Primitives.attachTooltip(dropdown, text, tip)
 end
 
 local function buildGeneralPage(page)
@@ -73,38 +116,6 @@ local function buildGeneralPage(page)
 		y = y - SLIDER_STEP
 	end
 
-	-- By name and in the game's own colors: nobody knows what "quality 4" is.
-	local function qualityField(text, tip)
-		local label = Primitives.createText(page, text, 12)
-		label:SetPoint("TOPLEFT", 0, y - 7)
-		local dropdown = DropdownWidget.createDropdownButton(page)
-		dropdown:SetSize(150, Theme.LAYOUT.fieldHeight)
-		dropdown:SetPoint("TOPRIGHT", 0, y)
-		local function refresh()
-			local entries = {}
-			for _, quality in ipairs(QUALITIES) do
-				table.insert(entries, {
-					text = qualityName(quality),
-					color = ITEM_QUALITY_COLORS[quality],
-					checked = quality == profile.lootThreshold,
-					onClick = function()
-						profile.lootThreshold = quality
-						refresh()
-					end,
-				})
-			end
-			DropdownWidget.setEntries(dropdown, qualityName(profile.lootThreshold), entries)
-			local color = ITEM_QUALITY_COLORS[profile.lootThreshold]
-			if color then
-				dropdown.text:SetTextColor(color.r, color.g, color.b)
-			end
-		end
-		refresh()
-		page:HookScript("OnShow", refresh)
-		Primitives.attachTooltip(dropdown, text, tip)
-		y = y - FIELD_STEP
-	end
-
 	group(L["OPTIONS_GROUP_CHAT"])
 	checkbox(L["OPTIONS_ANNOUNCE_START"], L["TIP_ANNOUNCE_START"], function() return profile.announce.sessionStart end,
 		function(checked) profile.announce.sessionStart = checked end)
@@ -123,8 +134,8 @@ local function buildGeneralPage(page)
 	checkbox(L["OPTIONS_AUTO_START"], L["TIP_AUTO_START"], function() return profile.autoStartSession end,
 		function(checked) profile.autoStartSession = checked end)
 	y = y - 4
-	qualityField(L["OPTIONS_LOOT_THRESHOLD"], L["TIP_LOOT_THRESHOLD"])
-	y = y - GROUP_GAP + 8
+	createQualityField(page, y, L["OPTIONS_LOOT_THRESHOLD"], L["TIP_LOOT_THRESHOLD"], "lootThreshold", QUALITIES)
+	y = y - FIELD_STEP - GROUP_GAP + 8
 
 	group(L["OPTIONS_GROUP_TIMING"])
 	-- The holder's value at session start wins for every candidate -- see
@@ -542,7 +553,7 @@ local function buildAutoLootPage(page)
 	refreshPage()
 end
 
--- Who becomes master looter when the group switches to Master Loot (Loot/MasterLooterList.lua).
+-- What happens when the group switches to Master Loot (Loot/MasterLooterList.lua).
 local function buildMasterLooterPage(page)
 	local profile = PLC.db.profile
 
@@ -552,8 +563,11 @@ local function buildMasterLooterPage(page)
 	enabled:SetPoint("TOPLEFT")
 	Primitives.attachTooltip(enabled, L["OPTIONS_ML_ENABLED"], L["TIP_ML_ENABLED"])
 
+	createQualityField(page, -CHECKBOX_STEP - 4, L["OPTIONS_ML_THRESHOLD"], L["TIP_ML_THRESHOLD"],
+		"masterLootThreshold", LOOT_THRESHOLDS, L["OPTIONS_ML_THRESHOLD_NONE"])
+
 	local listLabel = Primitives.createText(page, L["OPTIONS_ML_LIST"], 13, "white")
-	listLabel:SetPoint("TOPLEFT", 0, -38)
+	listLabel:SetPoint("TOPLEFT", 0, -CHECKBOX_STEP - 4 - FIELD_STEP - 10)
 
 	local nameBox = Primitives.createEditBox(page, 200, Theme.LAYOUT.fieldHeight)
 	nameBox:SetPoint("TOPLEFT", listLabel, "BOTTOMLEFT", 0, -8)

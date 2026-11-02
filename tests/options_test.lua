@@ -219,7 +219,11 @@ local nameBox, addButton
 for _, f in ipairs(frames) do
 	if rawget(f, "caption") == "OPTIONS_COUNCIL_ADD" then addButton = f end
 end
-for frame, tip in pairs(tooltips) do if tip[2] == "TIP_ML_LIST" then nameBox = frame end end
+local mlThreshold
+for frame, tip in pairs(tooltips) do
+	if tip[2] == "TIP_ML_LIST" then nameBox = frame end
+	if tip[2] == "TIP_ML_THRESHOLD" then mlThreshold = frame end
+end
 nameBox.points = nameBox.points
 local function add(name) nameBox.text = name; nameBox.scripts.OnEnterPressed() end
 add("mule"); add("Backup"); add("MULE"); add("   ")
@@ -237,6 +241,13 @@ mlTable.columns[4].update(remove, mlTable.rows[1])
 remove.scripts.OnClick()
 check("P6", #profile.masterLooterList == 1 and profile.masterLooterList[1] == "Mule", "removing someone")
 profile.masterLooterList = {}
+names = {}
+for i, entry in ipairs(mlThreshold.entries) do names[i] = entry.text end
+check("P7", table.concat(names, ",") == "OPTIONS_ML_THRESHOLD_NONE,Uncommon,Rare,Epic" and mlThreshold.displayText == "OPTIONS_ML_THRESHOLD_NONE", "the threshold defaults to leaving it, and offers what the game's menu does")
+mlThreshold.entries[2].onClick()
+check("P8", profile.masterLootThreshold == 2 and mlThreshold.displayText == "Uncommon" and mlThreshold.text.color[2] == 1, "choosing Uncommon saves it, in its color")
+mlThreshold.entries[1].onClick()
+check("P9", profile.masterLootThreshold == 0 and mlThreshold.entries[1].checked and mlThreshold.text.color[1] == 1 and mlThreshold.text.color[3] == 1, "going back to Don't change drops the color")
 
 -- Pages fit the window: a stub can't measure text, but it can add up what's stacked.
 local Theme = PLC.UI.Theme.LAYOUT

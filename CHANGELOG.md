@@ -4,7 +4,8 @@
 
 - **Master looter list** (Options → Master Looter): when you switch the group to Master Loot, the first
   person on your list who's online in the group becomes master looter. Handing it to someone else
-  afterwards sticks, and holding Shift skips it once.
+  afterwards sticks, and holding Shift skips it once. The same page can set the loot threshold at that
+  moment too.
 - **Options overhaul**: a selected menu entry now runs the full width of the menu, and the logo,
   section titles and icons share one left edge. Pages have more room, and General is split into Raid
   chat, RCLootCouncil, Loot and Timing. Auto Loot, Master Looter, Preview and About have their own

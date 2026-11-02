@@ -73,6 +73,7 @@ PLC.Defaults = {
 		-- Loot/MasterLooterList.lua: who becomes master looter when the group switches to Master Loot.
 		autoMasterLooter = true,
 		masterLooterList = {}, -- names, the first found in the group gets it
+		masterLootThreshold = 0, -- item quality to set when switching to Master Loot, 0 leaves it
 	},
 	char = {
 		activeSession = nil, -- Data/Session.lua persists the held session here; nil = not currently a holder
