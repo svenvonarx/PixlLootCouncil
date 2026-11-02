@@ -9,7 +9,8 @@ PLC.Defaults = {
 		update = {}, -- the newest version heard of and what's been said about it, Data/UpdateNotice.lua
 	},
 	profile = {
-		accent = { r = 0.91, g = 0.64, b = 0.24 }, -- #E8A33D, see docs/SPECIFICATION.md §4.1
+		theme = "gold", -- a key of Theme.THEMES, see UI/Theme.lua
+		font = "Inter", -- a LibSharedMedia font name, see UI/Widgets/Primitives.lua
 
 		-- Data/CouncilRules.lua:Evaluate. The master looter is always council; these add to it.
 		council = {

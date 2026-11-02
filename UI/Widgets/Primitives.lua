@@ -9,11 +9,15 @@ local Theme = PLC.UI.Theme
 
 -- Building blocks every window uses: themed fills and text, 1px borders, icons drawn from plain
 -- textures, the bundled font. No BackdropTemplate, no art assets beyond the logo. Everything themed
--- is registered with UI/Theme.lua so an accent change recolors it live.
+-- is registered with UI/Theme.lua so a theme change recolors it live.
 
 local MEDIA = "Interface\\AddOns\\PixlLootCouncil\\"
 -- Inter (SIL Open Font License 1.1, see font/Inter-LICENSE.txt).
 local FONT = MEDIA .. "font\\Inter-Medium.ttf"
+local INTER = "Inter"
+
+local LSM = LibStub("LibSharedMedia-3.0")
+LSM:Register(LSM.MediaType.FONT, INTER, FONT, LSM.LOCALE_BIT_western + LSM.LOCALE_BIT_ruRU)
 
 function Primitives.color(name, alpha)
 	return Theme:Color(name, alpha)
@@ -109,8 +113,11 @@ end
 -- One Font object per pixel size, shared by every label of that size.
 local fonts = {}
 
+-- The font in use: profile.font's file, once Primitives.setFont has run.
+local currentFont = FONT
+
 local function setFontWithFallback(target, pixelSize)
-	if target:SetFont(FONT, pixelSize, "") == false then
+	if target:SetFont(currentFont, pixelSize, "") == false then
 		target:SetFont(STANDARD_TEXT_FONT, pixelSize, "")
 	end
 end
@@ -140,7 +147,7 @@ end
 
 function Primitives.RefreshFonts()
 	for pixelSize, font in pairs(fonts) do
-		font:SetFont(FONT, pixelSize + 1, "")
+		font:SetFont(currentFont, pixelSize + 1, "")
 		setFontWithFallback(font, pixelSize)
 	end
 	Theme:ForEachText(function(fontString)
@@ -151,6 +158,45 @@ function Primitives.RefreshFonts()
 		end
 	end)
 end
+
+-- Every font registered with LibSharedMedia, by name. Inter comes first and always: registering it
+-- can be refused on clients in some languages.
+function Primitives.fontNames()
+	local names = { INTER }
+	for _, name in ipairs(LSM:List(LSM.MediaType.FONT) or {}) do
+		if name ~= INTER then
+			table.insert(names, name)
+		end
+	end
+	return names
+end
+
+-- The file of a registered font. Inter for one that's not there, such as an uninstalled addon's.
+function Primitives.fontPath(name)
+	return name ~= INTER and LSM:Fetch(LSM.MediaType.FONT, name, true) or FONT
+end
+
+-- Switches every label, live.
+function Primitives.setFont(name)
+	currentFont = Primitives.fontPath(name)
+	Primitives.RefreshFonts()
+end
+
+-- A label showing off a font of its own. Keep it to its own label: it stays out of RefreshFonts.
+function Primitives.setSampleFont(label, size, path)
+	label:SetFont(path, pixelSizeFor(size), "")
+end
+
+PLC:RegisterOnEnable(function()
+	Primitives.setFont(PLC.db.profile.font)
+end)
+
+-- The addon with the chosen font can load after this one.
+LSM.RegisterCallback(Primitives, "LibSharedMedia_Registered", function(_, mediaType, name)
+	if mediaType == LSM.MediaType.FONT and PLC.db and name == PLC.db.profile.font then
+		Primitives.setFont(name)
+	end
+end)
 
 -- Call once per top-level window right after creating it.
 function Primitives.refreshFontsOnShow(frame)

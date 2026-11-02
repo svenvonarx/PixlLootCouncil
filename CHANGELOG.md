@@ -15,6 +15,12 @@
   you're a whole version behind, you also get one pop-up, which waits until you're out of combat, out
   of instances and not in a loot session. You hear about new versions from your guild as well as your
   group, and it's remembered between logins. Options → About turns it off.
+- **Themes**: Options → Appearance now has eight themes instead of an accent color: Pixl Gold, which is
+  the look you already know, Sunwell, Fel, Zangarmarsh, Frost, Twilight, Arcane and Nether. Each has
+  its own backgrounds, and they all keep the trade timers and Staged/Awarded easy to tell apart. A
+  custom accent color isn't carried over.
+- **Fonts**: the same page lets you pick any font registered with LibSharedMedia, shown in that font in
+  the list. Inter stays the default, and other addons can now use it too.
 - **Addon list**: PixlLootCouncil now has its own icon, sits in the Loot category with Gargul and
   RCLootCouncil, and has a clearer description.
 - **Options overhaul**: a selected menu entry now runs the full width of the menu, and the logo,

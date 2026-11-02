@@ -44,7 +44,7 @@ The entire addon UI uses one design system of its own: fully custom `CreateFrame
 
 ### 4.1 Palette
 
-Defined in `UI/Theme.lua`: fixed colors (`text`, `dim`, `title`, `white`, `field`, `fieldHover`, `scroll`, `warning`, `success`) plus accent-tinted surfaces (`frame`, `header`, `sidebar`, `content`, `button`, `buttonHover`, `border`, `borderDim`) — each a neutral near-black base moved a small, per-surface fraction towards the accent, so the whole palette follows the accent. **Default accent: `#E8A33D`** (warm gold), configurable under Options → Appearance.
+Defined in `UI/Theme.lua`: fixed colors (`text`, `dim`, `title`, `white`, `field`, `fieldHover`, `scroll`, `warning`, `success`) plus accent-tinted surfaces (`frame`, `header`, `sidebar`, `content`, `button`, `buttonHover`, `border`, `borderDim`) — each a neutral near-black base moved a small, per-surface fraction towards the accent, so the whole palette follows the accent. A theme (`Theme.THEMES`, Options → Appearance) sets the accent and shades the surfaces. **Default theme: Pixl Gold, accent `#E8A33D`** (warm gold), configurable under Options → Appearance.
 
 ### 4.2 Construction primitives
 
@@ -133,7 +133,7 @@ Locale files are maintained alongside every phase (new strings added to all 11 f
 
 ## 8. SavedVariables (draft)
 
-- `PixlLootCouncilDB` — AceDB object: `global` (error log, player cache), `profile` (all user-configurable behavior, response sets, button config, theme/accent choice), `char` (the active session, if this character currently holds one — see §5.1).
+- `PixlLootCouncilDB` — AceDB object: `global` (error log, player cache), `profile` (all user-configurable behavior, response sets, button config, theme and font choice), `char` (the active session, if this character currently holds one — see §5.1).
 - `PixlLootCouncilHistoryDB` — separate AceDB instance, `factionrealm`-scoped, award history only (mirrors upstream's rationale for keeping history in its own SavedVariables file — it can get large and doesn't belong in the per-profile settings blob).
 
 ## 9. Decisions log

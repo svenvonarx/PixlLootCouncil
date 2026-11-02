@@ -259,7 +259,7 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   corner, 2 one step in, 1 furthest) and brightens to accent together on hover.
 - Every window's header (this one, Session, Options) now shows the brand logo to the left of the
   title, accent-tinted — confirm it re-tints live along with everything else when you change the
-  accent color in Options → Appearance.
+  theme in Options → Appearance.
 - Header title/subtitle sizing and alignment (all three windows — this one, Session, Options):
   confirm the white title text is noticeably bigger than before, and reads clearly larger than
   the gray "Session started by <name>" subtitle next to it (Options has no subtitle, just the
@@ -289,9 +289,9 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
 - `/plc options` opens it. Sidebar: General / Responses / Council under "RAID TOOLS", Appearance
   under "SETTINGS".
 - **Live-update check (no /reload needed):** toggle an announce checkbox, drag a slider, switch
-  the Council mode dropdown, click the Appearance accent swatch and pick a new color — confirm
-  each change is reflected immediately (the accent change should visibly re-tint every open
-  PixlLootCouncil window, not just the Options panel itself).
+  the Council mode dropdown, click a theme on Appearance — confirm each change is reflected
+  immediately (the theme should visibly recolor every open PixlLootCouncil window, not just the
+  Options panel itself).
 - **Persistence check:** `/reload` and confirm your changes stuck (this only proves in-session
   persistence). Then fully log out and back in — this is the real test that AceDB actually wrote
   `WTF/Account/.../SavedVariables/PixlLootCouncilDB.lua` to disk, not just `/reload`'s in-memory
@@ -712,7 +712,15 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
 - **General:** sliders run the full width with their value on the right, in seconds or minutes. "Collect
   items of at least" is a dropdown of colored quality names, and picking one changes what's collected.
 - **Tooltips:** hover every checkbox, slider and dropdown on every page: each explains itself.
-- **Accent:** change the accent color on Appearance: the selected entry and icons follow it.
+- **Themes:** `luajit tests/appearance_test.lua` measures every theme's contrast and colors. On
+  Appearance, each card shows its own theme whichever one is on. Click each one with the Loot Session,
+  Trades and Timers windows open: everything recolors at once, including the selected menu entry and
+  icons, and it's still set after `/reload`. In a preview, trade times stay green, accent and red, and
+  Staged stays different from Awarded, on every theme. Pixl Gold looks exactly like before themes.
+- **Fonts:** the font list shows every registered font, each in its own font, and scrolls. Other
+  dropdowns afterwards aren't stuck in a sample font. Picking one changes every open window at once and
+  survives `/reload`. Disable the addon that registered your chosen font: the windows fall back to Inter
+  with no errors. Try a wide font: button labels may run tight, which the tooltip warns about.
 - **About:** `/plc about`. In a group, the list fills as people answer. Someone on 0.3.0-beta shows as
   "older" and Outdated, someone without the addon as No addon detected. A packaged copy shows its
   version; a copy run from the repository shows "development copy".

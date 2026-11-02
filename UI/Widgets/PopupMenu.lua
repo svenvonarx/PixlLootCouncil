@@ -10,7 +10,8 @@ local Primitives = PLC.UI.Widgets.Primitives
 --                                         opts.maxRows (default 7, the list scrolls past that)
 --   PopupMenu.Close() / PopupMenu.IsOpen(owner) / PopupMenu.Refresh()
 --
--- Entry fields: text; color ({r,g,b} or {r=,g=,b=}); checked (accent marker on the left);
+-- Entry fields: text; color ({r,g,b} or {r=,g=,b=}); font (a font file to show the text in);
+-- checked (accent marker on the left);
 -- header (an accent-colored, unclickable section title); disabled (dimmed, unclickable);
 -- onClick(entry); keepOpen (stay open after the click and redraw -- for toggle lists, where
 -- onClick updates entry.checked itself).
@@ -83,6 +84,14 @@ local function makeRow()
 	row.label:SetPoint("LEFT", 9, 0)
 	row.label:SetPoint("RIGHT", -8, 0)
 
+	-- Its own label for entry.font: rows are shared by every menu, and row.label has to stay in the
+	-- addon's font for the next one.
+	row.sample = Primitives.createText(row, "", 11)
+	row.sample:SetJustifyH("LEFT")
+	row.sample:SetWordWrap(false)
+	row.sample:SetPoint("LEFT", 9, 0)
+	row.sample:SetPoint("RIGHT", -8, 0)
+
 	row:EnableMouseWheel(true)
 	row:SetScript("OnMouseWheel", function(_, delta) scrollBy(-delta) end)
 	row:SetScript("OnClick", onRowClick)
@@ -148,8 +157,14 @@ function draw()
 		row:ClearAllPoints()
 		row:SetPoint("TOPLEFT", 1, -PADDING - (i - 1) * ROW_HEIGHT)
 		row.highlight:Hide()
-		row.label:SetText(entry.text or "")
-		row.label:SetTextColor(entryColor(entry))
+		local label = entry.font and row.sample or row.label
+		row.label:SetShown(label == row.label)
+		row.sample:SetShown(label == row.sample)
+		if entry.font then
+			Primitives.setSampleFont(label, 11, entry.font)
+		end
+		label:SetText(entry.text or "")
+		label:SetTextColor(entryColor(entry))
 		if entry.checked then
 			local r, g, b = Primitives.color("accent")
 			row.marker:SetColorTexture(r, g, b, 1)

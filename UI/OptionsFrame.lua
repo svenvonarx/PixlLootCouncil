@@ -284,9 +284,9 @@ local function buildResponsesPage(page)
 
 	Primitives.attachTooltip(addButton, L["OPTIONS_RESPONSES_ADD"], L["TIP_RESPONSES_ADD"])
 
-	local resetButton = ButtonWidget.createButton(page, L["OPTIONS_ACCENT_RESET"], 130)
+	local resetButton = ButtonWidget.createButton(page, L["OPTIONS_RESET_DEFAULT"], 130)
 	resetButton:SetPoint("LEFT", addButton, "RIGHT", 8, 0)
-	Primitives.attachTooltip(resetButton, L["OPTIONS_ACCENT_RESET"], L["TIP_RESPONSES_RESET"])
+	Primitives.attachTooltip(resetButton, L["OPTIONS_RESET_DEFAULT"], L["TIP_RESPONSES_RESET"])
 	resetButton:SetScript("OnClick", function()
 		Responses:Reset()
 		refreshRows()
@@ -976,52 +976,101 @@ local function buildAboutPage(page)
 	refreshAbout()
 end
 
-local DEFAULT_ACCENT = { r = 0.91, g = 0.64, b = 0.24 }
+local THEME_CARD_HEIGHT = 46
+local THEME_CARD_GAP = 8
 
 local function buildAppearancePage(page)
 	local profile = PLC.db.profile
 
-	local label = Primitives.createText(page, L["OPTIONS_ACCENT_COLOR"], 13, "white")
+	local label = Primitives.createText(page, L["OPTIONS_THEME"], 13, "white")
 	label:SetPoint("TOPLEFT")
 
-	local swatch = CreateFrame("Button", nil, page)
-	swatch:SetSize(28, 28)
-	swatch:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -10)
-	-- A plain texture, not a themed fill: it shows the chosen accent value itself.
-	swatch.tex = swatch:CreateTexture(nil, "ARTWORK")
-	swatch.tex:SetPoint("TOPLEFT", 1, -1)
-	swatch.tex:SetPoint("BOTTOMRIGHT", -1, 1)
-	swatch.border = Primitives.createBorder(swatch)
-
-	-- Saves the accent to the profile and recolors the whole UI.
-	local function setAccent(r, g, b)
-		profile.accent = { r = r, g = g, b = b }
-		swatch.tex:SetColorTexture(r, g, b)
-		Theme:ApplyFromAccent(r, g, b)
+	local cards = {}
+	local function refreshCards()
+		for _, card in ipairs(cards) do
+			Primitives.setBorderColor(card.border, card.key == profile.theme and "accent" or "border")
+		end
 	end
-	swatch.tex:SetColorTexture(profile.accent.r, profile.accent.g, profile.accent.b)
 
-	local hint = Primitives.createText(page, L["OPTIONS_ACCENT_HINT"], 11, "dim")
-	hint:SetPoint("LEFT", swatch, "RIGHT", 12, 0)
+	-- Every card is in its own theme's colors, whichever theme is on, so they can be compared.
+	for index, theme in ipairs(Theme.THEMES) do
+		local palette = Theme:Palette(theme.key)
+		local card = CreateFrame("Button", nil, page)
+		card.key = theme.key
+		card:SetHeight(THEME_CARD_HEIGHT)
+		local y = -24 - math.floor((index - 1) / 2) * (THEME_CARD_HEIGHT + THEME_CARD_GAP)
+		if index % 2 == 1 then
+			card:SetPoint("TOPLEFT", 0, y)
+			card:SetPoint("TOPRIGHT", page, "TOP", -THEME_CARD_GAP / 2, y)
+		else
+			card:SetPoint("TOPLEFT", page, "TOP", THEME_CARD_GAP / 2, y)
+			card:SetPoint("TOPRIGHT", 0, y)
+		end
 
-	-- Live preview while picking, restored on Cancel.
-	swatch:SetScript("OnClick", function()
-		openColorPicker(profile.accent.r, profile.accent.g, profile.accent.b, setAccent)
-	end)
-	swatch:SetScript("OnEnter", function(self)
-		Primitives.setBorderColor(self.border, "accent", 0.85)
-	end)
-	swatch:SetScript("OnLeave", function(self)
-		Primitives.setBorderColor(self.border, "border")
-	end)
+		local function colored(layer, colorName)
+			local texture = card:CreateTexture(nil, layer)
+			texture:SetColorTexture(palette[colorName][1], palette[colorName][2], palette[colorName][3])
+			return texture
+		end
 
-	Primitives.attachTooltip(swatch, L["OPTIONS_ACCENT_COLOR"], L["TIP_ACCENT"])
+		colored("BACKGROUND", "frame"):SetAllPoints()
+		local bar = colored("ARTWORK", "accent")
+		bar:SetWidth(4)
+		bar:SetPoint("TOPLEFT")
+		bar:SetPoint("BOTTOMLEFT")
+		for swatchIndex, colorName in ipairs({ "accent", "buttonHover", "border" }) do
+			local swatch = colored("ARTWORK", colorName)
+			swatch:SetSize(14, 14)
+			swatch:SetPoint("RIGHT", -12 - (swatchIndex - 1) * 16, 0)
+		end
 
-	local reset = ButtonWidget.createButton(page, L["OPTIONS_ACCENT_RESET"], 130)
-	reset:SetPoint("TOPLEFT", swatch, "BOTTOMLEFT", 0, -14)
-	reset:SetScript("OnClick", function()
-		setAccent(DEFAULT_ACCENT.r, DEFAULT_ACCENT.g, DEFAULT_ACCENT.b)
-	end)
+		local name = Primitives.createText(card, theme.name, 13)
+		name:SetPoint("LEFT", 14, 0)
+		Theme:KeepColor(name, palette.title)
+
+		card.border = Primitives.createBorder(card)
+		card:SetScript("OnClick", function()
+			profile.theme = theme.key
+			Theme:Apply(theme.key)
+			refreshCards()
+		end)
+		card:SetScript("OnEnter", function(self)
+			Primitives.setBorderColor(self.border, "accent", 0.70)
+		end)
+		card:SetScript("OnLeave", refreshCards)
+		Primitives.attachTooltip(card, theme.name, L["TIP_THEME"])
+		cards[index] = card
+	end
+	refreshCards()
+	page:HookScript("OnShow", refreshCards)
+
+	local fontTop = -24 - math.ceil(#cards / 2) * (THEME_CARD_HEIGHT + THEME_CARD_GAP) - 14
+	local fontLabel = Primitives.createText(page, L["OPTIONS_FONT"], 13, "white")
+	fontLabel:SetPoint("TOPLEFT", 0, fontTop - 7)
+	local fontDropdown = DropdownWidget.createDropdownButton(page)
+	fontDropdown:SetSize(200, Theme.LAYOUT.fieldHeight)
+	fontDropdown:SetPoint("TOPRIGHT", 0, fontTop)
+	Primitives.attachTooltip(fontDropdown, L["OPTIONS_FONT"], L["TIP_FONT"])
+
+	-- Addons can register fonts at any time, so the list is rebuilt whenever the page opens.
+	local function refreshFonts()
+		local entries = {}
+		for _, name in ipairs(Primitives.fontNames()) do
+			table.insert(entries, {
+				text = name,
+				font = Primitives.fontPath(name),
+				checked = name == profile.font,
+				onClick = function()
+					profile.font = name
+					Primitives.setFont(name)
+					refreshFonts()
+				end,
+			})
+		end
+		DropdownWidget.setEntries(fontDropdown, profile.font, entries)
+	end
+	refreshFonts()
+	page:HookScript("OnShow", refreshFonts)
 end
 
 local function ensurePanel()

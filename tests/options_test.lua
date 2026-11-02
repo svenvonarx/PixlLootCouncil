@@ -60,7 +60,15 @@ local texts = {} -- every label, with the text it was created with
 local tooltips = {} -- [frame] = { title, text }
 PLC.UI.Widgets.Primitives = setmetatable({
 	color = function() return 1, 1, 1, 1 end,
-	createText = function(_, text) local t = stub({ text = text }); texts[#texts + 1] = t; return t end,
+	createText = function(_, text)
+		local t = stub({ text = text })
+		texts[#texts + 1] = t
+		return PLC.UI.Theme:Track(t, "text", "text")
+	end,
+	fontNames = function() return { "Inter", "Arial Narrow", "Morpheus" } end,
+	fontPath = function(name) return "path/" .. name end,
+	setFont = function(name) PLC.chosenFont = name end,
+	setBorderColor = function(border, color) border.color = color end,
 	createTexture = function() return stub() end,
 	createLogo = function() return stub({ isLogo = true }) end,
 	createBorder = function() return {} end,
@@ -264,12 +272,45 @@ PLC.Session.preview = false
 PLC.UI.OptionsFrame:OnPreviewChanged()
 check("P10", previewIdle == "OPTIONS_PREVIEW_START" and previewRunning == "OPTIONS_PREVIEW_STOP" and previewButton.label.text == "OPTIONS_PREVIEW_START", "the Preview button follows the preview, however it starts or ends")
 
+-- Appearance ----------------------------------------------------------------------------------------
+local cards = {}
+for frame, tip in pairs(tooltips) do
+	if tip[2] == "TIP_THEME" then cards[#cards + 1] = frame end
+end
+local function cardOrder(card)
+	local point = card.points[1]
+	return -point[#point] * 10 + (point[2] == 0 and 0 or 1)
+end
+table.sort(cards, function(a, b) return cardOrder(a) < cardOrder(b) end)
+check("A1", #cards == #PLC.UI.Theme.THEMES and #cards == 8, "a card for every theme, each explaining itself")
+check("A2", cards[1].key == "gold" and cards[1].border.color == "accent" and cards[2].border.color == "border", "the default theme is first and marked")
+local left, right = cards[1], cards[2]
+check("A3", left.points[1][1] == "TOPLEFT" and left.points[2][2] ~= nil and right.points[2][1] == "TOPRIGHT" and right.points[2][2] == 0, "two columns, reaching the page's right edge")
+local goldAccent = PLC.UI.Theme.COLORS.accent
+cards[3].scripts.OnClick()
+check("A4", profile.theme == cards[3].key and PLC.UI.Theme.COLORS.accent ~= goldAccent, "clicking a card saves it and recolors everything")
+check("A5", cards[3].border.color == "accent" and cards[1].border.color == "border", "and moves the mark")
+cards[2].scripts.OnEnter(cards[2]); cards[2].scripts.OnLeave(cards[2])
+check("A6", cards[2].border.color == "border" and cards[3].border.color == "accent", "hovering leaves it where it was")
+cards[1].scripts.OnClick()
+
+local fontField
+for frame, tip in pairs(tooltips) do if tip[2] == "TIP_FONT" then fontField = frame end end
+names = {}
+for i, entry in ipairs(fontField.entries) do names[i] = entry.text end
+check("A7", table.concat(names, ",") == "Inter,Arial Narrow,Morpheus" and fontField.displayText == "Inter" and fontField.entries[1].checked, "the registered fonts, with the current one marked")
+check("A8", fontField.entries[2].font == "path/Arial Narrow", "each shown in its own font")
+fontField.entries[2].onClick()
+check("A9", profile.font == "Arial Narrow" and PLC.chosenFont == "Arial Narrow" and fontField.displayText == "Arial Narrow" and fontField.entries[2].checked, "picking one saves it and applies it")
+profile.font = "Inter"
+
 -- Pages fit the window: a stub can't measure text, but it can add up what's stacked.
 local Theme = PLC.UI.Theme.LAYOUT
 local available = 640 - Theme.headerHeight - 2 - Theme.contentPadding * 2 - 48 - 20
 local width = 580 - 2 - Theme.sidebarWidth - 1 - Theme.contentPadding * 2
 check("L8", available >= 456, "General's 456 of stacked settings fit in " .. available)
 check("L10", available >= 400, "the About page's 400 fit too")
+check("L11", available >= 24 + 4 * (46 + 8) + 14 + 28, "the Appearance page's theme cards and font fit too")
 check("L9", width >= 384 and 130 + 100 + 140 + 11 <= width and 92 + 290 <= width, "the widest rows fit in " .. width)
 
 -- Versions ------------------------------------------------------------------------------------------

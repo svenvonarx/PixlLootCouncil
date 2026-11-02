@@ -46,6 +46,8 @@ uses RCLootCouncil's format.
     window's Trade button
   - **Follow** walks you to the other player
   - one-click **Disenchant** for items you disenchant yourself
+- **Themes and fonts**: pick one of eight themes under Options → Appearance, and any font your addons
+  have registered.
 - **Version check**: Options → About lists the version everyone in your group runs. If yours is out
   of date you get a quiet reminder: one chat line a day, and one pop-up if you're a whole version
   behind, never in combat, an instance or a loot session. You can turn it off on the same page.
@@ -165,6 +167,7 @@ PixlLootCouncil is free software under the **GNU General Public License v3.0 or 
 - Bundled libraries:
   - [Ace3](https://www.wowace.com/projects/ace3) (BSD-style license)
   - [LibDeflate](https://github.com/SafeteeWoW/LibDeflate) (zlib license)
+  - [LibSharedMedia-3.0](https://www.curseforge.com/wow/addons/libsharedmedia-3-0) (LGPL 2.1)
   - LibWindow-1.1 (public domain)
 - Font: [Inter](https://rsms.me/inter/) by The Inter Project Authors, SIL Open Font License 1.1 (see
   `font/Inter-LICENSE.txt`).
