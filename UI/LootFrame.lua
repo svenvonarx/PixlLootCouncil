@@ -18,7 +18,8 @@ local frame
 local header
 local dataTable
 local tickerHandle
-local builtSignature -- which response set the buttons were built for, see applyResponseSet
+local builtSignature -- which response sets the buttons were built for, see applyResponseSets
+local builtSets = {} -- those sets, in order
 
 -- Response buttons and the note field share one row, same as the original layout -- a stacked
 -- (buttons-then-note) layout was tried and made every row much taller than before for no real
@@ -34,17 +35,58 @@ local function myResponse(idx)
 	return responses and responses[guid]
 end
 
-local function buildRows()
+-- A row is everything this window needs from a source of items, so a session of this addon and one
+-- from an RCLootCouncil master looter (Data/RCBridge.lua) look the same here.
+local function sessionRows()
 	local rows = {}
+	local Session = PLC.Session
+	if Session.state ~= "active" then
+		return rows
+	end
 	local now = time()
-	for idx, item in pairs(PLC.Session.items) do
+	local responses = PLC.Responses:GetActive()
+	for idx, item in pairs(Session.items) do
 		local expired = item.deadlineAt and now > item.deadlineAt
 		if not item.awarded and not myResponse(idx) and not expired then
-			table.insert(rows, { idx = idx, link = item.link, icon = item.icon, deadlineAt = item.deadlineAt })
+			table.insert(rows, {
+				id = "session" .. idx,
+				idx = idx,
+				link = item.link,
+				icon = item.icon,
+				deadlineAt = item.deadlineAt,
+				timeoutSeconds = Session.responseTimeoutSeconds,
+				responses = responses,
+				ownerName = Session.owner and PLC.Roster:ShortName(Session.owner.name) or "?",
+				respond = function(key, note)
+					Session:SendMyResponse(idx, key, note)
+				end,
+			})
 		end
 	end
 	table.sort(rows, function(a, b) return a.idx < b.idx end)
 	return rows
+end
+
+local function buildRows()
+	local rows = sessionRows()
+	for _, row in ipairs(PLC.RCBridge:GetRows()) do
+		table.insert(rows, row)
+	end
+	return rows
+end
+
+-- Every set of response buttons in play. From the whole session rather than the rows on screen, so
+-- answering one kind of item doesn't rebuild the buttons under someone typing a note.
+local function currentResponseSets()
+	local sets = {}
+	if PLC.Session.state == "active" then
+		table.insert(sets, PLC.Responses:GetActive())
+	end
+	for set in pairs(PLC.RCBridge:GetResponseSets()) do
+		table.insert(sets, set)
+	end
+	table.sort(sets, function(a, b) return PLC.Responses.Signature(a) < PLC.Responses.Signature(b) end)
+	return sets
 end
 
 -- Ticks once a second while the frame is visible so remaining-time text counts down and expired
@@ -69,35 +111,28 @@ end
 -- UI/SessionFrame.lua's) -- a candidate deciding how to respond benefits from knowing who's
 -- actually running the session just as much as the holder does.
 -- Each response button sizes itself to its own label (Button.lua), and the label SET itself comes
--- from the session holder (Data/Responses.lua) -- so there's no fixed literal to
+-- from the session holder (Data/Responses.lua, Data/RCBridge.lua) -- so there's no fixed literal to
 -- sum the way VotingFrame's fixed-width Award column has for its own window-sizing math. Builds
 -- one throwaway instance purely to read back the real total width, rather than duplicating
 -- Button.lua's own sizing formula a second time just to predict it. A button's width is reliable
 -- immediately after creation (an explicit SetSize, not an anchor-resolved one), unlike content/
 -- scroll's own width below, which only resolves once the window actually has a size -- so this is
 -- safe to call before frame:SetSize, unlike trying to read the real row's own container width.
-local function measureResponseButtonsWidth()
+local function measureResponseButtonsWidth(set)
 	local scratch = CreateFrame("Frame", nil, UIParent)
 	scratch:Hide()
 	local width = 0
-	for _, resp in ipairs(PLC.Responses:GetActive()) do
+	for _, resp in ipairs(set) do
 		local button = ButtonWidget.createButton(scratch, resp.text)
 		width = width + button:GetWidth() + 6
 	end
 	return math.max(0, width - 6)
 end
 
-local function updateHeaderOwner()
-	if not header then
-		return
-	end
-	if PLC.Session.state == "active" and PLC.Session.owner then
-		local text = string.format(L["STARTED_BY_LABEL"], PLC.Roster:ShortName(PLC.Session.owner.name) or "?")
-		header.ownerLabel:SetText(PLC.Session.preview and (text .. "  " .. L["PREVIEW_LABEL"]) or text)
-		header.ownerLabel:Show()
-	else
-		header.ownerLabel:Hide()
-	end
+local function updateHeaderOwner(rows)
+	local text = string.format(L["STARTED_BY_LABEL"], rows[1].ownerName)
+	header.ownerLabel:SetText(PLC.Session.preview and (text .. "  " .. L["PREVIEW_LABEL"]) or text)
+	header.ownerLabel:Show()
 end
 
 -- The response columns are built per response set, since a row's buttons are fixed once created.
@@ -164,20 +199,27 @@ local function buildColumns()
 			isWidget = true,
 			create = function(row)
 				local container = CreateFrame("Frame", nil, row)
-				container.buttons = {}
+				-- [set's signature] = { [key] = button }, one shown per row. By content, not by table:
+				-- an RC master resending the same settings makes new tables with the same buttons.
+				container.groups = {}
 
-				local x = 0
 				local BUTTON_GAP = 6
-				for _, resp in ipairs(PLC.Responses:GetActive()) do
-					-- Omitting a fixed width lets each button size itself to its own label (see
-					-- UI/Widgets/Button.lua) -- a shared fixed width left short labels like "OS"
-					-- swimming in padding while "Upgrade" looked cramped against its own border.
-					local button = ButtonWidget.createButton(container, resp.text)
-					button:SetPoint("LEFT", x, 0)
-					x = x + button:GetWidth() + BUTTON_GAP
-					container.buttons[resp.key] = button
+				container.buttonsWidth = 0
+				for _, set in ipairs(builtSets) do
+					local group = {}
+					local x = 0
+					for _, resp in ipairs(set) do
+						-- Omitting a fixed width lets each button size itself to its own label (see
+						-- UI/Widgets/Button.lua) -- a shared fixed width left short labels like "OS"
+						-- swimming in padding while "Upgrade" looked cramped against its own border.
+						local button = ButtonWidget.createButton(container, resp.text)
+						button:SetPoint("LEFT", x, 0)
+						x = x + button:GetWidth() + BUTTON_GAP
+						group[resp.key] = button
+					end
+					container.groups[PLC.Responses.Signature(set)] = group
+					container.buttonsWidth = math.max(container.buttonsWidth, x - BUTTON_GAP)
 				end
-				container.buttonsWidth = x - BUTTON_GAP
 
 				container.divider = Primitives.createTexture(container, "ARTWORK", "borderDim")
 				container.divider:SetPoint("TOP", container.buttonsWidth + 6, -2)
@@ -203,40 +245,56 @@ local function buildColumns()
 				return container
 			end,
 			-- Only resets the note box when this row-pool slot gets rebound to a DIFFERENT item
-			-- (container.idx changes) -- not on every refresh/tick for the same still-pending
+			-- (container.id changes) -- not on every refresh/tick for the same still-pending
 			-- item, which would otherwise wipe out whatever the player is actively typing.
 			update = function(container, rowData)
-				if container.idx ~= rowData.idx then
-					container.idx = rowData.idx
+				if container.id ~= rowData.id then
+					container.id = rowData.id
 					container.noteBox:SetText(container.noteBox.placeholder)
 					container.noteBox.showingPlaceholder = true
 					local r, g, b = Primitives.color("dim")
 					container.noteBox:SetTextColor(r, g, b)
 				end
-				for key, button in pairs(container.buttons) do
-					button:SetScript("OnClick", function()
-						local note = container.noteBox:GetValue()
-						PLC.Session:SendMyResponse(rowData.idx, key, note ~= "" and note or nil)
-					end)
+				local shownSet = PLC.Responses.Signature(rowData.responses)
+				for signature, group in pairs(container.groups) do
+					local shown = signature == shownSet
+					for key, button in pairs(group) do
+						button:SetShown(shown)
+						if shown then
+							button:SetScript("OnClick", function()
+								local note = container.noteBox:GetValue()
+								rowData.respond(key, note ~= "" and note or nil)
+							end)
+						end
+					end
 				end
 			end,
 		},
 	}
 end
 
--- Rebuilds the buttons and refits the window whenever the session's response set differs from the
--- one they were built for: the holder's set arrives with session_start or the resync, so it can't be
--- known when the window is first created. Width is derived from the buttons' real total width, not a
+-- Rebuilds the buttons and refits the window whenever the response sets differ from the ones they
+-- were built for: the holder's set arrives with session_start or the resync, so it can't be known
+-- when the window is first created. Width is derived from the widest set's real total width, not a
 -- literal, and is fixed (min and max are the same): icon(28) + name(170) + countdown(40), the
 -- buttons, a 14px gap, the note box, then the grid's scrollbar gutter and a small margin.
-local function applyResponseSet()
-	local signature = PLC.Responses:Signature()
+local function applyResponseSets()
+	local sets = currentResponseSets()
+	local parts = {}
+	for i, set in ipairs(sets) do
+		parts[i] = PLC.Responses.Signature(set)
+	end
+	local signature = table.concat(parts, "\n\n")
 	if signature == builtSignature then
 		return
 	end
 	builtSignature = signature
+	builtSets = sets
 
-	local buttonsWidth = measureResponseButtonsWidth()
+	local buttonsWidth = 0
+	for _, set in ipairs(sets) do
+		buttonsWidth = math.max(buttonsWidth, measureResponseButtonsWidth(set))
+	end
 	local ROW_RIGHT_MARGIN = 10
 	local rowContentWidth = 28 + 170 + 40 + buttonsWidth + 14 + math.min(buttonsWidth, MAX_NOTE_WIDTH)
 	local contentWidth = rowContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + ROW_RIGHT_MARGIN
@@ -331,7 +389,7 @@ local function ensureFrame()
 			return nil
 		end
 		local remaining = math.max(0, rowData.deadlineAt - time())
-		local total = math.max(1, PLC.Session.responseTimeoutSeconds)
+		local total = math.max(1, rowData.timeoutSeconds)
 		local fraction = remaining / total
 		local colorName = math.ceil(remaining) <= 10 and "warning" or "accent"
 		local r, g, b = Primitives.color(colorName)
@@ -347,14 +405,6 @@ end
 -- and once a second while shown (see startTicker). Hides itself once there's nothing left to
 -- respond to, rather than showing an empty window.
 function LootFrame:Refresh()
-	if PLC.Session.state ~= "active" then
-		stopTicker()
-		if frame then
-			frame:Hide()
-		end
-		return
-	end
-
 	local rows = buildRows()
 	if #rows == 0 then
 		stopTicker()
@@ -365,9 +415,9 @@ function LootFrame:Refresh()
 	end
 
 	local f = ensureFrame()
-	applyResponseSet()
+	applyResponseSets()
 	dataTable:SetRows(rows)
-	updateHeaderOwner()
+	updateHeaderOwner(rows)
 	f:Show()
 	startTicker()
 end
@@ -375,7 +425,7 @@ end
 -- Manual reopen (slash command, Loot Session toolbar), in case the candidate closed it
 -- mid-session -- Refresh() only re-shows it reactively, on an actual item/response/tick event.
 function LootFrame:Open()
-	if PLC.Session.state ~= "active" or #buildRows() == 0 then
+	if #buildRows() == 0 then
 		print(L["CHAT_PREFIX"] .. L["LOOTFRAME_NOTHING"])
 		return
 	end

@@ -60,6 +60,9 @@ PLC.Defaults = {
 		-- Store the loot history an RCLootCouncil master looter broadcasts to the group (see
 		-- Data/HistoryImport.lua) -- lets a raider who isn't the loot master keep the full history.
 		historyMirrorRC = true,
+		-- Answer a master looter running RCLootCouncil with this addon's Loot Response window
+		-- (Data/RCBridge.lua). Does nothing while RC itself is running on this client.
+		rcBridge = true,
 		-- RCLootCouncil's autoStart: collecting loot as master looter starts a review pass by itself
 		-- (Data/Session.lua:ScheduleAutoStart).
 		autoStartSession = true,

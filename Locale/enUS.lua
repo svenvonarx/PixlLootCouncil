@@ -26,6 +26,11 @@ L["PREVIEW_SESSION_RUNNING"] = "End the running session before starting a previe
 L["PREVIEW_NO_STAND_IN"] = "No BoE item in your bags to stand in for a preview item."
 L["PREVIEW_STAND_IN_NOTE"] = "Preview trade: these are real BoE items from your bags, so ask for them back afterwards."
 
+L["RC_MINOR_UPGRADE"] = "Minor Upgrade"
+L["RC_SESSION_STARTED"] = "%s started a loot session with RCLootCouncil."
+L["RC_SESSION_ENDED"] = "%s ended the RCLootCouncil session."
+L["RC_NOTE_REQUIRED"] = "The master looter requires a note for \"%s\"."
+
 L["ERROR_LOG_EMPTY"] = "No errors recorded."
 L["ERROR_LOG_ENTRY"] = "[%s] %s"
 
@@ -195,6 +200,7 @@ L["OPTIONS_ANNOUNCE_START"] = "Announce session start in chat"
 L["OPTIONS_ANNOUNCE_AWARD"] = "Announce awards in chat"
 L["OPTIONS_AUTO_START"] = "Start a loot session automatically when loot is collected"
 L["OPTIONS_MIRROR_RC"] = "Store loot history from an RCLootCouncil master looter"
+L["OPTIONS_RC_BRIDGE"] = "Respond to RCLootCouncil sessions when RCLootCouncil isn't running"
 L["OPTIONS_LOOT_THRESHOLD"] = "Minimum item quality"
 L["OPTIONS_HEARTBEAT_SECONDS"] = "Holder heartbeat interval (seconds)"
 L["OPTIONS_FORCE_END_MINUTES"] = "Force-end after holder is unresponsive for (minutes)"

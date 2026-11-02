@@ -61,6 +61,9 @@ function Roster:Rebuild()
 	if PLC.Session and PLC.Session.OnRosterRebuilt then
 		PLC.Session:OnRosterRebuilt()
 	end
+	if PLC.RCBridge then
+		PLC.RCBridge:OnRosterRebuilt()
+	end
 end
 
 function Roster:Get(guid)

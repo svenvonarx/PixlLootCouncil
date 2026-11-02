@@ -91,10 +91,10 @@ function Responses.NewKey(list)
 	return "CUSTOM" .. n
 end
 
--- Changes when the Loot Response window's buttons need rebuilding.
-function Responses:Signature()
+-- Changes when the Loot Response window's buttons for this set need rebuilding.
+function Responses.Signature(list)
 	local parts = {}
-	for _, resp in ipairs(self:GetActive()) do
+	for _, resp in ipairs(list) do
 		table.insert(parts, resp.key .. "=" .. resp.text)
 	end
 	return table.concat(parts, "\n")

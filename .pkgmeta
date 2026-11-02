@@ -10,6 +10,7 @@ ignore:
   - .claude
   - .github
   - docs
+  - tests
   - README.md
   - "*.bak"
   - "*.tmp"

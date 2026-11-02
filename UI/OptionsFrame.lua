@@ -42,6 +42,13 @@ local function buildGeneralPage(page)
 	mirrorRC:SetChecked(profile.historyMirrorRC)
 	y = y - 30
 
+	local rcBridge = CheckboxWidget.createCheckbox(page, L["OPTIONS_RC_BRIDGE"], function(checked)
+		profile.rcBridge = checked
+	end)
+	rcBridge:SetPoint("TOPLEFT", 0, y)
+	rcBridge:SetChecked(profile.rcBridge)
+	y = y - 30
+
 	local autoStart = CheckboxWidget.createCheckbox(page, L["OPTIONS_AUTO_START"], function(checked)
 		profile.autoStartSession = checked
 	end)
@@ -693,7 +700,7 @@ local function ensurePanel()
 	panel = PanelLayout.Create({
 		name = "PixlLootCouncilOptionsFrame",
 		width = 560,
-		height = 590, -- General stacks 4 checkboxes + 4 sliders under the page header
+		height = 610, -- General stacks 5 checkboxes + 4 sliders under the page header
 		title = L["OPTIONS_TITLE"],
 	})
 

@@ -28,6 +28,7 @@ Data\History.lua
 Data\HistoryImport.lua
 Data\Session.lua
 Data\Preview.lua
+Data\RCBridge.lua
 
 Comms\Protocol.lua
 Comms\Sync.lua
