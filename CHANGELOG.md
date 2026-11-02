@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0-beta
+
+Raiders can now answer a master looter who runs RCLootCouncil without having RCLootCouncil installed.
+
+- **RCLootCouncil sessions**: the master looter's items open in the Loot Response window, with their
+  buttons (per item type too), timer and note requirements. Your answer goes back to the master
+  looter, rolls work, and you don't show as offline or missing the addon in their window. If you join
+  or reload mid-session you catch up automatically. While RCLootCouncil itself is running on your
+  client this stays off, and Options → General turns it off by hand.
+- **Fixed** loot history from an RCLootCouncil master looter being dropped unless they were also the
+  group leader, because the loot method was compared with the wrong value. Awards they share now
+  reach your history, and deletions follow.
+
 ## 0.2.0-beta
 
 The master looter's loot window now hands out loot by itself, and there's a preview mode for
