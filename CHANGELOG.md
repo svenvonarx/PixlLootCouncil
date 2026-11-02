@@ -1,29 +1,29 @@
 # Changelog
 
-## Unreleased
+## 0.4.0-beta
 
-- **Master looter list** (Options → Master Looter): when you switch the group to Master Loot, the first
-  person on your list who's online in the group becomes master looter. Handing it to someone else
-  afterwards sticks, and holding Shift skips it once. The same page can set the loot threshold at that
-  moment too.
+The Loot Session window gets Banking and shows who already has an item, Options gets a full overhaul
+with themes and selectable fonts, and the master looter can be set automatically from a list.
+
 - **Banking**: next to Disenchant in the Loot Session window, for items you keep. It's recorded in the
   loot history as Banking, the same way RCLootCouncil records it, and nothing shows up in Loot Trades.
 - **Already has it**: the Loot Session window marks everyone who has received the item you're
   reviewing with a red **Has** next to their name, from the loot history. Hovering the name says when.
   Banked and disenchanted items don't count, here or in the history tooltips.
-- **Update notices**: if your version is out of date you get one chat line, at most once a day. If
-  you're a whole version behind, you also get one pop-up, which waits until you're out of combat, out
-  of instances and not in a loot session. You hear about new versions from your guild as well as your
-  group, and it's remembered between logins. Options → About turns it off.
+- **Master looter list** (Options → Master Looter): when you switch the group to Master Loot, the first
+  person on your list who's online in the group becomes master looter. Handing it to someone else
+  afterwards sticks, and holding Shift skips it once. The same page can set the loot threshold at that
+  moment too.
 - **Themes**: Options → Appearance now has eight themes instead of an accent color: Pixl Gold, which is
   the look you already know, Sunwell, Fel, Zangarmarsh, Frost, Twilight, Arcane and Nether. Each has
   its own backgrounds, and they all keep the trade timers and Staged/Awarded easy to tell apart. A
   custom accent color isn't carried over.
 - **Fonts**: the same page lets you pick any font registered with LibSharedMedia, shown in that font in
   the list. Inter stays the default, and other addons can now use it too.
-- The up and down buttons on the Responses and Master Looter pages are now proper matching arrows.
-- **Addon list**: PixlLootCouncil now has its own icon, sits in the Loot category with Gargul and
-  RCLootCouncil, and has a clearer description.
+- **Update notices**: if your version is out of date you get one chat line, at most once a day. If
+  you're a whole version behind, you also get one pop-up, which waits until you're out of combat, out
+  of instances and not in a loot session. You hear about new versions from your guild as well as your
+  group, and it's remembered between logins. Options → About turns it off.
 - **Options overhaul**: a selected menu entry now runs the full width of the menu, and the logo,
   section titles and icons share one left edge. Pages have more room, and General is split into Raid
   chat, RCLootCouncil, Loot and Timing. Auto Loot, Master Looter, Preview and About have their own
@@ -32,13 +32,16 @@
   quality is a choice of names in the game's colors instead of a number, and sliders show their value
   with its unit, lined up on the right.
 - **About page** (`/plc about`): your version, the version of everyone in your group, and the credits.
-- **Fixed** the Auto Loot exception list using the wrong row height.
-- **Fixed** Award All opening an empty Loot Trades window when nothing was left to trade.
+- **Addon list**: PixlLootCouncil now has its own icon, sits in the Loot category with Gargul and
+  RCLootCouncil, and has a clearer description.
+- The up and down buttons on the Responses and Master Looter pages are now proper matching arrows.
 - **Fixed** the Stop Preview button in Options staying on Stop when a preview ended any other way, such
   as End Session in the Loot Session window.
+- **Fixed** Award All opening an empty Loot Trades window when nothing was left to trade.
 - **Fixed** long item names running into the vote count in the Loot Session window. Text in that row
   is cut short only where something else needs the room. Hovering shows the whole text, and an item's
   tooltip now includes its trade time. The vote count itself is shorter, as "25/25 voted".
+- **Fixed** the Auto Loot exception list using the wrong row height.
 
 ## 0.3.0-beta
 
