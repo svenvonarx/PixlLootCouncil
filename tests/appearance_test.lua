@@ -21,7 +21,11 @@ local frameMethods = {
 		return true
 	end,
 	SetScript = function(f, name, fn) f.scripts[name] = fn end,
-	SetPoint = noop,
+	SetPoint = function(f, ...) f.point = { ... } end,
+	SetRotation = function(f, radians) f.rotation = radians end,
+	SetSize = function(f, w, h) f.width, f.height = w, h end,
+	SetHeight = function(f, h) f.height = h end,
+	EnableMouse = function(f, on) f.mouse = on end,
 	SetText = function(f, text) f.text = text end,
 	GetText = function(f) return f.text end,
 	SetTextColor = function(f, r, g, b) f.textColor = { r, g, b } end,
@@ -65,7 +69,9 @@ loadLua("Core/Defaults.lua", "PixlLootCouncil", PLC)
 loadLua("UI/Theme.lua", "PixlLootCouncil", PLC)
 loadLua("UI/Widgets/Primitives.lua", "PixlLootCouncil", PLC)
 loadLua("UI/Widgets/PopupMenu.lua", "PixlLootCouncil", PLC)
+loadLua("UI/Widgets/Button.lua", "PixlLootCouncil", PLC)
 local Theme, Primitives, PopupMenu = PLC.UI.Theme, PLC.UI.Widgets.Primitives, PLC.UI.Widgets.PopupMenu
+local Button = PLC.UI.Widgets.Button
 
 local passed, failed = 0, 0
 local function check(id, ok, detail)
@@ -263,6 +269,34 @@ PopupMenu.Close()
 PopupMenu.Open(owner, { { text = "Rare" }, { text = "Epic" } }, {})
 check("M3", label1.shown and label1.text == "Rare" and not sample1.shown and label1.fontPath == nil, "the next menu reuses the row with no sample font left on it")
 PopupMenu.Close()
+
+-- Arrow buttons -------------------------------------------------------------------------------------
+local strokes = {}
+do
+	local realCreateTexture = Primitives.createTexture
+	Primitives.createTexture = function(...)
+		local t = realCreateTexture(...)
+		strokes[#strokes + 1] = t
+		return t
+	end
+end
+local function arrow(pointsUp)
+	for k in pairs(strokes) do strokes[k] = nil end
+	local button = Button.createArrowButton(frame(), pointsUp)
+	local lines = {}
+	for _, t in ipairs(strokes) do if t.rotation then lines[#lines + 1] = t end end
+	return button, lines
+end
+local upButton, up = arrow(true)
+local downButton, down = arrow(false)
+check("B1", #up == 2 and #down == 2, "an arrow is two strokes")
+local function y(line) return line.point[5] or 0 end
+check("B2", math.abs(y(up[1])) + math.abs(y(up[2])) + math.abs(y(down[1])) + math.abs(y(down[2])) == 0, "both are centered, so they line up side by side")
+check("B3", up[1].point[4] == down[1].point[4] and math.abs(up[1].rotation + down[1].rotation) < 1e-9 and math.abs(up[2].rotation + down[2].rotation) < 1e-9, "and up is the exact mirror of down")
+check("B4", up[1].rotation > 0 and down[1].rotation < 0, "pointing the right way")
+check("B5", upButton.width == 24 and upButton.height == 24 and downButton.width == 24 and downButton.height == 24, "the buttons are square and the same size")
+check("B6", upButton.label.text == "" and upButton.arrow.point[1] == "CENTER", "with no text, and the arrow in the middle")
+check("B7", upButton.arrow.mouse == nil, "the arrow doesn't catch the clicks meant for the button")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

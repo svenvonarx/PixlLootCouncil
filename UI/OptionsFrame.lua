@@ -246,15 +246,13 @@ local function buildResponsesPage(page)
 			commitText(index, self)
 		end)
 
-		row.up = ButtonWidget.createButton(row, "^", 24)
-		row.up:SetHeight(24)
+		row.up = ButtonWidget.createArrowButton(row, true)
 		row.up:SetPoint("LEFT", row.box, "RIGHT", 8, 0)
 		row.up:SetScript("OnClick", function()
 			moveRow(index, -1)
 		end)
 
-		row.down = ButtonWidget.createButton(row, "v", 24)
-		row.down:SetHeight(24)
+		row.down = ButtonWidget.createArrowButton(row, false)
 		row.down:SetPoint("LEFT", row.up, "RIGHT", 4, 0)
 		row.down:SetScript("OnClick", function()
 			moveRow(index, 1)
@@ -597,14 +595,12 @@ local function buildMasterLooterPage(page)
 		end
 	end
 
-	local function moveButton(caption, offset)
+	local function moveButton(pointsUp, offset)
 		return {
 			width = 28,
 			isWidget = true,
 			create = function(row)
-				local button = ButtonWidget.createButton(row, caption, 24)
-				button:SetHeight(22)
-				return button
+				return ButtonWidget.createArrowButton(row, pointsUp)
 			end,
 			update = function(button, rowData)
 				button:SetShown(profile.masterLooterList[rowData.index + offset] ~= nil)
@@ -622,8 +618,8 @@ local function buildMasterLooterPage(page)
 				return string.format("  %d.  %s", rowData.index, rowData.name)
 			end,
 		},
-		moveButton("^", -1),
-		moveButton("v", 1),
+		moveButton(true, -1),
+		moveButton(false, 1),
 		{
 			width = 24,
 			isWidget = true,

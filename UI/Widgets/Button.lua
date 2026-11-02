@@ -14,6 +14,8 @@ PLC.UI.Widgets.Button = Button
 -- response buttons.
 local PADDING = 20
 local MIN_WIDTH = 36
+local ARROW_BUTTON_SIZE = 24
+local ARROW_SIZE = 12
 
 local function setHovered(button, hovered)
 	button.bg:SetColorTexture(Primitives.color(hovered and "buttonHover" or "button"))
@@ -41,6 +43,15 @@ end
 
 function Button.createButton(parent, text, width)
 	return decorate(CreateFrame("Button", nil, parent), text, width)
+end
+
+-- Same look with a chevron instead of a label, for moving something up or down a list.
+function Button.createArrowButton(parent, pointsUp)
+	local button = decorate(CreateFrame("Button", nil, parent), "", ARROW_BUTTON_SIZE)
+	button:SetHeight(ARROW_BUTTON_SIZE)
+	button.arrow = Primitives.createChevron(button, ARROW_SIZE, "accent", pointsUp)
+	button.arrow:SetPoint("CENTER")
+	return button
 end
 
 -- Same look, but a secure macro button: for actions that must cast a protected spell (the

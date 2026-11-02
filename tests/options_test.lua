@@ -77,7 +77,7 @@ PLC.UI.Widgets.Primitives = setmetatable({
 	createEditBox = function() local b = stub(); b.GetValue = function(s) return s.text or "" end; return b end,
 	attachTooltip = function(frame, title, text) tooltips[frame] = { title, text } end,
 }, { __index = function() return function() return stub() end end })
-PLC.UI.Widgets.Button = { createButton = function(_, text, width) return stub({ width = width, label = stub({ text = text }), caption = text }) end }
+PLC.UI.Widgets.Button = { createArrowButton = function(_, pointsUp) return stub({ pointsUp = pointsUp }) end, createButton = function(_, text, width) return stub({ width = width, label = stub({ text = text }), caption = text }) end }
 local checkboxes, dropdowns = {}, {}
 PLC.UI.Widgets.Checkbox = { createCheckbox = function(_, text)
 	local box = stub({ label = stub(), caption = text })
@@ -246,6 +246,8 @@ check("P4", profile.masterLooterList[1] == "Backup", "moving someone up changes 
 local firstUp = stub()
 mlTable.columns[2].update(firstUp, mlTable.rows[1])
 check("P5", firstUp.shown == false, "the first row has no up button")
+local upArrow, downArrow = mlTable.columns[2].create(stub()), mlTable.columns[3].create(stub())
+check("P11", upArrow.pointsUp == true and downArrow.pointsUp == false, "the list's buttons are real arrows, the right way up")
 local remove = stub()
 mlTable.columns[4].update(remove, mlTable.rows[1])
 remove.scripts.OnClick()

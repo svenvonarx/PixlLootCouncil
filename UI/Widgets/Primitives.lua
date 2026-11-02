@@ -435,15 +435,17 @@ function Primitives.createExpandButton(parent, size)
 	end)
 end
 
--- Downward chevron for dropdowns: two strokes meeting just below the center.
-function Primitives.createChevron(parent, size, colorName)
+-- A chevron, downward unless pointsUp: two strokes, centered so that up and down are exact mirrors
+-- and line up when they sit side by side.
+function Primitives.createChevron(parent, size, colorName, pointsUp)
 	size = size or 10
 	local icon = CreateFrame("Frame", nil, parent)
 	icon:SetSize(size, size)
 	local length = size * 0.62
 	local offset = length * 0.3
-	stroke(icon, colorName or "dim", length, -45, -offset, size * 0.1)
-	stroke(icon, colorName or "dim", length, 45, offset, size * 0.1)
+	local angle = pointsUp and 45 or -45
+	stroke(icon, colorName or "dim", length, angle, -offset)
+	stroke(icon, colorName or "dim", length, -angle, offset)
 	return icon
 end
 

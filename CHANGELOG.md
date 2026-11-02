@@ -21,6 +21,7 @@
   custom accent color isn't carried over.
 - **Fonts**: the same page lets you pick any font registered with LibSharedMedia, shown in that font in
   the list. Inter stays the default, and other addons can now use it too.
+- The up and down buttons on the Responses and Master Looter pages are now proper matching arrows.
 - **Addon list**: PixlLootCouncil now has its own icon, sits in the Loot category with Gargul and
   RCLootCouncil, and has a clearer description.
 - **Options overhaul**: a selected menu entry now runs the full width of the menu, and the logo,
