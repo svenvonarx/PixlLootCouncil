@@ -64,8 +64,11 @@ arrive.
 
 ### For raiders
 
-- A clean **Loot Response** window with a countdown and an optional note. The master looter can change
-  the buttons under Options → Responses, and everyone in the session sees the same set.
+- A compact **Loot Response** window: one line per item, with a countdown across the row and an
+  optional note. It's only as tall as the items need, up to the height you last dragged it to, and
+  resizes in width: narrower, the item name gives way first. The master looter can change the
+  buttons under Options → Responses, and everyone in the session sees the same set. Only items you
+  can still get are shown: not ones whose trade time ran out.
 - **Loot Trades** lists what you're owed. **Trade** opens the trade and places the items, **Follow**
   walks you to the other player, and items you disenchant yourself get a one-click **Disenchant**.
 
@@ -83,6 +86,8 @@ arrive.
 - **Changelog** in Options, for what changed in each version.
 - **Every client language**: English, German, Spanish, French, Italian, Portuguese, Russian, Korean and
   Simplified and Traditional Chinese.
+- **Windows stack like on a desktop**: the one you open or click comes to the front, and the game's
+  confirmation pop-ups and tooltips always show above them.
 - **Themes and fonts**: eight themes under Options → Appearance, and any font your addons have
   registered.
 - **Version check**: Options → About lists the version everyone in your group runs. If yours is out of

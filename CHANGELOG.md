@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.6.0-beta
+
+A cleaner, more compact Loot Response window that fits its items, windows that come to the front
+when you click them, and fixes for items that stayed in the Loot Response window when they
+shouldn't.
 
 - **The window you open or click comes to the front**, like windows on a desktop. Before, each
   window had a fixed place: Loot Response always covered the Loot Session window, which always
@@ -8,7 +12,8 @@
   show above the addon's windows. Loot Timers stays below everything, out of the way.
 - **A more compact Loot Response window.** Rows run edge to edge, so the countdown crosses the
   whole window, with a thin line between items. The icon, the buttons and the note are all one
-  height. The note is a single line of up to 50 characters, and wider by default.
+  height, and there's no empty strip under the last row. The note is a single line of up to 50
+  characters, and wider by default.
 - **The Loot Response window resizes in width.** Wider gives the note more room. Narrower cuts the
   item name short, then narrows the note, and finally hides the name; hovering the icon still shows
   the item.
@@ -20,7 +25,6 @@
   the Banking and Disenchant buttons. Those buttons and the candidates' Award buttons end in line
   with the toolbar above. The item icons are a little bigger, with even space on both sides, and the
   window keeps the same margin all around. End Session moved to the bottom-right corner.
-- The Loot Response window no longer has an empty strip under its last row.
 - **Fixed:** an item whose time ran out could stay in the Loot Response window, most often while
   you were typing a note. One error was enough to stop the window's countdown for good; now
   nothing stops it, and errors show in `/plc errors`. The same goes for every other repeating

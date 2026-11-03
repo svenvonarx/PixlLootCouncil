@@ -24,7 +24,7 @@ Group messages in WoW only reach whoever is there to receive them, so someone on
 
 ## For raiders
 
-- A clean **Loot Response** window with a countdown and an optional note.
+- A compact **Loot Response** window: one line per item, with a countdown across the row and an optional note. It's only as tall as the items need, and you can resize it to suit your screen.
 - Your awards show up in **Loot Trades**, where **Trade** opens the trade and places the items and **Follow** walks you to the other player.
 - The master looter can customize the response buttons, and everyone in the session sees the same ones.
 
@@ -37,6 +37,7 @@ Group messages in WoW only reach whoever is there to receive them, so someone on
 ## Also
 
 - **Every client language**, translated throughout.
+- **Windows that stack like on a desktop**: the one you open or click comes to the front.
 - **Eight themes**, and any font your addons have registered.
 - **A quiet update reminder** when your version is out of date.
 
