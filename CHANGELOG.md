@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The Loot Response window has no close button anymore, and Escape leaves it open. It came back
+  within a second anyway while any item was waiting for an answer. It still goes by itself once
+  every item is answered or its time runs out.
+
 ## 0.6.1-beta
 
 Two fixes from testing: Shift stops auto loot reliably, and Badge of Justice stays out of loot sessions.

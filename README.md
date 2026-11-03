@@ -126,7 +126,8 @@ looter's staged picks. Who's on the council is set by the master looter under **
 ### Raiders
 
 When a session starts, the **Loot Response** window opens. Pick a response for each item and add a
-note if you like. Awarded items show up in **Loot Trades** with a **Trade** button.
+note if you like. It stays open until every item is answered or its time
+runs out. Awarded items show up in **Loot Trades** with a **Trade** button.
 
 ## Slash commands
 

@@ -42,7 +42,7 @@ end
 _G.CreateFrame = function() return stub() end
 _G.UIParent = stub()
 
-local bounds, grip
+local bounds, grip, closeButtons
 local PLC = { UI = { Widgets = {} }, db = { profile = { lootResponseRows = 8 } } }
 PLC.UI.Theme = { LAYOUT = { headerHeight = 32, buttonHeight = 28 } }
 PLC.UI.Widgets.Primitives = setmetatable({
@@ -56,6 +56,7 @@ PLC.UI.Widgets.Primitives = setmetatable({
 	end,
 	setResizeBounds = function(_, minW, minH, maxW, maxH) bounds = { minW, minH, maxW, maxH } end,
 	makeResizable = function() grip = stub(); return grip end,
+	createCloseButton = function() closeButtons = (closeButtons or 0) + 1; return stub() end,
 }, { __index = function() return function() return stub() end end })
 PLC.UI.Widgets.Button = { createButton = function(_, text)
 	return stub({ width = #text * 6 + 20, height = 28 })
@@ -250,6 +251,10 @@ check("E1", links() == "[Open],[Trade ending]", "an item whose trade time ran ou
 now = now + 6
 refresh()
 check("E2", links() == "[Open]", "and one whose trade time runs out during the session goes then")
+
+-- Closing ---------------------------------------------------------------------------------------
+-- It comes back within a second while anything waits for an answer, so there's nothing to close it with.
+check("C1", not closeButtons and #UISpecialFrames == 0, "no close button, and Escape leaves it open")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

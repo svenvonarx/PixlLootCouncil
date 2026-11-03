@@ -206,6 +206,8 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   from the left. The countdown fill starts at the window's left edge. The icon, the response buttons
   and the note box are all the same height, and labels and the "Optional Note..." placeholder sit
   centered in them.
+- No closing (new): the header has no ✕, and Escape with the window open leaves it open (and opens
+  the game menu as usual). Answer every item, or let them run out: the window goes by itself.
 - Note field: one line. Type a long note: it never wraps, and stops at 50 characters. At the
   width the window opens with, the note box is about 300px wide.
 - Width (new): drag the grip sideways. Wider: the note box grows. Narrower: the item name is cut

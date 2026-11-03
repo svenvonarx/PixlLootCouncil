@@ -55,7 +55,7 @@ The first time, a welcome window asks whether you're a raider or the loot master
 
 Master looter: set the group to **Master Loot** and open corpses as usual. Type `/plc` to open the Loot Session window, and **Options → Auto Loot** to choose who gets what.
 
-Raiders: nothing to set up. When a session starts, the Loot Response window opens.
+Raiders: nothing to set up. When a session starts, the Loot Response window opens, and it stays until every item is answered or its time runs out.
 
 Try it first: `/plc preview`
 

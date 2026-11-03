@@ -428,7 +428,9 @@ local function ensureFrame()
 	frame:RegisterForDrag("LeftButton")
 	frame:SetScript("OnDragStart", frame.StartMoving)
 	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-	tinsert(UISpecialFrames, "PixlLootCouncilLootFrame")
+	-- No close button and not in UISpecialFrames: Refresh shows it again within a second for as long
+	-- as anything waits for an answer, so closing it would only make it blink. It goes by itself
+	-- once every item is answered or has run out.
 	-- The bounds are set by fitHeight, once the buttons and the items are known.
 	local grip = Primitives.makeResizable(frame, 1, 1, 2000, 2000)
 	grip:HookScript("OnMouseDown", function()
@@ -473,12 +475,6 @@ local function ensureFrame()
 	header.ownerLabel = Primitives.createText(header, "", 11, "dim")
 	header.ownerLabel:SetPoint("BOTTOMLEFT", header.title, "BOTTOMRIGHT", 10, 1)
 	header.ownerLabel:Hide()
-
-	header.close = Primitives.createCloseButton(header, 20)
-	header.close:SetPoint("RIGHT", -6, 0)
-	header.close:SetScript("OnClick", function()
-		frame:Hide()
-	end)
 
 	Primitives.createSeparator(frame, -Theme.LAYOUT.headerHeight)
 
@@ -538,8 +534,7 @@ function LootFrame:Refresh()
 	startTicker()
 end
 
--- Manual reopen (slash command, Loot Session toolbar), in case the candidate closed it
--- mid-session -- Refresh() only re-shows it reactively, on an actual item/response/tick event.
+-- Manual open (slash command, Loot Session toolbar): brings it to the front, or says nothing waits.
 function LootFrame:Open()
 	if #buildRows() == 0 then
 		print(L["CHAT_PREFIX"] .. L["LOOTFRAME_NOTHING"])
