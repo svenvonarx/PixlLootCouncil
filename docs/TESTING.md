@@ -207,6 +207,9 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   overlaps or clips at any width. Hovering a cut-short name or the icon shows the item.
 - Scrollbar: with more items than fit, the scrollbar shows at the right edge and the rows make room
   for it. Answer items until everything fits: the rows run edge to edge again.
+- Typing when time runs out: in a preview, click into a note and leave the cursor there until the
+  timer ends. The item goes on time, the cursor leaves with it, and your movement keys work again
+  right away. `/plc errors` stays empty; if anything is listed, that's what broke the countdown.
 - Height (new): with 3 items the window is exactly three rows tall and can't be dragged taller. In a
   preview with more items than fit, drag it down until all show: no scrollbar. Answer some: the
   window shrinks from the bottom, the top edge staying put. Start another session with as many

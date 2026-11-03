@@ -257,6 +257,8 @@ local function buildColumns()
 				container.noteBox = Primitives.createEditBox(
 					container, NOTE_WIDTH, ICON_SIZE, L["LOOTFRAME_NOTE_PLACEHOLDER"], false, NOTE_MAX_LETTERS)
 				container.noteBox:SetPoint("LEFT", container.buttonsWidth + NOTE_LEAD, 0)
+				-- A hidden box would keep the keyboard: typing would go nowhere, and no key bindings.
+				container.noteBox:HookScript("OnHide", container.noteBox.ClearFocus)
 				return container
 			end,
 			resize = function(container, width)
@@ -265,10 +267,13 @@ local function buildColumns()
 			end,
 			-- Only resets the note box when this row-pool slot gets rebound to a DIFFERENT item
 			-- (container.id changes) -- not on every refresh/tick for the same still-pending
-			-- item, which would otherwise wipe out whatever the player is actively typing.
+			-- item, which would otherwise wipe out whatever the player is actively typing. The
+			-- typing ends there too: the note was for the item that went (answered elsewhere or
+			-- run out), and the cursor shouldn't carry over to the next one.
 			update = function(container, rowData)
 				if container.id ~= rowData.id then
 					container.id = rowData.id
+					container.noteBox:ClearFocus()
 					container.noteBox:SetText(container.noteBox.placeholder)
 					container.noteBox.showingPlaceholder = true
 					local r, g, b = Primitives.color("dim")

@@ -49,7 +49,8 @@ PLC.UI.Widgets.Primitives = setmetatable({
 	createTexture = function(_, layer, colorName) return stub({ layer = layer, colorName = colorName }) end,
 	createEditBox = function(_, width, height, placeholder, multiline, maxLetters)
 		return stub({ width = width, height = height, placeholder = placeholder, multiline = multiline,
-			maxLetters = maxLetters, GetValue = function() return "" end })
+			maxLetters = maxLetters, GetValue = function() return "" end,
+			SetFocus = function(box) box.focused = true end, ClearFocus = function(box) box.focused = false end })
 	end,
 	setResizeBounds = function(_, minW, minH, maxW, maxH) bounds = { minW, minH, maxW, maxH } end,
 	makeResizable = function() grip = stub(); return grip end,
@@ -217,6 +218,18 @@ items(20)
 refresh()
 check("H9", bounds[4] == tall(math.floor((500 - 80 - 47) / 33)) and frame.height <= 500 - 80, "never taller than the screen has room for")
 UIParent.height = nil
+
+-- Typing in a note -----------------------------------------------------------------------------------
+PLC.Session.items = { [1] = { link = "[A]", deadlineAt = now + 5 }, [2] = { link = "[B]", deadlineAt = now + 60 } }
+refresh()
+local box = note(shownRows()[1])
+box:SetFocus()
+now = now + 6
+refresh()
+rows = shownRows()
+check("F1", #rows == 1 and select(2, cells(rows[1])).itemLink == "[B]", "the item being typed for still goes when its time is up")
+check("F2", not box.focused and box.showingPlaceholder, "and the typing ends with it, not carried over to the next item")
+check("F3", box.scripts.OnHide == box.ClearFocus, "a note box that hides lets go of the keyboard")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

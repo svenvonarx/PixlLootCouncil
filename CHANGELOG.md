@@ -16,6 +16,12 @@
   empty space and no scrollbar you don't need, and it can't be dragged taller than that. The
   height you drag it to is remembered: fewer items shrink it, more grow it back to that height,
   and only then does it scroll. It grows and shrinks at the bottom, in whole rows.
+- **Fixed:** an item whose time ran out could stay in the Loot Response window, most often while
+  you were typing a note. One error was enough to stop the window's countdown for good; now
+  nothing stops it, and errors show in `/plc errors`. The same goes for every other repeating
+  task, such as the master looter's check-ins.
+- **Fixed:** when an item went while you were typing its note, the cursor moved on to the next
+  item, and a hidden note box could keep the keyboard.
 
 ## 0.5.0-beta
 

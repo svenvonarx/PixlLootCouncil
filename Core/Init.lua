@@ -6,6 +6,26 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 
 AceAddon:NewAddon(PLC, ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0", "AceTimer-3.0", "AceComm-3.0", "AceBucket-3.0")
 
+-- AceTimer schedules a repeating timer's next run only once the callback has returned, so a single
+-- error would stop it for good: the Loot Response countdown, which also takes away expired items,
+-- or the master looter's check-ins. The error still goes to the error handler (and /plc errors);
+-- the timer carries on.
+local scheduleRepeating = PLC.ScheduleRepeatingTimer
+function PLC:ScheduleRepeatingTimer(func, delay, ...)
+	if type(func) == "string" then
+		local method = func
+		func = function(...) return self[method](self, ...) end
+	end
+	return scheduleRepeating(self, function(...)
+		if select("#", ...) == 0 then
+			xpcall(func, geterrorhandler())
+		else
+			local count, args = select("#", ...), { ... }
+			xpcall(function() func(unpack(args, 1, count)) end, geterrorhandler())
+		end
+	end, delay, ...)
+end
+
 -- The packager fills this in. Run straight from the repository it's still the placeholder, which
 -- isn't a version anyone can compare against.
 local getMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
