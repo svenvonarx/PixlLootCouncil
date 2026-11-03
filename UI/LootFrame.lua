@@ -48,7 +48,7 @@ local NOTE_LEAD = 15 -- buttons to note, with the divider in the middle
 local NOTE_WIDTH, NOTE_MIN = 300, 120
 local NOTE_MAX_LETTERS = 50 -- about what NOTE_WIDTH shows at once, so a note stays one line
 local MAX_EXTRA_WIDTH = 400 -- how much wider than it opens the window can go
-local BOTTOM_SPACE = 14 -- below the rows, for the resize grip
+local BOTTOM_SPACE = 1 + ROW_GAP -- below the rows: the border, and the same gap as between them
 local SCREEN_MARGIN = 80 -- room the window leaves on screen at its tallest
 
 local function myResponse(idx)
@@ -482,11 +482,12 @@ local function ensureFrame()
 
 	Primitives.createSeparator(frame, -Theme.LAYOUT.headerHeight)
 
-	-- Edge to edge inside the 1px border, starting one row gap below the header's separator. The
-	-- bottom keeps clear of the resize grip.
+	-- Edge to edge inside the 1px border, one row gap below the header's separator and above the
+	-- bottom border. The resize grip sits over the last row's corner, above everything in it.
 	local content = CreateFrame("Frame", nil, frame)
 	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 1, -1 - ROW_GAP)
 	content:SetPoint("BOTTOMRIGHT", -1, BOTTOM_SPACE)
+	grip:SetFrameLevel(content:GetFrameLevel() + 10)
 
 	-- UI/Widgets/ScrollFrame.lua anchors dataTable.scroll to `content` itself, so no SetAllPoints
 	-- here -- calling it would override that anchoring.

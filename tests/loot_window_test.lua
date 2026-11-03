@@ -31,6 +31,8 @@ local function stub(extra)
 		if k == "HookScript" then return function(s, n, fn) s.scripts[n] = fn end end
 		if k == "SetValue" then return function(s, v) s.value = v end end
 		if k == "GetValue" then return function(s) return s.value or 0 end end
+		if k == "GetFrameLevel" then return function(s) return s.level or 1 end end
+		if k == "SetFrameLevel" then return function(s, v) s.level = v end end
 		if k == "SetDrawLayer" then return function(s, layer, sub) s.layer, s.sublevel = layer, sub end end
 		if k == "SetWordWrap" then return function(s, v) s.wraps = v end end
 		if k == "CreateTexture" or k == "CreateFontString" then return function() return stub() end end
@@ -99,12 +101,12 @@ local function upvalue(fn, name)
 end
 
 -- The game sizes the table from the window; here the test does: the 1px border each side, and the
--- header, one row gap and the grip's 14px from the height.
+-- header with its separator and one row gap above the rows, and the border and one row gap below.
 local frame, dataTable
 local function resize(width, height)
 	frame.width, frame.height = width or frame.width, height or frame.height
 	dataTable.scroll.width = frame.width - 2
-	dataTable.scroll.height = frame.height - 32 - 2 - 14
+	dataTable.scroll.height = frame.height - 32 - 2 - 2
 	dataTable:Layout()
 end
 local function refresh()
@@ -187,7 +189,7 @@ LootFrame:Refresh()
 check("N3", frame.width == bounds[3] and bounds[3] < opening + 400, "within the new bounds")
 
 -- Height ---------------------------------------------------------------------------------------------
-local function tall(count) return 47 + 33 * count end
+local function tall(count) return 35 + 33 * count end
 local function drag(height)
 	grip.scripts.OnMouseDown(grip)
 	frame.height = height
@@ -216,7 +218,7 @@ check("H8", PLC.db.profile.lootResponseRows == 11 and frame.height == tall(11), 
 UIParent.height = 500
 items(20)
 refresh()
-check("H9", bounds[4] == tall(math.floor((500 - 80 - 47) / 33)) and frame.height <= 500 - 80, "never taller than the screen has room for")
+check("H9", bounds[4] == tall(math.floor((500 - 80 - 35) / 33)) and frame.height <= 500 - 80, "never taller than the screen has room for")
 UIParent.height = nil
 
 -- Typing in a note -----------------------------------------------------------------------------------

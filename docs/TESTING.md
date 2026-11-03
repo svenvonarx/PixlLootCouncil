@@ -16,6 +16,12 @@ instead of being silently swallowed.
 - `/plc errors` lists any captured Lua errors with timestamps ("No errors recorded." on a clean
   install).
 
+- Loot Session window layout (`luajit tests/banking_test.lua` checks the edges): the toolbar's last
+  button, Disenchant and the candidates' Award buttons all end on one vertical line. The item name,
+  its trade time and the vote count are level with the Banking and Disenchant labels. The item
+  icons have the same space on their left as between them and the divider. Remove All and the
+  toolbar start the same distance from the left edge.
+
 ### 1.2 Roster (Stage 1)
 - Solo, the Loot Session window's candidate grid shows just yourself, with your own class/role
   icon. Council membership follows the default `raidAssist` mode and your current
@@ -207,6 +213,8 @@ candidate/response/Award/Pre-Award grid loads next to it, not below a row list a
   overlaps or clips at any width. Hovering a cut-short name or the icon shows the item.
 - Scrollbar: with more items than fit, the scrollbar shows at the right edge and the rows make room
   for it. Answer items until everything fits: the rows run edge to edge again.
+- Bottom edge: the last row ends 1px above the window's bottom border, the same gap as between rows
+  and under the header. The resize grip sits over the last note box's corner and still works.
 - Typing when time runs out: in a preview, click into a note and leave the cursor there until the
   timer ends. The item goes on time, the cursor leaves with it, and your movement keys work again
   right away. `/plc errors` stays empty; if anything is listed, that's what broke the countdown.

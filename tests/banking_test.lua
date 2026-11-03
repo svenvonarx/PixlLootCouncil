@@ -302,9 +302,31 @@ panel:ShowItem(1)
 SessionFrame:OnSessionUpdated()
 local count = panel.header
 check("B30", bank.points[1][1] == "RIGHT" and bank.points[1][2] == disenchant and bank.points[1][3] == "LEFT", "Banking sits left of Disenchant")
-check("B31", count.points[1][2] == bank and count.points[1][3] == "TOPLEFT", "the holder's vote count is left of both")
+check("B31", count.points[1][1] == "RIGHT" and count.points[1][2] == bank and count.points[1][3] == "LEFT", "the holder's vote count is left of both, level with them")
 session(MULE); panel:ShowItem(1); SessionFrame:OnSessionUpdated()
-check("B32", count.points[1][2] == disenchant and count.points[1][3] == "TOPRIGHT", "a council member's takes their place")
+check("B32", count.points[1][1] == "RIGHT" and count.points[1][2] == disenchant and count.points[1][3] == "RIGHT", "a council member's takes their place")
+
+-- The window's edges: the details' buttons end where the toolbar does, and the icons have as much
+-- room on their left (inside the 1px border) as the scrollbar strip leaves them on their right.
+local function upvalue(fn, name)
+	for i = 1, 200 do
+		local n, v = debug.getupvalue(fn, i)
+		if n == name then return v end
+		if not n then return nil end
+	end
+end
+local ensureSessionFrame = upvalue(upvalue(SessionFrame.Open, "showFullWindow"), "ensureFrame")
+local sessionWindow, toolbar = upvalue(ensureSessionFrame, "frame"), upvalue(ensureSessionFrame, "enchanterRow")
+local sidebar, details = upvalue(ensureSessionFrame, "itemListContainer"), upvalue(ensureSessionFrame, "detailArea")
+local content = upvalue(ensureSessionFrame, "content")
+local iconsLeft = toolbar.points[1][4] + content.points[1][4]
+local detailsLeft = iconsLeft + sidebar.width + details.points[1][4]
+local buttonsRight
+for _, point in ipairs(disenchant.points) do
+	if point[1] == "TOPRIGHT" and point[2] == details then buttonsRight = detailsLeft + point[4] end
+end
+check("G1", buttonsRight == sessionWindow.width + toolbar.points[2][4], "Disenchant and Award end level with the toolbar's last button")
+check("G2", iconsLeft - 1 == PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH, "the icons have the same room on both sides")
 check("B33", bank.width + 4 + disenchant.width == 144 and LOCALE["VOTINGFRAME_VOTE_COUNT"] == "%d/%d voted", "the row leaves the room the item name and trade time need")
 
 local itemLabel

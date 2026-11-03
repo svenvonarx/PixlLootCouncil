@@ -130,8 +130,14 @@ end
 -- plus a tooltip naming the item and its status on hover; a depleting bar directly under each
 -- icon is its own per-item countdown visual (see docs/SPECIFICATION.md's bagged-item workflow
 -- notes for the Awarded > Pre-awarded > Expired > Pending status priority).
-local ICON_SIZE = 28
+local ICON_SIZE = 30
 local ICON_GAP = 2 -- between the two icon columns -- kept tight on purpose, see user feedback
+-- The window's margin, all around: the toolbar, the bottom buttons and the right edge of the
+-- buttons and the candidate grid. It's the width of a scrollbar's strip plus the 1px border, so the
+-- icons have as much room on their left as the sidebar's scrollbar strip leaves on their right, and
+-- the grid's scrollbar strip fits in the margin on the right.
+local MARGIN = PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + 1
+local DETAIL_GAP = 8 -- the divider to the item details
 local BAR_GAP = 1
 local BAR_HEIGHT = 3
 local ICON_CELL_HEIGHT = ICON_SIZE + BAR_GAP + BAR_HEIGHT
@@ -423,9 +429,9 @@ end
 local function layoutDetailHeader(rowContent)
 	detailVoteCountText:ClearAllPoints()
 	if rowContent == "buttons" then
-		detailVoteCountText:SetPoint("TOPRIGHT", detailBankButton, "TOPLEFT", -10, -8)
+		detailVoteCountText:SetPoint("RIGHT", detailBankButton, "LEFT", -10, 0)
 	else
-		detailVoteCountText:SetPoint("TOPRIGHT", detailDisenchantButton, "TOPRIGHT", 0, -8)
+		detailVoteCountText:SetPoint("RIGHT", detailDisenchantButton, "RIGHT", 0, 0)
 	end
 
 	detailItemHover:ClearAllPoints()
@@ -741,8 +747,8 @@ local function ensureFrame()
 	-- content area -- not inside `content` itself, since it's a session-wide setting rather than
 	-- part of the per-item master-detail layout below it.
 	enchanterRow = CreateFrame("Frame", nil, frame)
-	enchanterRow:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -8)
-	enchanterRow:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", -10, -8)
+	enchanterRow:SetPoint("TOPLEFT", header, "BOTTOMLEFT", MARGIN, -8)
+	enchanterRow:SetPoint("TOPRIGHT", header, "BOTTOMRIGHT", -MARGIN, -8)
 	enchanterRow:SetHeight(Theme.LAYOUT.fieldHeight)
 
 	enchanterRow.label = Primitives.createText(enchanterRow, L["SESSIONFRAME_ENCHANTER_LABEL"], 12, "white")
@@ -779,29 +785,30 @@ local function ensureFrame()
 	end
 
 	startButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_START"], 160)
-	startButton:SetPoint("BOTTOM", 0, 12)
+	startButton:SetPoint("BOTTOM", 0, MARGIN)
 	startButton:SetScript("OnClick", onStartClick)
 
 	endButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_END"], 140)
-	endButton:SetPoint("BOTTOM", 90, 12)
+	endButton:SetPoint("BOTTOM", 90, MARGIN)
 	endButton:SetScript("OnClick", onEndClick)
 
 	awardAllButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_AWARDALL"], 140)
-	awardAllButton:SetPoint("BOTTOM", -90, 12)
+	awardAllButton:SetPoint("BOTTOM", -90, MARGIN)
 	awardAllButton:SetScript("OnClick", onAwardAllClick)
 
 	-- Bottom-left, away from the main actions: clears every not-yet-awarded item (confirmed first).
 	removeAllButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_REMOVE_ALL"], 100)
-	removeAllButton:SetPoint("BOTTOMLEFT", 10, 12)
+	removeAllButton:SetPoint("BOTTOMLEFT", MARGIN, MARGIN)
 	removeAllButton:SetScript("OnClick", onRemoveAllClick)
 
 	-- Anchored to frame's actual corners, not a button's position -- see git history for why
 	-- this matters (a prior version anchored to a centered button's TOPRIGHT and silently
-	-- clipped everything past ~half the window's real width). Left inset trimmed down from the
-	-- detail area's -- the icon sidebar reads better flush-ish against the window's edge.
+	-- clipped everything past ~half the window's real width). It starts at the margin on the left,
+	-- with the icons, and on the right ends inside the border: the grid's scrollbar strip is the
+	-- right margin (see MARGIN).
 	content = CreateFrame("Frame", nil, frame)
-	content:SetPoint("TOPLEFT", enchanterRow, "BOTTOMLEFT", -4, -10)
-	content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -3, 50)
+	content:SetPoint("TOPLEFT", enchanterRow, "BOTTOMLEFT", 0, -10)
+	content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -(MARGIN - PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH), 50)
 
 	itemListContainer = CreateFrame("Frame", nil, content)
 	itemListContainer:SetPoint("TOPLEFT", content, "TOPLEFT")
@@ -820,7 +827,7 @@ local function ensureFrame()
 	divider:SetWidth(1)
 
 	detailArea = CreateFrame("Frame", nil, content)
-	detailArea:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT", 8, 0)
+	detailArea:SetPoint("TOPLEFT", itemListContainer, "TOPRIGHT", DETAIL_GAP, 0)
 	detailArea:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT")
 
 	-- One compact header bar: item name (left) and, sharing the same top-right slot (see
@@ -852,7 +859,8 @@ local function ensureFrame()
 	-- up to layoutDetailHeader, and the label stops at the same edge, so anything too long is cut
 	-- short instead of running into what's next to it: hovering shows all of it.
 	detailItemHover = CreateFrame("Frame", nil, detailArea)
-	detailItemHover:SetHeight(20)
+	-- As tall as the buttons beside it, so the name sits level with their labels.
+	detailItemHover:SetHeight(Theme.LAYOUT.buttonHeight)
 	layoutDetailHeader(nil)
 	Primitives.attachItemTooltip(detailItemHover)
 	-- An item's own tooltip has its whole name. Below that go what the label may have lost to being
@@ -905,17 +913,13 @@ local function ensureFrame()
 	-- with an earlier column-narrowing pass and left a growing stripe of genuinely unused space
 	-- between the grid/buttons and the window's right border. Deriving it means it can't drift
 	-- again the same way if a column width ever changes: detailArea needs to fit the grid's
-	-- content (GRID_WIDTH) plus the grid's own scrollbar gutter (ScrollFrame.RESERVED_WIDTH,
-	-- reserved -- as blank space -- even when not actively scrolling, which is the common case for
-	-- a small council; this is a pre-existing characteristic of every DataTable in the addon, not
-	-- something specific to this window, so it's not shrunk here even though it reads as "more
-	-- wasted space" right next to the margin below); frame width then adds back everything between
-	-- the window's edge and detailArea's left edge (content's left/right insets below, the icon
-	-- sidebar, and the gap between the sidebar and detailArea). No added margin beyond that -- the
-	-- Award/Disenchant buttons sit right at detailArea's true edge, with content's own small right
-	-- inset (3px, see below) the only deliberate breathing room left before the window's border.
+	-- content (GRID_WIDTH) plus the grid's own scrollbar strip (ScrollFrame.RESERVED_WIDTH); frame
+	-- width then adds the margin on the left, the icon sidebar and the gap after it, and the 1px
+	-- border on the right. That strip and the border make up the right margin, so the grid and its
+	-- buttons end MARGIN from the window's edge, level with the toolbar above.
 	local detailAreaWidth = PLC.UI.VotingFrame.GRID_WIDTH + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH
-	local frameWidth = 6 + ICON_SIDEBAR_WIDTH + 8 + detailAreaWidth + 3
+	local frameWidth = MARGIN + ICON_SIDEBAR_WIDTH + DETAIL_GAP + detailAreaWidth
+		+ (MARGIN - PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH)
 
 	-- Height stays freely resizable -- a taller window genuinely shows more item icons in the
 	-- sidebar. +30 over the pre-Enchanter-row baseline, to compensate for the toolbar row below

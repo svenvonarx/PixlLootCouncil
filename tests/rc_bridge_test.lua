@@ -163,6 +163,7 @@ local function newStub(extra)
 		if k == "GetWidth" then return function(s) return s.width or 0 end end
 		if k == "SetText" then return function(s, v) s.text = v end end
 		if k == "GetText" then return function(s) return s.text end end
+		if k == "GetFrameLevel" then return function() return 1 end end
 		return function() end
 	end })
 end
