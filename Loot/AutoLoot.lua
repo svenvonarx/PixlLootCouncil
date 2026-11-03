@@ -8,6 +8,8 @@ PLC.Loot.AutoLoot = AutoLoot
 
 -- Hands out master loot by itself while the master looter's loot window is open. Every item gets a
 -- target, in this order:
+--   0. loot everyone takes their own copy of (PLC.PersonalLootItems, e.g. Badge of Justice): the
+--      master looter's copy goes to them, and it's never reviewed
 --   1. an item exception (Options -> Auto Loot), which always wins
 --   2. never automated: PLC.ExcludedItems (Data/ExcludedItems.lua) and quest items, which stay in the
 --      window for the master looter to assign through Blizzard's own list
@@ -26,7 +28,9 @@ local REPORT_DELAY = 0.5 -- groups a burst of failures into one chat line
 local LEGENDARY_QUALITY = 5
 local QUEST_CLASS_ID = (Enum and Enum.ItemClass and Enum.ItemClass.Questitem) or 12
 
-local window -- { slots = { [slot] = { tried, waiting, done } }, goldDone } while handing out
+-- { slots = { [slot] = { tried, waiting, done } }, goldDone, manual } from the first LOOT_READY of a
+-- loot window to LOOT_CLOSED. `manual`: the master looter took this window by hand (Shift).
+local window
 local tickHandle
 local failures = {} -- [reason .. name] = { reason, name, links }
 local reportHandle
@@ -54,6 +58,9 @@ end
 -- The target for an item: "self", "leave" or a list of names.
 function AutoLoot:GetTarget(link, quality)
 	local itemID, classID = itemIdentity(link)
+	if PLC.PersonalLootItems[itemID] then
+		return self.SELF
+	end
 	local exception = itemID and settings().exceptions[itemID]
 	if exception then
 		return exception
@@ -78,7 +85,7 @@ end
 -- elsewhere.
 function AutoLoot:IsExcludedFromReview(link)
 	local itemID, classID = itemIdentity(link)
-	if classID == QUEST_CLASS_ID or PLC.ExcludedItems[itemID] then
+	if classID == QUEST_CLASS_ID or PLC.ExcludedItems[itemID] or PLC.PersonalLootItems[itemID] then
 		return true
 	end
 	local exception = itemID and settings().exceptions[itemID]
@@ -138,8 +145,10 @@ local function startHandout(slot, info, state, name)
 	end
 
 	local Award = PLC.Loot.Award
+	-- Neither is master looted: the master looter just loots it, like anyone would.
 	local belowThreshold = (info.quality or 0) < (GetLootThreshold() or 2)
-	if belowThreshold and isMe(name) then
+	local personal = PLC.PersonalLootItems[(itemIdentity(info.link))]
+	if (belowThreshold or personal) and isMe(name) then
 		Award:Take(slot, info.link, done)
 		return true
 	end
@@ -199,8 +208,35 @@ local function lootGold()
 	end
 end
 
+local function stopTicking()
+	if tickHandle then
+		PLC:CancelTimer(tickHandle)
+		tickHandle = nil
+	end
+end
+
+-- Shift pressed with the window open: the rest of it is the master looter's. What's still in it is
+-- noted, as when they open a window with Shift held (Loot/Detection.lua), except a hand-out already
+-- under way, which reports for itself.
+local function takeOver()
+	window.manual = true
+	stopTicking()
+	local left = {}
+	local pending = PLC.Loot.Award.pending
+	for slot, info in pairs(PLC.Loot.Detection.lootSlotInfo) do
+		if not info.looted and not (pending and pending.slot == slot) then
+			left[slot] = info
+		end
+	end
+	PLC.Session:CollectDetectedItems(left)
+end
+
 local function tick()
-	if not window then
+	if not window or window.manual then
+		return
+	end
+	if IsShiftKeyDown() then
+		takeOver()
 		return
 	end
 	if not window.goldDone then
@@ -223,23 +259,27 @@ local function tick()
 end
 
 -- Called when the master looter's loot window opens. False leaves the window to them: auto loot is
--- off, or they're holding Shift to take this one by hand.
+-- off, or they're holding Shift to take this one by hand. LOOT_READY can fire more than once for one
+-- window, so the first decides for all of them: letting go of Shift before a second one mustn't
+-- start auto loot after all.
 function AutoLoot:Begin()
-	if not settings().enabled or IsShiftKeyDown() then
+	if window then
+		return not window.manual
+	end
+	if not settings().enabled then
 		return false
 	end
-	if not window then -- LOOT_READY can fire more than once for one window
-		window = { slots = {} }
-		tickHandle = PLC:ScheduleRepeatingTimer(tick, TICK_SECONDS)
+	window = { slots = {} }
+	if IsShiftKeyDown() then
+		window.manual = true
+		return false
 	end
+	tickHandle = PLC:ScheduleRepeatingTimer(tick, TICK_SECONDS)
 	return true
 end
 
 function AutoLoot:End()
-	if tickHandle then
-		PLC:CancelTimer(tickHandle)
-		tickHandle = nil
-	end
+	stopTicking()
 	window = nil
 	PLC.Loot.Award:Cancel()
 	flushFailures()

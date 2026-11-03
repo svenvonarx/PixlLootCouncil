@@ -648,6 +648,12 @@ Needs a real group on Master Loot, with drops at or above the group's loot thres
 - **Default:** open a corpse with an epic: it reaches your bags within a second, with no candidate list.
   It appears in Loot Timers with its timer.
 - **Shift:** hold Shift while opening a corpse: nothing is handed out, and you can loot by hand.
+  Let go of Shift right after the window opens: it stays yours (`luajit tests/autoloot_test.lua`).
+- **Shift, halfway:** open a corpse with several items and press Shift while auto loot is handing
+  them out: it stops, and what's left is yours. Items you then loot yourself join the session once
+  each.
+- **Badge of Justice:** open a boss with a badge: auto loot takes your own badge, it doesn't appear
+  in the Loot Session window or Loot Timers, and everyone else still loots their own.
 - **Off:** Options → Auto Loot, or `/plc autoloot`: nothing is handed out.
 - **Named target:** set epics to "Players..." with another player's name: the item goes to them, chat
   says so, and it doesn't join a session.

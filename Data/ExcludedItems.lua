@@ -10,3 +10,10 @@ PLC.ExcludedItems = {
 	[34664] = true, -- Sunmote (Sunwell Plateau)
 	[23572] = true, -- Primal Nether
 }
+
+-- Loot every player takes their own copy of, like a currency: nothing for the council to hand out.
+-- Sessions never review them, and auto loot takes the master looter's own copy, like anyone loots
+-- theirs. These aren't master looted, so no exception can send them to someone else.
+PLC.PersonalLootItems = {
+	[29434] = true, -- Badge of Justice
+}

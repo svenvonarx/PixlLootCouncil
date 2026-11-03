@@ -31,7 +31,9 @@ arrive.
 - **Auto loot.** Open a corpse and the loot goes where it should. Items at or above your quality
   threshold (Epic by default) and all patterns go straight into your bags, and everything else can go
   to a mule, with fallback names if someone's bags are full. Add exceptions for single items, or turn
-  it off under Options → Auto Loot. Hold Shift while opening loot to do that corpse by hand.
+  it off under Options → Auto Loot. Hold Shift while opening loot to do that corpse by hand, or press
+  it with the window open to take over from there. Your own Badge of Justice is looted for you and
+  never goes up for review, as everyone loots their own.
 - **Master looter list.** Choose who should run the loot, in order. When you switch the group to
   Master Loot, the first of them who's online in the group gets it, and the loot threshold can be set
   at the same moment. Changing either afterwards sticks.

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed:** holding Shift while opening a corpse didn't always stop auto loot. The game can report
+  the same loot window opening twice, and letting go of Shift before the second time started auto
+  loot after all. Shift now counts for the whole window, and pressing it with the window already
+  open stops auto loot there and leaves the rest to you.
+- **Fixed:** Badge of Justice joined the Loot Session window. Everyone loots their own, so it's
+  never reviewed now, and auto loot takes the master looter's own badge like any other player
+  would. Badges collected before this update can be removed with Remove or Remove All.
+
 ## 0.6.0-beta
 
 A cleaner, more compact Loot Response window that fits its items, windows that come to the front
