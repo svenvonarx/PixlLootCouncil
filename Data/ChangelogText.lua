@@ -4,7 +4,9 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
-## Unreleased
+## 0.6.1-beta
+
+Two fixes from testing: Shift stops auto loot reliably, and Badge of Justice stays out of loot sessions.
 
 - **Fixed:** holding Shift while opening a corpse didn't always stop auto loot. The game can report
   the same loot window opening twice, and letting go of Shift before the second time started auto
