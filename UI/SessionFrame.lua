@@ -789,7 +789,8 @@ local function ensureFrame()
 	startButton:SetScript("OnClick", onStartClick)
 
 	endButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_END"], 140)
-	endButton:SetPoint("BOTTOM", 90, MARGIN)
+	-- Bottom-right, ending in line with the buttons above it.
+	endButton:SetPoint("BOTTOMRIGHT", -MARGIN, MARGIN)
 	endButton:SetScript("OnClick", onEndClick)
 
 	awardAllButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_AWARDALL"], 140)

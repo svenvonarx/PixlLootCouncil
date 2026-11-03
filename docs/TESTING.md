@@ -20,7 +20,8 @@ instead of being silently swallowed.
   button, Disenchant and the candidates' Award buttons all end on one vertical line. The item name,
   its trade time and the vote count are level with the Banking and Disenchant labels. The item
   icons have the same space on their left as between them and the divider. Remove All and the
-  toolbar start the same distance from the left edge.
+  toolbar start the same distance from the left edge. End Session sits in the bottom-right corner,
+  its right edge on the same line as Award.
 
 ### 1.2 Roster (Stage 1)
 - Solo, the Loot Session window's candidate grid shows just yourself, with your own class/role

@@ -19,7 +19,7 @@
 - **A tidier Loot Session window.** The item name, its trade time and the vote count sit level with
   the Banking and Disenchant buttons. Those buttons and the candidates' Award buttons end in line
   with the toolbar above. The item icons are a little bigger, with even space on both sides, and the
-  window keeps the same margin all around.
+  window keeps the same margin all around. End Session moved to the bottom-right corner.
 - The Loot Response window no longer has an empty strip under its last row.
 - **Fixed:** an item whose time ran out could stay in the Loot Response window, most often while
   you were typing a note. One error was enough to stop the window's countdown for good; now
