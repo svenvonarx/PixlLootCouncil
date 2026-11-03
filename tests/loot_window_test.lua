@@ -231,5 +231,23 @@ check("F1", #rows == 1 and select(2, cells(rows[1])).itemLink == "[B]", "the ite
 check("F2", not box.focused and box.showingPlaceholder, "and the typing ends with it, not carried over to the next item")
 check("F3", box.scripts.OnHide == box.ClearFocus, "a note box that hides lets go of the keyboard")
 
+-- Only what a raider can still get ----------------------------------------------------------------------
+PLC.Session.items = {
+	[1] = { link = "[Open]", deadlineAt = now + 60, tradeExpiresAt = now + 600 },
+	[2] = { link = "[Expired]", untradable = true },
+	[3] = { link = "[Never put up]" },
+	[4] = { link = "[Trade ending]", deadlineAt = now + 60, tradeExpiresAt = now + 5 },
+}
+refresh()
+local function links()
+	local list = {}
+	for _, row in ipairs(shownRows()) do list[#list + 1] = select(2, cells(row)).itemLink end
+	return table.concat(list, ",")
+end
+check("E1", links() == "[Open],[Trade ending]", "an item whose trade time ran out, or that was never put up, isn't shown")
+now = now + 6
+refresh()
+check("E2", links() == "[Open]", "and one whose trade time runs out during the session goes then")
+
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

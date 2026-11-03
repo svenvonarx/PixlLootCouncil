@@ -68,8 +68,12 @@ local function sessionRows()
 	local now = time()
 	local responses = PLC.Responses:GetActive()
 	for idx, item in pairs(Session.items) do
-		local expired = item.deadlineAt and now > item.deadlineAt
-		if not item.awarded and not myResponse(idx) and not expired then
+		-- Only what's up for review: an item gets its deadline when it's put up (Session:Start), so
+		-- one without is one nobody can get, like an item whose trade time ran out before the
+		-- session. Trade time running out during the session takes the item away too.
+		local open = item.deadlineAt and now <= item.deadlineAt
+		local tradable = not item.untradable and not (item.tradeExpiresAt and now >= item.tradeExpiresAt)
+		if open and tradable and not item.awarded and not myResponse(idx) then
 			table.insert(rows, {
 				id = "session" .. idx,
 				idx = idx,

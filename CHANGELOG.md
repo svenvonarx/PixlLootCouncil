@@ -20,6 +20,9 @@
   you were typing a note. One error was enough to stop the window's countdown for good; now
   nothing stops it, and errors show in `/plc errors`. The same goes for every other repeating
   task, such as the master looter's check-ins.
+- **Fixed:** the Loot Response window showed items nobody can get anymore, such as an item whose
+  trade time ran out before the session. It now shows only items that are up for review, and an
+  item goes from it as soon as its trade time runs out.
 - **Fixed:** when an item went while you were typing its note, the cursor moved on to the next
   item, and a hidden note box could keep the keyboard.
 
