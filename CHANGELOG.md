@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.6.2-beta
+
+The Loot Response window stays open while items wait for your answer.
 
 - The Loot Response window has no close button anymore, and Escape leaves it open. It came back
   within a second anyway while any item was waiting for an answer. It still goes by itself once
