@@ -4,7 +4,9 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
-## Unreleased
+## 0.7.1-beta
+
+Loot that's no longer in the master looter's bags stops showing up in loot sessions.
 
 - **Fixed:** loot that left the master looter's bags without being awarded stayed in the loot session
   for good. For example, loot handed out with another addon, mailed or sold kept opening Loot Timers
