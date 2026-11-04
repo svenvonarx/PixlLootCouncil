@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.7.0-beta
+
+Raider mode, for when you're master looter but someone else's loot addon runs the loot.
 
 - **Raider mode**, for anyone who's sometimes master looter but runs the loot by hand or with another
   addon such as Gargul. As master looter, PixlLootCouncil then doesn't loot, collect loot or start
