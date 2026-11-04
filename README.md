@@ -129,6 +129,11 @@ When a session starts, the **Loot Response** window opens. Pick a response for e
 note if you like. It stays open until every item is answered or its time
 runs out. Awarded items show up in **Loot Trades** with a **Trade** button.
 
+If you pick Raider in the welcome window, you're in **raider mode**: when you're master looter, the
+addon doesn't loot, collect or start sessions by itself, so you can run the loot by hand or with
+another addon such as Gargul. Sessions someone else starts still open. `/plc raider` turns it on or
+off.
+
 ## Slash commands
 
 | Command | What it does |
@@ -136,6 +141,7 @@ runs out. Awarded items show up in **Loot Trades** with a **Trade** button.
 | `/plc` | Open the Loot Session window |
 | `/plc timers` | Show or hide the Loot Timers window |
 | `/plc autoloot` | Turn auto loot on or off |
+| `/plc raider` | Turn raider mode on or off: as master looter, leave the loot to you or another addon |
 | `/plc preview` | Start or stop a practice session with fictional loot |
 | `/plc about` | Show your version, your group's versions and the credits |
 | `/plc loot` | Reopen the Loot Response window |

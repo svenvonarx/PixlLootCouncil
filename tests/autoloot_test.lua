@@ -3,7 +3,8 @@
 -- The real Loot/Detection.lua, Loot/AutoLoot.lua, Loot/Award.lua and Data/ExcludedItems.lua against
 -- a stubbed loot window: Shift taking a window by hand, and loot everyone takes their own copy of.
 local out = print
-_G.print = function() end
+local printed = {}
+_G.print = function(s) printed[#printed + 1] = tostring(s) end
 _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 _G.strsplit = function(sep, s) local a, b = s:match("^(.-)" .. sep .. "(.*)$"); if a then return a, b end return s end
 _G.strlower = string.lower
@@ -52,7 +53,7 @@ function PLC:RegisterSlashCommand() end
 PLC.db = { profile = { lootThreshold = 4, autoLoot = {
 	enabled = true, lootGold = false, outsideInstances = false, reviewTarget = "self", otherTarget = "leave", exceptions = {},
 } } }
-PLC.CouncilRules = { AmIMasterLooter = function() return true end }
+PLC.CouncilRules = { AmIMasterLooter = function() return true end, IsRaiderMode = function() return PLC.db.profile.raiderMode end }
 local noted = {}
 PLC.Session = { CollectDetectedItems = function(_, slots, delivered)
 	for _, info in pairs(slots) do
@@ -146,6 +147,43 @@ handlers.LOOT_READY()
 shift = false
 check("B4", #noted == 0 and not PLC.Loot.Detection:IsReviewItem(link(BADGE), 4), "looted by hand, it isn't review loot either")
 close()
+
+-- Raider mode -------------------------------------------------------------------------------------
+-- Another addon (Gargul) runs this master looter's loot: nothing is handed out, taken or noted.
+PLC.db.profile.raiderMode = true
+for i in pairs(printed) do printed[i] = nil end
+open({ HELM, 4 }, { BADGE, 4 })
+handlers.LOOT_READY()
+handlers.LOOT_READY()
+tick(); tick()
+check("R1", #actions == 0 and #ticks == 0 and #noted == 0, "raider mode: nothing is looted, handed out or collected")
+check("R2", #printed == 1 and printed[1]:find("RAIDER_MODE_HINT", 1, true), "with one line saying why")
+close()
+open({ HELM, 4 })
+handlers.LOOT_READY()
+check("R3", #printed == 1 and #actions == 0, "only once per login")
+close()
+PLC.db.profile.raiderMode = false
+open({ HELM, 4 })
+handlers.LOOT_READY()
+tick()
+check("R4", #actions == 1, "turned off, auto loot runs again")
+close()
+
+-- The bag scan (Loot/BagTracker.lua) picks nothing new up in raider mode either, so loot handed out
+-- by another addon never starts a session.
+function PLC:RegisterOnEnable() end
+assert(loadfile("Loot/BagTracker.lua"))("PixlLootCouncil", PLC)
+local isTracking
+for i = 1, 60 do
+	local name, value = debug.getupvalue(PLC.Loot.BagTracker.Scan, i)
+	if name == "isTracking" then isTracking = value break end
+end
+PLC.Session.IsOwner = function() return false end
+local tracksAsMaster = isTracking()
+PLC.db.profile.raiderMode = true
+check("R5", tracksAsMaster and not isTracking(), "the bag scan collects as master looter, but not in raider mode")
+PLC.db.profile.raiderMode = false
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

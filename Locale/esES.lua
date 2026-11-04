@@ -8,6 +8,9 @@ L["CMD_UNKNOWN"] = "Comando desconocido: %s. Escribe /plc help para ver la lista
 
 L["AUTOLOOT_TURNED_ON"] = "El despojo automático está activado."
 L["AUTOLOOT_TURNED_OFF"] = "El despojo automático está desactivado."
+L["RAIDER_MODE_ON"] = "El modo jugador está activado. Como maestro despojador, PixlLootCouncil ya no despoja, recoge ni inicia sesiones por sí solo, para que otro addon como Gargul gestione el botín. Las sesiones de botín que inicien otros se siguen abriendo. /plc raider lo desactiva."
+L["RAIDER_MODE_OFF"] = "El modo jugador está desactivado. Como maestro despojador, PixlLootCouncil vuelve a gestionar el botín."
+L["RAIDER_MODE_HINT"] = "Modo jugador: PixlLootCouncil te deja este botín a ti. /plc raider lo desactiva."
 L["AUTOLOOT_SENT"] = "%s enviado a %s."
 L["AUTOLOOT_FAILED_BAGS"] = "Las bolsas de %s están llenas: %s"
 L["AUTOLOOT_FAILED_UNIQUE"] = "%s ya tiene el máximo de: %s"
@@ -71,6 +74,7 @@ L["SLASH_FORCEEND"] = "Forzar el fin de una sesión cuyo responsable no responde
 L["SLASH_ADDITEM"] = "Añadir un objeto a la sesión por enlace o ID"
 L["SLASH_PREVIEW"] = "Iniciar o detener una sesión de práctica con botín ficticio"
 L["SLASH_AUTOLOOT"] = "Activar o desactivar el despojo automático"
+L["SLASH_RAIDER"] = "Modo jugador: como maestro despojador, deja el botín en tus manos o en las de otro addon"
 L["SLASH_TRADES"] = "Volver a abrir la ventana Comercio de botín"
 L["SLASH_LOOT"] = "Volver a abrir la ventana Respuesta de botín"
 L["SLASH_TIMERS"] = "Mostrar u ocultar la ventana Tiempos de botín"

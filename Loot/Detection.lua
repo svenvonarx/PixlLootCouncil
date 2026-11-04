@@ -96,6 +96,8 @@ local function scanLootSlots()
 	end
 end
 
+local raiderModeHinted = false
+
 local function onLootReady()
 	scanLootSlots()
 
@@ -106,7 +108,17 @@ local function onLootReady()
 	-- UI/LootTimersFrame.lua list is what shows the ML what was collected and how long it can wait.
 	-- With auto loot off (or Shift held) the ML loots by hand, so what's here is only noted, to be
 	-- matched with its bag copy by Loot/BagTracker.lua when it arrives.
-	if PLC.CouncilRules:AmIMasterLooter() and not PLC.Loot.AutoLoot:Begin() then
+	-- In raider mode the loot is left alone, for the player or another addon, with one reminder
+	-- per login of why.
+	if not PLC.CouncilRules:AmIMasterLooter() then
+		return
+	end
+	if PLC.CouncilRules:IsRaiderMode() then
+		if not raiderModeHinted then
+			raiderModeHinted = true
+			print(L["CHAT_PREFIX"] .. L["RAIDER_MODE_HINT"])
+		end
+	elseif not PLC.Loot.AutoLoot:Begin() then
 		PLC.Session:CollectDetectedItems(Detection.lootSlotInfo)
 	end
 end

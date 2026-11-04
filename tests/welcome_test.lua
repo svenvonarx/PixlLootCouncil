@@ -85,6 +85,7 @@ PLC.History = {
 }
 local rebuilt = 0
 PLC.Roster = { Rebuild = function() rebuilt = rebuilt + 1 end }
+PLC.CouncilRules = { SetRaiderMode = function(_, on) PLC.db.profile.raiderMode = on end }
 
 local function deepcopy(v)
 	if type(v) ~= "table" then return v end
@@ -152,6 +153,7 @@ steps.role.raider.scripts.OnClick()
 check("W5", PLC.db.global.onboarded and not Welcome:IsShown() and printed[#printed]:find("WELCOME_RAIDER_DONE", 1, true), "Raider: done, with a line saying the window will come by itself")
 login()
 check("W6", #timers == 0, "and it doesn't come back next login")
+check("W6a", PLC.db.profile.raiderMode == true, "and as master looter, the addon leaves the loot alone (raider mode)")
 
 freshAccount()
 Welcome:Open()
@@ -172,7 +174,9 @@ frame:Hide()
 -- Loot master, no RCLootCouncil ---------------------------------------------------------------------------
 freshAccount()
 Welcome:Open()
+PLC.db.profile.raiderMode = true -- picked Raider before, now /plc setup
 steps.role.master.scripts.OnClick()
+check("W10a", PLC.db.profile.raiderMode == false, "Loot Master turns raider mode off")
 check("W10", Welcome:CurrentStep() == "setup" and not steps.setup.rcNote.shown, "a loot master without RCLootCouncil goes straight to the essentials")
 local profile = PLC.db.profile
 steps.setup.autoLoot.onChanged(false)

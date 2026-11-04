@@ -4,6 +4,15 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
+## Unreleased
+
+- **Raider mode**, for anyone who's sometimes master looter but runs the loot by hand or with another
+  addon such as Gargul. As master looter, PixlLootCouncil then doesn't loot, collect loot or start
+  sessions by itself, and doesn't change who's master looter or the loot threshold. Loot sessions
+  someone else starts still open as usual. Picking Raider in the welcome window turns it on, Loot
+  Master turns it off, and `/plc raider` switches it any time. If you picked Raider before this
+  update, type `/plc raider` once, because that choice wasn't saved.
+
 ## 0.6.2-beta
 
 The Loot Response window stays open while items wait for your answer.

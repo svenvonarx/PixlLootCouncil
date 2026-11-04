@@ -285,8 +285,12 @@ local function remind(item, threshold)
 	print(L["CHAT_PREFIX"] .. string.format(L["TRADETIME_REMINDER"], item.link or "?", BagTracker.FormatShort(left)))
 end
 
--- Only the session owner/collector tracks bags: that's whoever physically holds the raid's loot.
+-- Only the session owner/collector tracks bags: that's whoever physically holds the raid's loot. In
+-- raider mode nothing new is picked up, whatever reaches the bags.
 local function isTracking()
+	if PLC.CouncilRules:IsRaiderMode() then
+		return false
+	end
 	return PLC.Session:IsOwner() or PLC.Session.isCollector or PLC.CouncilRules:AmIMasterLooter()
 end
 

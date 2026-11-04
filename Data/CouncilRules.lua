@@ -1,5 +1,7 @@
 local ADDON_NAME, PLC = ...
 
+local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
+
 -- Pure derivation of "is this roster entry on the council" -- never keeps a membership table of
 -- its own. Roster:Rebuild() is the only writer of entry.council; this module only computes the
 -- value. Keeping it this way is what makes Roster the single source of truth for council
@@ -99,6 +101,22 @@ end
 function CouncilRules:AmIMasterLooter()
 	return self:IsMasterLooterUnit("player")
 end
+
+-- Raider mode (profile.raiderMode, the welcome window's Raider card, /plc raider): this client only
+-- answers loot sessions. As master looter it loots, collects and starts nothing by itself, so another
+-- addon such as Gargul can run the loot. Sessions someone else starts still open as usual.
+function CouncilRules:IsRaiderMode()
+	return PLC.db.profile.raiderMode == true
+end
+
+function CouncilRules:SetRaiderMode(on)
+	PLC.db.profile.raiderMode = on
+	print(L["CHAT_PREFIX"] .. L[on and "RAIDER_MODE_ON" or "RAIDER_MODE_OFF"])
+end
+
+PLC:RegisterSlashCommand("raider", L["SLASH_RAIDER"], function()
+	CouncilRules:SetRaiderMode(not CouncilRules:IsRaiderMode())
+end)
 
 -- Guild rank of a group member: GetGuildInfo(unit) when the client has it (same guild, nearby),
 -- else the guild roster by name. Returns guildName, rankIndex (0 = guild master) or nil.

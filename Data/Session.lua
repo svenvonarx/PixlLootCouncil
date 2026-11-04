@@ -578,7 +578,7 @@ local AUTO_START_DELAY = 3
 local autoStartTimer
 
 function Session:ScheduleAutoStart()
-	if not PLC.db.profile.autoStartSession or self.state == "active" or not IsInGroup() then
+	if not PLC.db.profile.autoStartSession or PLC.CouncilRules:IsRaiderMode() or self.state == "active" or not IsInGroup() then
 		return
 	end
 	if autoStartTimer then

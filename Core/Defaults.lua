@@ -67,6 +67,9 @@ PLC.Defaults = {
 		-- Answer a master looter running RCLootCouncil with this addon's Loot Response window
 		-- (Data/RCBridge.lua). Does nothing while RC itself is running on this client.
 		rcBridge = true,
+		-- Raider mode (Data/CouncilRules.lua:IsRaiderMode): as master looter, loot, collect and start
+		-- nothing by itself. Set by the welcome window's Raider card or /plc raider.
+		raiderMode = false,
 		-- RCLootCouncil's autoStart: collecting loot as master looter starts a review pass by itself
 		-- (Data/Session.lua:ScheduleAutoStart).
 		autoStartSession = true,

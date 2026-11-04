@@ -54,8 +54,9 @@ function MasterLooterList:FindFirst()
 	return nil
 end
 
+-- Not in raider mode (Data/CouncilRules.lua), where the leader runs the loot some other way.
 local function canChangeLoot()
-	return PLC.CouncilRules:IsMasterLootMethod() and UnitIsGroupLeader("player")
+	return not PLC.CouncilRules:IsRaiderMode() and PLC.CouncilRules:IsMasterLootMethod() and UnitIsGroupLeader("player")
 end
 
 local function assign()

@@ -754,6 +754,23 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
 - **Addon list:** on the character screen and in game: the icon is sharp beside the name, the addon is
   under Loot with Gargul and RCLootCouncil, and hovering it shows the new description.
 
+### 2.23 Raider mode (`profile.raiderMode`, `Data/CouncilRules.lua:IsRaiderMode`)
+`luajit tests/autoloot_test.lua`, `master_looter_test.lua` and `welcome_test.lua` check the rules. In
+game, as master looter of a small raid with an Epic or a test item on a corpse:
+- **On:** `/plc raider` says raider mode is on. Open the corpse: one chat line says the addon leaves
+  the loot to you, nothing is handed out, and the Loot Timers and Loot Session windows stay closed.
+  Give the item to yourself with Blizzard's list: it doesn't join a session, now or after the next
+  bag scan (30 seconds). Close and reopen corpses: the chat line doesn't repeat until the next login.
+- **With Gargul:** Gargul's own master looting works as usual, with nothing from PixlLootCouncil in
+  between.
+- **Sessions still open:** another player in the group, master looter with raider mode off, starts a
+  session: your Loot Response window opens and your answers reach them.
+- **Group leader:** with a name on Options → Master Looter's list, switch the group to Master Loot:
+  you stay master looter and the threshold isn't changed.
+- **Off:** `/plc raider` again says it's off; the next corpse is auto looted as before.
+- **Welcome window:** `/plc setup` → Raider turns it on (two chat lines); `/plc setup` → Loot Master
+  turns it off.
+
 ### 2.22 Windows stacking (`Primitives.makeWindow` in `UI/Widgets/Primitives.lua`)
 `luajit tests/appearance_test.lua` checks every window goes through it. In game, open the Loot
 Session window, Options, Loot History and, in a preview, Loot Response and Loot Trades, overlapping:

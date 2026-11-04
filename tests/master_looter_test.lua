@@ -60,6 +60,7 @@ _G.C_PartyInfo = {
 local PLC = { Loot = {} }
 function PLC:RegisterEvent() end
 function PLC:RegisterOnEnable() end
+function PLC:RegisterSlashCommand(name, _, fn) PLC.slash = PLC.slash or {}; PLC.slash[name] = fn end
 function PLC:ScheduleTimer(callback, delay) timers[#timers + 1] = { callback = callback, delay = delay } end
 assert(loadfile("Core/Events.lua"))("PixlLootCouncil", PLC)
 assert(loadfile("Data/CouncilRules.lua"))("PixlLootCouncil", PLC)
@@ -228,6 +229,16 @@ world.inGroup = false; List:OnRosterRebuilt()
 world.inGroup, world.method, world.master = true, 2, 2
 PLC_dispatch("PARTY_LOOT_METHOD_CHANGED"); List:OnRosterRebuilt(); runTimers()
 check("M35", #thresholds == 0, "logging in with Master Loot on doesn't touch it")
+
+-- Raider mode: the leader runs the loot with another addon, so switching to Master Loot does nothing.
+thresholdGroup({ "Mule" }, 3, "Mule")
+PLC.db.profile.raiderMode = true
+switchToMaster(); runTimers(); runTimers()
+check("M36", #calls == 0 and #thresholds == 0, "in raider mode, switching to Master Loot hands nothing on and sets no threshold")
+PLC.slash.raider()
+check("M37", PLC.db.profile.raiderMode == false and saw("RAIDER_MODE_OFF"), "/plc raider turns it off, and says so")
+PLC.slash.raider()
+check("M38", PLC.db.profile.raiderMode == true and saw("RAIDER_MODE_ON"), "and on again")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
