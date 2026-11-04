@@ -117,6 +117,7 @@ L["TRADETIME_BOE"] = "未绑定，没有交易时限"
 L["TRADETIME_SHORT_EXPIRED"] = "过期"
 L["TRADETIME_SHORT_BOE"] = "装绑"
 L["TRADETIME_REMINDER"] = "%s 只能再交易 %s，请尽快分配并交出。"
+L["BAGS_ITEM_GONE"] = "%s 未经分配就离开了你的背包，因此已不在分配会话中。"
 L["TRADE_NO_TRADABLE"] = "背包中没有可交易的 %s，请手动拖入交易窗口。"
 
 L["VOTINGFRAME_AWARD"] = "分配"

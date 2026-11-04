@@ -233,14 +233,19 @@ local function inRaidInstance()
 	return inInstance and instanceType == "raid"
 end
 
--- Everything in the bags right now: [guid] = { bag, slot, link, itemID }.
+-- Everything in the bags right now: [guid] = { bag, slot, link, itemID }, and every itemID seen,
+-- with or without a GUID.
 local function snapshotBags()
-	local snapshot = {}
+	local snapshot, itemIDs = {}, {}
 	local getNumSlots, getLink = getContainerFns()
 	for bag = 0, NUM_BAG_SLOTS do
 		for slot = 1, getNumSlots(bag) or 0 do
 			local link = getLink(bag, slot)
 			if link then
+				local itemID = itemIDFromString(link)
+				if itemID then
+					itemIDs[itemID] = true
+				end
 				local guid = BagTracker:GetItemGUID(bag, slot)
 				if guid then
 					snapshot[guid] = { bag = bag, slot = slot, link = link, itemID = itemIDFromString(link) }
@@ -248,7 +253,7 @@ local function snapshotBags()
 			end
 		end
 	end
-	return snapshot
+	return snapshot, itemIDs
 end
 
 -- Does a newly bagged raid item belong in the loot session backlog?
@@ -275,6 +280,58 @@ local function findUnlinkedItem(itemID)
 	return nil
 end
 
+-- Items that left the bags without being awarded: traded or handed out some other way (such as
+-- another loot addon), mailed, sold, banked or destroyed. They can't be handed out from here anymore,
+-- so they leave the list. To be sure it's really gone and not a moment the game doesn't report the
+-- bags fully, no copy of that item may be left in the bags, and it has to stay missing for GONE_AFTER
+-- seconds, across more than one scan.
+local GONE_AFTER = 10
+local missingSince = setmetatable({}, { __mode = "k" }) -- [session item] = time first missed
+
+local function findGoneItems(snapshot, itemIDs)
+	local Session = PLC.Session
+	local gone = {}
+	if Session.preview or not Session:CanManage() then
+		return gone
+	end
+	local now = time()
+	for idx, item in pairs(Session.items) do
+		local missing = item.itemGUID and not item.awarded and not item.traded and not snapshot[item.itemGUID]
+			and not itemIDs[itemIDFromString(item.itemString) or 0]
+		if not missing then
+			missingSince[item] = nil
+		elseif not missingSince[item] then
+			missingSince[item] = now
+		elseif now - missingSince[item] >= GONE_AFTER then
+			gone[#gone + 1] = idx
+		end
+	end
+	return gone
+end
+
+local function dropGoneItems(gone)
+	local Session = PLC.Session
+	local links = {}
+	for i, idx in ipairs(gone) do
+		links[i] = Session.items[idx].link or "?"
+	end
+	if Session:RemoveItems(gone) == 0 then
+		return
+	end
+	for _, link in ipairs(links) do
+		print(L["CHAT_PREFIX"] .. string.format(L["BAGS_ITEM_GONE"], link))
+	end
+	-- A review pass with nothing left to review ends, like after Remove All.
+	if Session:IsHolder() then
+		for _, item in pairs(Session.items) do
+			if not item.awarded then
+				return
+			end
+		end
+		Session:End()
+	end
+end
+
 local function remind(item, threshold)
 	item.tradeWarned = item.tradeWarned or {}
 	if item.tradeWarned[threshold] then
@@ -298,7 +355,7 @@ function BagTracker:Scan()
 	if not hasGuidApi() then
 		return
 	end
-	local snapshot = snapshotBags()
+	local snapshot, itemIDs = snapshotBags()
 	local known = PLC.db.char.knownBagGuids
 	local firstRun = known == nil
 	local changed = false
@@ -344,7 +401,16 @@ function BagTracker:Scan()
 		end
 	end
 
-	-- 3. RC's low-trade-time reminder, for anything still waiting to be awarded or handed over.
+	-- 3. What left the bags without being awarded leaves the list. Not on the very first scan,
+	-- which has no baseline yet.
+	if not firstRun then
+		local gone = findGoneItems(snapshot, itemIDs)
+		if #gone > 0 then
+			dropGoneItems(gone)
+		end
+	end
+
+	-- 4. RC's low-trade-time reminder, for anything still waiting to be awarded or handed over.
 	if PLC.Session:IsOwner() or PLC.Session.isCollector then
 		for _, item in pairs(PLC.Session.items) do
 			local left = self:SecondsLeft(item)

@@ -4,6 +4,14 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
+## Unreleased
+
+- **Fixed:** loot that left the master looter's bags without being awarded stayed in the loot session
+  for good. For example, loot handed out with another addon, mailed or sold kept opening Loot Timers
+  after every login. BoE items never ran out of trade time, so they never left. Now such an item
+  leaves the session about 10 seconds after it's gone, with a chat line naming it. A session left
+  with nothing to review ends. Items in the bank count as gone too.
+
 ## 0.7.0-beta
 
 Raider mode, for when you're master looter but someone else's loot addon runs the loot.

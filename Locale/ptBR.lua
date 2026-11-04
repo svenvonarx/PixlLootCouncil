@@ -117,6 +117,7 @@ L["TRADETIME_BOE"] = "Não vinculado: sem limite de tempo"
 L["TRADETIME_SHORT_EXPIRED"] = "fim"
 L["TRADETIME_SHORT_BOE"] = "BoE"
 L["TRADETIME_REMINDER"] = "%s só pode ser negociado por mais %s. Entregue-o logo."
+L["BAGS_ITEM_GONE"] = "%s saiu das suas bolsas sem ter sido concedido, então não está mais na sessão de saque."
 L["TRADE_NO_TRADABLE"] = "Nenhum %s negociável nas bolsas. Arraste-o à mão para a janela de negociação."
 
 L["VOTINGFRAME_AWARD"] = "Entregar"

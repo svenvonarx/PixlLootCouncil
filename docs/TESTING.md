@@ -754,6 +754,17 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
 - **Addon list:** on the character screen and in game: the icon is sharp beside the name, the addon is
   under Loot with Gargul and RCLootCouncil, and hovering it shows the new description.
 
+### 2.24 Loot that leaves the bags (`Loot/BagTracker.lua`)
+`luajit tests/bags_test.lua` checks the rules. In game, as master looter with two collected items
+waiting in the Loot Session window (a preview doesn't count, its items are stand-ins):
+- **Traded away:** trade one to someone without awarding it. Within about 30 seconds, a chat line
+  names it and it's gone from the Loot Session window and Loot Timers. The other stays.
+- **Mailed, sold or banked:** the same.
+- **Last one:** with a session running, trade the last unawarded item away: the session ends.
+- **Not gone:** start a trade with an item and cancel it: it stays. Log out and back in: nothing
+  is dropped while the bags load.
+- **Awarded:** an awarded item that leaves the bags is still handled by Loot Trades, as before.
+
 ### 2.23 Raider mode (`profile.raiderMode`, `Data/CouncilRules.lua:IsRaiderMode`)
 `luajit tests/autoloot_test.lua`, `master_looter_test.lua` and `welcome_test.lua` check the rules. In
 game, as master looter of a small raid with an Epic or a test item on a corpse:
