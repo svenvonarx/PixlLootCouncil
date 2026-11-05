@@ -321,7 +321,8 @@ end
 -- An auto loot target (Loot/AutoLoot.lua) as a dropdown plus, for "Players...", a box for the names.
 -- picker:Set(target) shows a target; picker:Get() returns the chosen one, nil if no names are typed
 -- yet. onChange(target) runs when a complete choice is made.
-local function createTargetPicker(parent, dropdownWidth, boxWidth, onChange)
+-- withKeep: offers "master looter, not reviewed" too, for a single item's rule.
+local function createTargetPicker(parent, dropdownWidth, boxWidth, onChange, withKeep)
 	local AutoLoot = PLC.Loot.AutoLoot
 	local PLAYERS = "players"
 	local mode = AutoLoot.SELF
@@ -355,11 +356,13 @@ local function createTargetPicker(parent, dropdownWidth, boxWidth, onChange)
 		picker.box:SetShown(mode == PLAYERS)
 		local labels = {
 			[AutoLoot.SELF] = L["OPTIONS_AUTOLOOT_SELF"],
+			[AutoLoot.KEEP] = string.format(L["OPTIONS_AUTOLOOT_UNREVIEWED"], L["OPTIONS_AUTOLOOT_SELF"]),
 			[AutoLoot.LEAVE] = L["OPTIONS_AUTOLOOT_LEAVE"],
 			[PLAYERS] = L["OPTIONS_AUTOLOOT_PLAYERS"],
 		}
 		local entries = {}
-		for _, value in ipairs({ AutoLoot.SELF, AutoLoot.LEAVE, PLAYERS }) do
+		local values = withKeep and { AutoLoot.SELF, AutoLoot.KEEP, AutoLoot.LEAVE, PLAYERS } or { AutoLoot.SELF, AutoLoot.LEAVE, PLAYERS }
+		for _, value in ipairs(values) do
 			table.insert(entries, {
 				text = labels[value],
 				checked = value == mode,
@@ -376,7 +379,7 @@ local function createTargetPicker(parent, dropdownWidth, boxWidth, onChange)
 	end
 
 	function picker:Set(target)
-		if target == AutoLoot.SELF or target == AutoLoot.LEAVE then
+		if target == AutoLoot.SELF or target == AutoLoot.LEAVE or target == AutoLoot.KEEP then
 			picker.box:SetText("")
 			selectMode(target)
 		else
@@ -437,7 +440,7 @@ local function buildAutoLootPage(page)
 
 	local itemBox = Primitives.createEditBox(page, 110, Theme.LAYOUT.fieldHeight)
 	itemBox:SetPoint("TOPLEFT", exceptionLabel, "BOTTOMLEFT", 0, -6)
-	local exceptionTarget = createTargetPicker(page, 120, 90)
+	local exceptionTarget = createTargetPicker(page, 170, 90, nil, true)
 	exceptionTarget.dropdown:SetPoint("LEFT", itemBox, "RIGHT", 4, 0)
 	exceptionTarget:Set(AutoLoot.LEAVE)
 	Primitives.attachTooltip(itemBox, L["OPTIONS_AUTOLOOT_EXCEPTIONS"], L["TIP_AUTOLOOT_EXCEPTIONS"])
@@ -469,6 +472,8 @@ local function buildAutoLootPage(page)
 	local function targetLabel(target)
 		if target == AutoLoot.SELF then
 			return L["OPTIONS_AUTOLOOT_SELF"]
+		elseif target == AutoLoot.KEEP then
+			return string.format(L["OPTIONS_AUTOLOOT_UNREVIEWED"], L["OPTIONS_AUTOLOOT_SELF"])
 		elseif target == AutoLoot.LEAVE then
 			return L["OPTIONS_AUTOLOOT_LEAVE"]
 		end
@@ -485,9 +490,11 @@ local function buildAutoLootPage(page)
 		},
 		{
 			width = 140,
+			-- A default changed here is in the accent color; its x brings the default back.
 			render = function(rowData)
-				if rowData.unreviewed then
-					return string.format(L["OPTIONS_AUTOLOOT_UNREVIEWED"], targetLabel(rowData.target))
+				if rowData.isDefault and rowData.changed then
+					local r, g, b = Primitives.color("accent")
+					return targetLabel(rowData.target), r, g, b
 				end
 				return targetLabel(rowData.target)
 			end,
@@ -498,8 +505,9 @@ local function buildAutoLootPage(page)
 			create = function(row)
 				return Primitives.createCloseButton(row, 14)
 			end,
+			-- Removes the player's own rule: a default comes back, anything else goes from the list.
 			update = function(button, rowData)
-				button:SetShown(not rowData.builtIn)
+				button:SetShown(rowData.changed)
 				button:SetScript("OnClick", function()
 					settings.exceptions[rowData.itemID] = nil
 					refreshExceptions()
@@ -508,29 +516,31 @@ local function buildAutoLootPage(page)
 		},
 	})
 
-	-- Everyone's own exceptions, then the curated list (Data/ExcludedItems.lua) for whatever they
-	-- didn't override. The curated entries can be overridden but not removed.
+	-- Every item with a rule: the defaults (Data/ExcludedItems.lua) and the player's own. Only what
+	-- the player changed is saved (settings.exceptions), so the other defaults follow updates.
 	function refreshExceptions()
 		local rows = {}
-		for itemID, target in pairs(settings.exceptions) do
-			table.insert(rows, { itemID = itemID, target = target, name = C_Item.GetItemInfo(itemID) or ("item:" .. itemID) })
-		end
-		for itemID in pairs(PLC.ExcludedItems) do
-			if not settings.exceptions[itemID] then
-				table.insert(rows, { itemID = itemID, target = AutoLoot.LEAVE, builtIn = true, name = C_Item.GetItemInfo(itemID) or ("item:" .. itemID) })
-			end
-		end
-		-- Kept by the raid: where review loot goes, but never reviewed.
-		for itemID in pairs(PLC.UnreviewedItems) do
-			if not settings.exceptions[itemID] then
-				table.insert(rows, { itemID = itemID, target = settings.reviewTarget, builtIn = true, unreviewed = true,
-					name = C_Item.GetItemInfo(itemID) or ("item:" .. itemID) })
+		local defaults = PLC.ItemRules.DEFAULTS
+		local seen = {}
+		for _, list in ipairs({ settings.exceptions, defaults }) do
+			for itemID in pairs(list) do
+				if not seen[itemID] then
+					seen[itemID] = true
+					table.insert(rows, {
+						itemID = itemID,
+						target = PLC.ItemRules.For(itemID),
+						isDefault = defaults[itemID] ~= nil,
+						changed = settings.exceptions[itemID] ~= nil,
+						name = C_Item.GetItemInfo(itemID) or ("item:" .. itemID),
+					})
+				end
 			end
 		end
 		table.sort(rows, function(a, b) return a.name < b.name end)
 		exceptionTable:SetRows(rows)
 	end
 
+	-- Choosing what an item's default already is saves nothing, so a later default reaches it.
 	local function addException()
 		local text = strtrim(itemBox:GetValue() or "")
 		local itemID = tonumber(text) or tonumber(text:match("item:(%d+)")) or C_Item.GetItemInfoInstant(text)
@@ -540,12 +550,22 @@ local function buildAutoLootPage(page)
 		end
 		local target = exceptionTarget:Get()
 		if target then
-			settings.exceptions[itemID] = target
+			if target == PLC.ItemRules.DEFAULTS[itemID] then
+				settings.exceptions[itemID] = nil
+			else
+				settings.exceptions[itemID] = target
+			end
 			itemBox:SetText("")
 			itemBox:ClearFocus()
 			refreshExceptions()
 		end
 	end
+
+	-- Clicking an item puts it in the fields above, to change it.
+	exceptionTable:SetRowClickHandler(function(rowData)
+		itemBox:SetText(tostring(rowData.itemID))
+		exceptionTarget:Set(rowData.target)
+	end)
 	addButton:SetScript("OnClick", addException)
 	itemBox:SetScript("OnEnterPressed", addException)
 

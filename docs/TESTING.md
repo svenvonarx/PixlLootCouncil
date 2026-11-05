@@ -791,6 +791,18 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   `/plc share`, `/plc share 2026/11/05` and `/plc share nonsense` (explains the date). A player who
   awarded nothing sees "no awards of your own". Share again: the others get nothing new.
 
+### 2.26 Item rules (`Data/ExcludedItems.lua`, Options → Auto Loot)
+`luajit tests/autoloot_test.lua` and `options_test.lua` check the rules. In game:
+- **The list:** Options → Auto Loot lists Mark of the Illidari, Heart of Darkness, Primal Nether,
+  Nether Vortex and the six gems as "Master looter, not reviewed", and Sunmote as "Leave in window".
+  None has an x.
+- **Looting:** as master looter with auto loot on, loot a Nether Vortex or a Mark: it goes to you and
+  doesn't join the Loot Session window.
+- **Changing one:** click Nether Vortex: its ID and rule fill the fields. Pick Master looter, press
+  Add: its rule is in color with an x; the next Vortex is reviewed again. Press the x: back to "not
+  reviewed", in white. Pick the rule it already has and press Add: nothing is saved (no color, no x).
+- **Your own:** add any other item with a rule: it's listed with an x, which removes it.
+
 ### 2.24 Loot that leaves the bags (`Loot/BagTracker.lua`)
 `luajit tests/bags_test.lua` checks the rules. In game, as master looter with two collected items
 waiting in the Loot Session window (a preview doesn't count, its items are stand-ins):

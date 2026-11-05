@@ -158,8 +158,26 @@ check("K1", actions[1] == "give " .. LIONSEYE .. " 1", "auto loot takes the gem 
 check("K2", #noted == 1 and noted[1] == "bagged " .. HELM, "but only the helm joins a session")
 close()
 PLC.db.profile.autoLoot.reviewTarget = "leave"
-check("K3", PLC.Loot.AutoLoot:GetTarget(link(LIONSEYE), 4) == "leave", "with review loot left in the window, so is the gem")
+check("K3", PLC.Loot.AutoLoot:GetTarget(link(LIONSEYE), 4) == "self", "kept loot goes to the master looter, whatever review loot does")
 PLC.db.profile.autoLoot.reviewTarget = "self"
+local AutoLoot = PLC.Loot.AutoLoot
+local kept = true
+for _, id in ipairs({ 32897, 32428, 23572, 30183 }) do -- Mark, Heart of Darkness, Primal Nether, Nether Vortex
+	kept = kept and AutoLoot:GetTarget(link(id), 4) == "self" and AutoLoot:IsExcludedFromReview(link(id))
+end
+check("K4", kept, "Mark of the Illidari, Heart of Darkness, Primal Nether and Nether Vortex are kept like the gems")
+check("K5", AutoLoot:GetTarget(link(34664), 4) == "leave", "Sunmote stays in the window")
+PLC.db.profile.autoLoot.exceptions[30183] = "self"
+check("K6", AutoLoot:GetTarget(link(30183), 4) == "self" and not AutoLoot:IsExcludedFromReview(link(30183)),
+	"a raid can change a default for itself: Nether Vortex reviewed again")
+PLC.db.profile.autoLoot.exceptions[34664] = "keep"
+check("K7", AutoLoot:GetTarget(link(34664), 4) == "self" and AutoLoot:IsExcludedFromReview(link(34664)), "or Sunmote kept")
+PLC.db.profile.autoLoot.exceptions[30183], PLC.db.profile.autoLoot.exceptions[34664] = nil, nil
+local defaults = PLC.ItemRules.DEFAULTS
+defaults[99001] = "keep" -- an update adds a default
+check("K8", AutoLoot:GetTarget(link(99001), 4) == "self" and AutoLoot:IsExcludedFromReview(link(99001)),
+	"a default added by an update reaches everyone who didn't change that item")
+defaults[99001] = nil
 
 -- Raider mode -------------------------------------------------------------------------------------
 -- Another addon (Gargul) runs this master looter's loot: nothing is handed out, taken or noted.

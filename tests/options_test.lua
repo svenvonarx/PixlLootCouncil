@@ -121,7 +121,8 @@ end }
 PLC.UI.WelcomeFrame = { Open = function() PLC.welcomeOpened = true end, ConfirmReset = function() PLC.resetAsked = true end }
 local tables = {}
 PLC.UI.Widgets.DataTable = { Create = function(_, rowHeight)
-	local t = { rowHeight = rowHeight, SetColumns = function(s, c) s.columns = c end, SetRows = function(s, r) s.rows = r end }
+	local t = { rowHeight = rowHeight, SetColumns = function(s, c) s.columns = c end, SetRows = function(s, r) s.rows = r end,
+		SetRowClickHandler = function(s, fn) s.onClick = fn end }
 	tables[#tables + 1] = t
 	return t
 end }
@@ -132,9 +133,8 @@ local function copy(v) if type(v) ~= "table" then return v end local o = {} for 
 PLC.db = { profile = copy(PLC.Defaults.profile), char = {}, global = {} }
 PLC.CouncilRules = { GetGuildRanks = function() return {} end }
 PLC.Responses = { MAX_COUNT = 7, MAX_TEXT_LETTERS = 12, GetConfigured = function() return {} end, Save = function() end, Reset = function() end, NewKey = function() return "K" end }
-PLC.Loot.AutoLoot = { SELF = "self", LEAVE = "leave" }
-PLC.ExcludedItems = { [32897] = true }
-PLC.UnreviewedItems = { [32229] = true }
+PLC.Loot.AutoLoot = { SELF = "self", LEAVE = "leave", KEEP = "keep" }
+assert(loadfile("Data/ExcludedItems.lua"))("PixlLootCouncil", PLC)
 PLC.Session = { preview = false }
 PLC.Preview = { Toggle = function() end }
 local updateNotices = 0
@@ -201,6 +201,32 @@ check("L6", stacked, "rows don't overlap")
 local nameTables = 0
 for _, t in ipairs(tables) do if t.rowHeight == 20 then nameTables = nameTables + 1 end end
 check("L7", nameTables == 3, "the Auto Loot, Council and About lists all get their row height: " .. nameTables)
+
+-- Item rules: the defaults, and the player's own changes to them.
+local itemTable
+for _, t in ipairs(tables) do
+	if t.rows and t.rows[1] and t.rows[1].itemID then itemTable = t end
+end
+local function ruleRow(itemID)
+	for _, row in ipairs(itemTable and itemTable.rows or {}) do if row.itemID == itemID then return row end end
+end
+local function closeShown(row)
+	local button = { SetShown = function(b, v) b.shown = v end, SetScript = function(b, _, fn) b.click = fn end }
+	itemTable.columns[3].update(button, row)
+	return button
+end
+check("I1", itemTable and #itemTable.rows == 11 and ruleRow(30183).target == "keep" and ruleRow(34664).target == "leave",
+	"every default is listed with what it does")
+check("I2", not closeShown(ruleRow(30183)).shown, "an unchanged default has nothing to remove")
+PLC.db.profile.autoLoot.exceptions[30183] = "self"
+PLC.db.profile.autoLoot.exceptions[12345] = "leave"
+closeShown({ itemID = 99999, changed = true }).click() -- any reset redraws the list
+local button = closeShown(ruleRow(30183))
+check("I3", ruleRow(30183).target == "self" and ruleRow(30183).changed and button.shown and #itemTable.rows == 12,
+	"a changed default shows the change, and can be reset; the player's own items are listed too")
+button.click()
+check("I4", PLC.db.profile.autoLoot.exceptions[30183] == nil and ruleRow(30183).target == "keep", "resetting brings the default back")
+PLC.db.profile.autoLoot.exceptions[12345] = nil
 
 -- The right-hand side -------------------------------------------------------------------------------
 local stretched = #sliders == 4 -- General has three, Appearance has Scale

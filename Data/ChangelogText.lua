@@ -4,6 +4,16 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
+## Unreleased
+
+- **Mark of the Illidari, Heart of Darkness, Primal Nether and Nether Vortex** are now handled like
+  raw epic gems: auto looted to the master looter, never up for review. Sunmote still stays in the
+  loot window.
+- **Change the defaults for yourself.** Options → Auto Loot lists every item with a rule. Click one to
+  change it, including to the new **Master looter, not reviewed**, then press Add. A default you
+  changed is shown in color, and its x brings the default back. Only your changes are saved, so new
+  defaults in later versions still reach every item you haven't changed.
+
 ## 0.8.0-beta
 
 Fixes and changes from the first raid night. **Everyone in the raid needs this version**: Award All

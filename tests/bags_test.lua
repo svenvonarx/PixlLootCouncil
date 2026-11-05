@@ -51,7 +51,7 @@ local function check(id, ok, detail)
 	if ok then passed = passed + 1 else failed = failed + 1 end
 	out(string.format("%-4s %-5s %s", id, ok and "pass" or "FAIL", detail or ""))
 end
-local GEM, HELM, VORTEX = 30002, 30001, 30183 -- VORTEX stacks
+local GEM, HELM, VORTEX = 30002, 30001, 30003 -- VORTEX: a reagent that stacks and is reviewed
 local function setup(...)
 	Session.items, Session.preview, Session.manage, Session.holder, Session.ended = {}, nil, true, true, false
 	bag = {}

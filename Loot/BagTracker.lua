@@ -340,8 +340,8 @@ local function dropGoneItems(gone)
 	end
 end
 
--- Collected loot that's on Data/ExcludedItems.lua's lists now, but wasn't when it was collected,
--- such as raw epic gems: it leaves the list. Items added by hand (/plc additem) stay.
+-- Collected loot that's kept or left in the window now (Data/ExcludedItems.lua), but wasn't when it
+-- was collected, such as raw epic gems: it leaves the list. Items added by hand (/plc additem) stay.
 local function dropExcludedItems()
 	local Session = PLC.Session
 	if Session.preview or not Session:CanManage() then
@@ -350,8 +350,7 @@ local function dropExcludedItems()
 	local excluded, example = {}, nil
 	for idx, item in pairs(Session.items) do
 		local itemID = itemIDFromString(item.itemString)
-		if itemID and (PLC.ExcludedItems[itemID] or PLC.PersonalLootItems[itemID] or PLC.UnreviewedItems[itemID])
-			and not item.awarded
+		if itemID and (PLC.PersonalLootItems[itemID] or PLC.ItemRules.IsKeptOrLeft(itemID)) and not item.awarded
 			and (item.instance or item.boss) then
 			excluded[#excluded + 1] = idx
 			example = example or item.link

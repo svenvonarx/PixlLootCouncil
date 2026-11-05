@@ -37,10 +37,11 @@ arrive.
 - **Master looter list.** Choose who should run the loot, in order. When you switch the group to
   Master Loot, the first of them who's online in the group gets it, and the loot threshold can be set
   at the same moment. Changing either afterwards sticks.
-- **Excluded items.** Raid materials such as Mark of the Illidari stay in the loot window for you to
-  assign through Blizzard's list. Raw epic gems such as Lionseye are auto looted like review loot but
-  never reviewed, since raids keep them. The curated lists are in `Data/ExcludedItems.lua`, and your
-  exceptions override them.
+- **Item rules.** Raid materials (Mark of the Illidari, Heart of Darkness, Primal Nether, Nether
+  Vortex) and raw epic gems go to the master looter but never up for review, since raids keep them.
+  Sunmote stays in the loot window for you to assign through Blizzard's list. Under Options → Auto
+  Loot you can change any of these for yourself, or add your own; only what you change is saved, so
+  defaults added in later versions still reach you. The defaults are in `Data/ExcludedItems.lua`.
 - **Trade-time tracking.** Each item in your bags shows how long it can still be traded: soulbound
   loot has a 2-hour trade window, and BoE recipes from the raid have no limit. You get a chat reminder
   at 20 and 5 minutes, and expired items are flagged.

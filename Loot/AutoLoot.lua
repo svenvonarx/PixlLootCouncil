@@ -10,19 +10,19 @@ PLC.Loot.AutoLoot = AutoLoot
 -- target, in this order:
 --   0. loot everyone takes their own copy of (PLC.PersonalLootItems, e.g. Badge of Justice): the
 --      master looter's copy goes to them, and it's never reviewed
---   1. an item exception (Options -> Auto Loot), which always wins
---   2. never automated: PLC.ExcludedItems (Data/ExcludedItems.lua) and quest items, which stay in the
---      window for the master looter to assign through Blizzard's own list
---   2b. loot the raid keeps (PLC.UnreviewedItems, e.g. raw epic gems): the review loot target, but
---      never reviewed
+--   1. the item's rule (Data/ExcludedItems.lua): the player's own from Options -> Auto Loot, else the
+--      default. "keep" goes to the master looter and is never reviewed (raw epic gems, Nether
+--      Vortex); "leave" stays in the window for Blizzard's own assign list
+--   2. quest items stay in the window too
 --   3. review loot (Detection:IsReviewQuality): profile.autoLoot.reviewTarget. A legendary never goes
 --      to a named player this way: a general rule shouldn't bind one to somebody else
 --   4. anything else the group's loot threshold makes master loot: profile.autoLoot.otherTarget
 -- A target is "self", "leave" or a comma-separated list of names, tried in order: the first who
 -- can receive it gets it, so a second name is a fallback for a full mule. Only review loot that
 -- actually reached the master looter joins a session (Session:CollectDetectedItems).
-AutoLoot.SELF = "self"
-AutoLoot.LEAVE = "leave"
+AutoLoot.SELF = PLC.ItemRules.SELF
+AutoLoot.LEAVE = PLC.ItemRules.LEAVE
+AutoLoot.KEEP = PLC.ItemRules.KEEP
 
 local TICK_SECONDS = 0.2 -- the window's contents can change at any moment, so keep checking it
 local MAX_WAITING_TICKS = 10 -- how long a candidate may take to show up in the list
@@ -63,15 +63,14 @@ function AutoLoot:GetTarget(link, quality)
 	if PLC.PersonalLootItems[itemID] then
 		return self.SELF
 	end
-	local exception = itemID and settings().exceptions[itemID]
-	if exception then
-		return exception
+	local rule = PLC.ItemRules.For(itemID)
+	if rule == self.KEEP then
+		return self.SELF
+	elseif rule then
+		return rule
 	end
-	if classID == QUEST_CLASS_ID or PLC.ExcludedItems[itemID] then
+	if classID == QUEST_CLASS_ID then
 		return self.LEAVE
-	end
-	if PLC.UnreviewedItems[itemID] then
-		return settings().reviewTarget
 	end
 	if PLC.Loot.Detection:IsReviewQuality(link, quality) then
 		local target = settings().reviewTarget
@@ -86,16 +85,15 @@ function AutoLoot:GetTarget(link, quality)
 	return self.LEAVE
 end
 
--- Loot that's never put up for review, however good it is: it's excluded, or an exception sends it
--- elsewhere.
+-- Loot that's never put up for review, however good it is: its rule keeps it, leaves it in the
+-- window or sends it to someone, or it's a quest item or everyone's own.
 function AutoLoot:IsExcludedFromReview(link)
 	local itemID, classID = itemIdentity(link)
-	if classID == QUEST_CLASS_ID or PLC.ExcludedItems[itemID] or PLC.PersonalLootItems[itemID]
-		or PLC.UnreviewedItems[itemID] then
+	if classID == QUEST_CLASS_ID or PLC.PersonalLootItems[itemID] then
 		return true
 	end
-	local exception = itemID and settings().exceptions[itemID]
-	return exception ~= nil and exception ~= self.SELF
+	local rule = PLC.ItemRules.For(itemID)
+	return rule ~= nil and rule ~= self.SELF
 end
 
 local function recipients(target)
