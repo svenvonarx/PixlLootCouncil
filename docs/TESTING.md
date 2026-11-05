@@ -558,7 +558,11 @@ addon's own existing taint capture, and the fastest signal if a protected-functi
   skipped by id). If RC is also enabled on *your* character, RC answers the request itself — then
   use Import → "Import from RCLootCouncil" afterwards.
 - **Paste:** RC History → Export → *Player Export* → copy → PLC Import → paste → Import.
-  A non-export string prints the "isn't a Player Export string" error and imports nothing.
+  A non-export string prints the "isn't a Player Export string" error, which says to pick Player
+  Export instead of CSV or TSV, and imports nothing.
+- **Big paste (0.7.4):** in RCLootCouncil with a long history, Export → CSV, copy, and paste it into
+  PLC's import box. The game doesn't hang: the box says how many characters came in. Import prints the
+  wrong-format error. A Player Export of the whole history pastes the same way and imports.
 - **Live mirroring:** in a group whose master looter (or leader) runs RC, every RC award appears
   in your `/plc history` as it happens. Option: General → "Store loot history from an
   RCLootCouncil master looter".

@@ -128,7 +128,7 @@ PLC.UI.Widgets.Button = setmetatable({
 	end,
 }, { __index = function() return function() return frame({ label = frame() }) end end })
 PLC.UI.Widgets.Dropdown = setmetatable({}, { __index = function() return function() return frame({ text = frame(), arrow = frame() }) end end })
-PLC.UI.Widgets.ScrollFrame = { RESERVED_WIDTH = 14 }
+PLC.UI.Widgets.ScrollFrame = { RESERVED_WIDTH = 14, createScrollFrame = function() return frame() end }
 PLC.UI.Widgets.DataTable = { Create = function(_, rowHeight)
 	local t = frame({ rowHeight = rowHeight })
 	t.SetColumns = function(s, columns) s.columns = columns end
@@ -517,6 +517,48 @@ check("U5", Session.preview == false and optionsTold == 2, "so does the holder e
 runningPreview()
 PLC.Preview:Toggle()
 check("U6", Session.preview == false and optionsTold == 2, "and /plc preview")
+
+-- Pasting into the import box ---------------------------------------------------------------------------
+-- The game lays out all of a multi-line box's text: a pasted CSV export of a long history froze it.
+local function findUpvalue(fn, wanted, seen)
+	seen = seen or {}
+	if seen[fn] then return nil end
+	seen[fn] = true
+	for i = 1, 200 do
+		local name, value = debug.getupvalue(fn, i)
+		if not name then break end
+		if name == wanted then return value end
+		if type(value) == "function" then
+			local found = findUpvalue(value, wanted, seen)
+			if found then return found end
+		end
+	end
+end
+local clock = 100
+_G.GetTime = function() return clock end
+frameMethods.SetMaxBytes = function(f, bytes) f.maxBytes = bytes end
+local importFrame = findUpvalue(PLC.UI.HistoryFrame.Open, "ensureImportFrame")()
+local box = importFrame.box
+local huge = string.rep("player,date,time,item,response\n", 20000)
+for i = 1, #huge do box.scripts.OnChar(box, huge:sub(i, i)) end
+box.scripts.OnUpdate(box)
+check("P1", box.maxBytes and box.maxBytes <= 5000, "the box itself only holds a few thousand bytes, so a long paste can't freeze the game")
+check("P2", importFrame.pasted == huge and box.text:find("HISTORY_IMPORT_PASTED", 1, true) ~= nil,
+	"the whole paste is kept, and the box says how much came in")
+local imported
+local realImport = PLC.History.ImportPlayerExport
+PLC.History.ImportPlayerExport = function(_, text) imported = text end
+importFrame.importButton.scripts.OnClick()
+check("P3", imported == huge, "Import gets the whole paste")
+clock = 101
+box.scripts.OnChar(box, "x")
+box.scripts.OnUpdate(box)
+check("P4", importFrame.pasted == huge, "a key pressed afterwards doesn't count as a paste")
+box.text = ""
+box.scripts.OnTextChanged(box, true)
+importFrame.importButton.scripts.OnClick()
+check("P5", imported == "", "clearing the box forgets the paste")
+PLC.History.ImportPlayerExport = realImport
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

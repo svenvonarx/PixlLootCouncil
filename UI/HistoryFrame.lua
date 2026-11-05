@@ -20,6 +20,7 @@ local dateTable, nameTable, mainTable
 local headerButtons = {}
 local countText, emptyText, formatDropdown, filterButton
 local exportFrame, importFrame
+local PASTE_BOX_BYTES = 2500 -- what the import box itself holds, see ensureImportFrame
 local selectedDate, selectedName
 local sortKey, sortDesc = "time", true
 local infoEntry -- entry whose details tooltip is currently shown
@@ -455,6 +456,7 @@ local function ensureImportFrame()
 	help:SetWordWrap(true)
 
 	local importButton = ButtonWidget.createButton(content, L["HISTORY_IMPORT_BUTTON"], 100)
+	importFrame.importButton = importButton
 	importButton:SetPoint("BOTTOMRIGHT")
 
 	importFrame.localButton = ButtonWidget.createButton(content, L["HISTORY_IMPORT_FROM_RC"], 220)
@@ -489,8 +491,39 @@ local function ensureImportFrame()
 	end)
 	importFrame.box = box
 
+	-- The game lays out all of a multi-line box's text, so pasting a long export froze it for minutes
+	-- or crashed it: a big history, or the wrong export such as RCLootCouncil's CSV, is megabytes.
+	-- The box keeps only PASTE_BOX_BYTES, while every pasted character still arrives through OnChar
+	-- (the way WeakAuras' import box does it). One frame later the paste is complete: it's kept in
+	-- importFrame.pasted, and the box says how much came in.
+	box:SetMaxBytes(PASTE_BOX_BYTES)
+	local buffer, length, startedAt = {}, 0, nil
+	box:SetScript("OnChar", function(self, char)
+		if startedAt ~= GetTime() then
+			buffer, length, startedAt = {}, 0, GetTime()
+			self:SetScript("OnUpdate", function()
+				self:SetScript("OnUpdate", nil)
+				startedAt = nil
+				if length > 1 then -- a paste, not a key press
+					importFrame.pasted = table.concat(buffer)
+					self:SetText(string.format(L["HISTORY_IMPORT_PASTED"], #importFrame.pasted))
+					self:HighlightText()
+				end
+				buffer, length = {}, 0
+			end)
+		end
+		length = length + 1
+		buffer[length] = char
+	end)
+	box:SetScript("OnTextChanged", function(self, userInput)
+		if userInput and self:GetText() == "" then
+			importFrame.pasted = nil
+		end
+	end)
+
 	importButton:SetScript("OnClick", function()
-		if PLC.History:ImportPlayerExport(box:GetText()) then
+		if PLC.History:ImportPlayerExport(importFrame.pasted or box:GetText()) then
+			importFrame.pasted = nil
 			box:SetText("")
 			importFrame:Hide()
 		end
@@ -503,6 +536,7 @@ end
 local function showImport()
 	local f = ensureImportFrame()
 	f.localButton:SetShown(PLC.History:HasLocalRCData())
+	f.pasted = nil
 	f.box:SetText("")
 	f:Show()
 	f.box:SetFocus()
