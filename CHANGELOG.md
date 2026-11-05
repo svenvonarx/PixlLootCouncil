@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.4-beta
+
+- **Fixed:** pasting a long text into Loot History's import box, such as RCLootCouncil's CSV export
+  of a long history, froze the game for minutes or crashed it. The box now shows a short note saying
+  how much was pasted, and Import still gets all of it.
+- Pasting the wrong export now says which one to pick: Player Export, not CSV or TSV.
+
 ## 0.7.3-beta
 
 - **Fixed:** importing a big loot history from RCLootCouncil could freeze the game for minutes, or
