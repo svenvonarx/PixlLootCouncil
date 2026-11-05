@@ -108,6 +108,7 @@ L["SESSION_ADDITEM_SUCCESS"] = "已將 %s 加入分配。"
 L["SESSION_ALREADY_AWARDED"] = "該物品已被分配。"
 L["SESSION_AWARD_UNKNOWN_WINNER"] = "隊伍中找不到該玩家。"
 L["SESSION_REMOVED_ALL"] = "已從分配移除 %d 件物品。"
+L["SESSION_DROPPED_EXCLUDED"] = "已從分配移除 %d 件不再審議的物品，例如 %s。"
 L["SESSION_AWARD_ALL_RESULT"] = "已分配 %d 件已標記物品。"
 
 L["TRADE_NOT_FOUND"] = "附近找不到可交易的 %s。"

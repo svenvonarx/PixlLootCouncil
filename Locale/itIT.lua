@@ -108,6 +108,7 @@ L["SESSION_ADDITEM_SUCCESS"] = "%s aggiunto alla sessione."
 L["SESSION_ALREADY_AWARDED"] = "Quell'oggetto è già stato assegnato."
 L["SESSION_AWARD_UNKNOWN_WINNER"] = "Quel giocatore non è nel gruppo."
 L["SESSION_REMOVED_ALL"] = "%d oggetto/i rimosso/i dalla sessione di bottino."
+L["SESSION_DROPPED_EXCLUDED"] = "%d oggetto/i che non vengono più valutati rimosso/i dalla sessione di bottino, come %s."
 L["SESSION_AWARD_ALL_RESULT"] = "%d oggetto/i preparato/i assegnato/i."
 
 L["TRADE_NOT_FOUND"] = "%s non è abbastanza vicino per lo scambio."

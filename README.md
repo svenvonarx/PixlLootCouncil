@@ -37,7 +37,8 @@ arrive.
 - **Master looter list.** Choose who should run the loot, in order. When you switch the group to
   Master Loot, the first of them who's online in the group gets it, and the loot threshold can be set
   at the same moment. Changing either afterwards sticks.
-- **Excluded items.** Raid materials such as Mark of the Illidari stay in the loot window for you to
+- **Excluded items.** Raid materials such as Mark of the Illidari, and raw epic gems such as Lionseye,
+  stay in the loot window for you to
   assign through Blizzard's list. The curated list is in `Data/ExcludedItems.lua`, and your exceptions
   override it.
 - **Trade-time tracking.** Each item in your bags shows how long it can still be traded: soulbound

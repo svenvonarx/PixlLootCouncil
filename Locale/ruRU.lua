@@ -108,6 +108,7 @@ L["SESSION_ADDITEM_SUCCESS"] = "%s добавлено в сессию."
 L["SESSION_ALREADY_AWARDED"] = "Этот предмет уже выдан."
 L["SESSION_AWARD_UNKNOWN_WINNER"] = "Этот игрок не найден в группе."
 L["SESSION_REMOVED_ALL"] = "Убрано из сессии добычи предметов: %d."
+L["SESSION_DROPPED_EXCLUDED"] = "Из сессии добычи убрано предметов, которые больше не рассматриваются: %d, например %s."
 L["SESSION_AWARD_ALL_RESULT"] = "Выдано отмеченных предметов: %d."
 
 L["TRADE_NOT_FOUND"] = "%s слишком далеко для обмена."

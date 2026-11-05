@@ -236,19 +236,20 @@ end
 -- Everything in the bags right now: [guid] = { bag, slot, link, itemID }, and every itemID seen,
 -- with or without a GUID.
 local function snapshotBags()
-	local snapshot, itemIDs = {}, {}
+	local snapshot, itemIDs = {}, {} -- itemIDs: [itemID] = an entry with a GUID, or true
 	local getNumSlots, getLink = getContainerFns()
 	for bag = 0, NUM_BAG_SLOTS do
 		for slot = 1, getNumSlots(bag) or 0 do
 			local link = getLink(bag, slot)
 			if link then
 				local itemID = itemIDFromString(link)
-				if itemID then
-					itemIDs[itemID] = true
-				end
 				local guid = BagTracker:GetItemGUID(bag, slot)
 				if guid then
-					snapshot[guid] = { bag = bag, slot = slot, link = link, itemID = itemIDFromString(link) }
+					snapshot[guid] = { bag = bag, slot = slot, link = link, itemID = itemID }
+				end
+				-- Prefer a copy with a GUID, whose trade status can be read.
+				if itemID and type(itemIDs[itemID]) ~= "table" then
+					itemIDs[itemID] = guid and snapshot[guid] or true
 				end
 			end
 		end
@@ -286,6 +287,13 @@ end
 -- bags fully, no copy of that item may be left in the bags, and it has to stay missing for GONE_AFTER
 -- seconds, across more than one scan.
 local GONE_AFTER = 10
+
+-- Collected raid loot that's in the bags but never got its own GUID: it joined a stack, such as a
+-- second Nether Vortex. Items added by hand (/plc additem) may be in someone else's bags, so they
+-- don't count.
+local function isStackedCopy(item)
+	return not item.itemGUID and item.bagged and not item.lootSlot and item.instance ~= nil
+end
 local missingSince = setmetatable({}, { __mode = "k" }) -- [session item] = time first missed
 
 local function findGoneItems(snapshot, itemIDs)
@@ -296,8 +304,8 @@ local function findGoneItems(snapshot, itemIDs)
 	end
 	local now = time()
 	for idx, item in pairs(Session.items) do
-		local missing = item.itemGUID and not item.awarded and not item.traded and not snapshot[item.itemGUID]
-			and not itemIDs[itemIDFromString(item.itemString) or 0]
+		local missing = (item.itemGUID or isStackedCopy(item)) and not item.awarded and not item.traded
+			and not (item.itemGUID and snapshot[item.itemGUID]) and not itemIDs[itemIDFromString(item.itemString) or 0]
 		if not missing then
 			missingSince[item] = nil
 		elseif not missingSince[item] then
@@ -329,6 +337,27 @@ local function dropGoneItems(gone)
 			end
 		end
 		Session:End()
+	end
+end
+
+-- Collected loot that's on Data/ExcludedItems.lua's lists now, but wasn't when it was collected,
+-- such as raw epic gems: it leaves the list. Items added by hand (/plc additem) stay.
+local function dropExcludedItems()
+	local Session = PLC.Session
+	if Session.preview or not Session:CanManage() then
+		return
+	end
+	local excluded, example = {}, nil
+	for idx, item in pairs(Session.items) do
+		local itemID = itemIDFromString(item.itemString)
+		if itemID and (PLC.ExcludedItems[itemID] or PLC.PersonalLootItems[itemID]) and not item.awarded
+			and (item.instance or item.boss) then
+			excluded[#excluded + 1] = idx
+			example = example or item.link
+		end
+	end
+	if #excluded > 0 and Session:RemoveItems(excluded) > 0 then
+		print(L["CHAT_PREFIX"] .. string.format(L["SESSION_DROPPED_EXCLUDED"], #excluded, example or "?"))
 	end
 end
 
@@ -385,10 +414,15 @@ function BagTracker:Scan()
 		end
 	end
 
-	-- 2. Refresh trade time for every session item we can locate.
+	-- 2. Refresh trade time for every session item we can locate. A copy that joined a stack reads
+	-- the stack's.
 	for _, item in pairs(PLC.Session.items) do
-		if item.itemGUID and not item.traded then
-			local entry = snapshot[item.itemGUID]
+		if not item.traded then
+			local entry = item.itemGUID and snapshot[item.itemGUID]
+			if not entry and isStackedCopy(item) then
+				local copy = itemIDs[itemIDFromString(item.itemString) or 0]
+				entry = type(copy) == "table" and copy or nil
+			end
 			if entry then
 				local before = item.tradeExpiresAt
 				applyStatus(item, self:GetTradeStatus(entry.bag, entry.slot))
@@ -402,7 +436,8 @@ function BagTracker:Scan()
 	end
 
 	-- 3. What left the bags without being awarded leaves the list. Not on the very first scan,
-	-- which has no baseline yet.
+	-- which has no baseline yet. Nor does what isn't reviewed anymore.
+	dropExcludedItems()
 	if not firstRun then
 		local gone = findGoneItems(snapshot, itemIDs)
 		if #gone > 0 then

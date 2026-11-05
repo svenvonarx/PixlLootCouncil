@@ -9,6 +9,13 @@ PLC.ExcludedItems = {
 	[32428] = true, -- Heart of Darkness (Black Temple)
 	[34664] = true, -- Sunmote (Sunwell Plateau)
 	[23572] = true, -- Primal Nether
+	-- Raw epic gems (Hyjal, Black Temple and Sunwell trash)
+	[32227] = true, -- Crimson Spinel
+	[32228] = true, -- Empyrean Sapphire
+	[32229] = true, -- Lionseye
+	[32230] = true, -- Shadowsong Amethyst
+	[32231] = true, -- Pyrestone
+	[32249] = true, -- Seaspray Emerald
 }
 
 -- Loot every player takes their own copy of, like a currency: nothing for the council to hand out.

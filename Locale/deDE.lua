@@ -108,6 +108,7 @@ L["SESSION_ADDITEM_SUCCESS"] = "%s zur Sitzung hinzugefügt."
 L["SESSION_ALREADY_AWARDED"] = "Dieser Gegenstand wurde bereits vergeben."
 L["SESSION_AWARD_UNKNOWN_WINNER"] = "Dieser Spieler wurde nicht in der Gruppe gefunden."
 L["SESSION_REMOVED_ALL"] = "%d Gegenstand/Gegenstände aus der Beutesitzung entfernt."
+L["SESSION_DROPPED_EXCLUDED"] = "%d Gegenstand/Gegenstände, die nicht mehr geprüft werden, aus der Beutesitzung entfernt, zum Beispiel %s."
 L["SESSION_AWARD_ALL_RESULT"] = "%d vorgemerkte(r) Gegenstand/Gegenstände vergeben."
 
 L["TRADE_NOT_FOUND"] = "%s ist nicht in der Nähe, um zu handeln."

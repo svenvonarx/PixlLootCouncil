@@ -12,7 +12,7 @@ Group messages in WoW only reach whoever is there to receive them, so someone on
 
 - **Auto loot.** Open a corpse and the loot goes where it should, with no candidate list to click through. Send epics and patterns to yourself and everything else to a mule, with fallback names if someone's bags are full. Hold Shift to do a corpse by hand, or press it to take over halfway. Badges of Justice, which everyone loots for themselves, never go up for review.
 - **Master looter list.** Choose who should run the loot, in order. Switch the group to Master Loot and the first of them who's online gets it. It can set the loot threshold at the same moment, and anything you change afterwards sticks.
-- **Excluded items.** Raid materials like Mark of the Illidari stay in the window for you to assign yourself.
+- **Excluded items.** Raid materials like Mark of the Illidari, and raw epic gems like Lionseye, stay in the window for you to assign yourself.
 - **Loot Timers.** A small list of everything waiting for review, most urgent first, with the 2-hour trade time left on each item, so nothing expires in your bags.
 - **Preview mode.** Run the whole workflow with your group on fictional items before raid night. Nothing goes to the history, and your real loot list comes back afterwards.
 

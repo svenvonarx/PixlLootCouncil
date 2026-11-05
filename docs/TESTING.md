@@ -666,7 +666,9 @@ Needs a real group on Master Loot, with drops at or above the group's loot thres
   joining a session. Marks of the Illidari and Hearts of Darkness count as other loot.
 - **Exceptions:** add Mark of the Illidari (32897) with a player: it goes to them. Add an epic with
   Leave in window: it stays, and doesn't join a session even if you loot it by hand.
-- **Excluded items:** Mark of the Illidari, Heart of Darkness, Sunmote and Primal Nether stay in the
+- **Excluded items:** Mark of the Illidari, Heart of Darkness, Sunmote, Primal Nether and the six raw
+  epic gems (Crimson Spinel, Empyrean Sapphire, Lionseye, Shadowsong Amethyst, Pyrestone, Seaspray
+  Emerald) stay in the
   window even with other loot sent to a mule, and so do quest items. Clicking one opens Blizzard's
   assign list. Options → Auto Loot lists them without a remove button.
 - **Legendary:** with epics set to a player, a legendary still comes to you.
@@ -764,6 +766,10 @@ waiting in the Loot Session window (a preview doesn't count, its items are stand
 - **Not gone:** start a trade with an item and cancel it: it stays. Log out and back in: nothing
   is dropped while the bags load.
 - **Awarded:** an awarded item that leaves the bags is still handled by Loot Trades, as before.
+- **Stacks:** collect two Nether Vortex: both rows show BoE (or both the same timer), not "No timer".
+  Trade the whole stack away: both rows go.
+- **Gems collected before 0.7.2:** log in with raw epic gems in the list: one chat line says how
+  many left the list, and they're gone from Loot Timers. Gems added with `/plc additem` stay.
 
 ### 2.23 Raider mode (`profile.raiderMode`, `Data/CouncilRules.lua:IsRaiderMode`)
 `luajit tests/autoloot_test.lua`, `master_looter_test.lua` and `welcome_test.lua` check the rules. In

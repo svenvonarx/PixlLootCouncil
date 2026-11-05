@@ -108,6 +108,7 @@ L["SESSION_ADDITEM_SUCCESS"] = "%s adicionado à sessão."
 L["SESSION_ALREADY_AWARDED"] = "Esse item já foi entregue."
 L["SESSION_AWARD_UNKNOWN_WINNER"] = "Esse jogador não foi encontrado no grupo."
 L["SESSION_REMOVED_ALL"] = "%d item(ns) removido(s) da sessão de saque."
+L["SESSION_DROPPED_EXCLUDED"] = "%d item(ns) que não são mais avaliados removido(s) da sessão de saque, como %s."
 L["SESSION_AWARD_ALL_RESULT"] = "%d item(ns) marcado(s) entregue(s)."
 
 L["TRADE_NOT_FOUND"] = "%s não está por perto para negociar."

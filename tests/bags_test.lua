@@ -41,6 +41,7 @@ function Session:RemoveItems(idxs)
 	for _, idx in ipairs(idxs) do self.items[idx] = nil end
 	return #idxs
 end
+assert(loadfile("Data/ExcludedItems.lua"))("PixlLootCouncil", PLC)
 assert(loadfile("Loot/BagTracker.lua"))("PixlLootCouncil", PLC)
 local BagTracker = PLC.Loot.BagTracker
 BagTracker.GetTradeStatus = function() return "free" end
@@ -50,13 +51,14 @@ local function check(id, ok, detail)
 	if ok then passed = passed + 1 else failed = failed + 1 end
 	out(string.format("%-4s %-5s %s", id, ok and "pass" or "FAIL", detail or ""))
 end
-local GEM, HELM = 32228, 30001
+local GEM, HELM, VORTEX = 30002, 30001, 30183 -- VORTEX stacks
 local function setup(...)
 	Session.items, Session.preview, Session.manage, Session.holder, Session.ended = {}, nil, true, true, false
 	bag = {}
 	for i, item in ipairs({ ... }) do
-		Session.items[i] = { itemString = "item:" .. item.id, link = link(item.id), itemGUID = item.guid, awarded = item.awarded }
-		if item.inBags ~= false then bag[i] = { id = item.id, guid = item.guid } end
+		Session.items[i] = { itemString = "item:" .. item.id, link = link(item.id), itemGUID = item.guid, awarded = item.awarded,
+			bagged = true, instance = not item.manual and "Black Temple" or nil }
+		if item.guid then bag[i] = { id = item.id, guid = item.guid } end
 	end
 	PLC.db.char.knownBagGuids = {}
 	for k in pairs(printed) do printed[k] = nil end
@@ -116,6 +118,26 @@ later(10)
 bag[1] = nil
 later(1)
 check("K6", Session.items[1] ~= nil, "coming back starts the wait over")
+
+-- Stacks -----------------------------------------------------------------------------------------------
+-- A second Nether Vortex joins the first one's stack, so it never gets a GUID of its own.
+setup({ id = VORTEX, guid = "V1" }, { id = VORTEX })
+check("T1", Session.items[2].boe == true, "a copy in a stack shows the stack's trade status")
+bag[1] = nil
+later(1); later(10)
+check("T2", next(Session.items) == nil, "and leaves with the stack")
+
+setup({ id = VORTEX, manual = true })
+later(1); later(10)
+check("T3", Session.items[1] ~= nil and Session.items[1].boe == nil, "an item added by hand isn't touched: it may be in someone else's bags")
+
+-- Excluded since it was collected ---------------------------------------------------------------------
+local LIONSEYE, PYRESTONE = 32229, 32231
+setup({ id = LIONSEYE, guid = "L1" }, { id = PYRESTONE, guid = "P1" }, { id = HELM, guid = "H1" }, { id = LIONSEYE, manual = true })
+check("X1", Session.items[1] == nil and Session.items[2] == nil and Session.items[3] ~= nil,
+	"raw epic gems collected before they were excluded leave the list; the helm stays")
+check("X2", #printed == 1 and printed[1]:find("SESSION_DROPPED_EXCLUDED", 1, true), "with one chat line for all of them")
+check("X3", Session.items[4] ~= nil, "a gem added by hand stays")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

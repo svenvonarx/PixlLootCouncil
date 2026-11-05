@@ -118,6 +118,7 @@ L["SESSION_ADDITEM_SUCCESS"] = "Added %s to the session."
 L["SESSION_ALREADY_AWARDED"] = "That item has already been awarded."
 L["SESSION_AWARD_UNKNOWN_WINNER"] = "Could not find that player in the roster."
 L["SESSION_REMOVED_ALL"] = "Removed %d item(s) from the loot session."
+L["SESSION_DROPPED_EXCLUDED"] = "Removed %d item(s) that aren't reviewed anymore from the loot session, such as %s."
 L["SESSION_AWARD_ALL_RESULT"] = "Awarded %d pre-awarded item(s)."
 
 L["TRADE_NOT_FOUND"] = "Could not find %s nearby to trade with."

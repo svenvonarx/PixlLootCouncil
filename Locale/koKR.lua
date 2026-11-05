@@ -108,6 +108,7 @@ L["SESSION_ADDITEM_SUCCESS"] = "%s을(를) 세션에 추가했습니다."
 L["SESSION_ALREADY_AWARDED"] = "이미 분배된 아이템입니다."
 L["SESSION_AWARD_UNKNOWN_WINNER"] = "파티에서 해당 플레이어를 찾을 수 없습니다."
 L["SESSION_REMOVED_ALL"] = "전리품 세션에서 아이템 %d개를 제거했습니다."
+L["SESSION_DROPPED_EXCLUDED"] = "더 이상 검토하지 않는 아이템 %d개를 전리품 세션에서 제거했습니다. 예: %s"
 L["SESSION_AWARD_ALL_RESULT"] = "표시된 아이템 %d개를 분배했습니다."
 
 L["TRADE_NOT_FOUND"] = "근처에서 거래할 %s을(를) 찾을 수 없습니다."

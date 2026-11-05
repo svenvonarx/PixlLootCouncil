@@ -4,6 +4,16 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
+## Unreleased
+
+- **Raw epic gems are excluded**: Crimson Spinel, Empyrean Sapphire, Lionseye, Shadowsong Amethyst,
+  Pyrestone and Seaspray Emerald. Like Mark of the Illidari, they stay in the loot window for you to
+  assign through Blizzard's list, and sessions don't review them. Gems already in your list leave it
+  by themselves, with one chat line.
+- **Fixed:** loot that stacks in the bags, such as a second gem or Nether Vortex, showed "No timer"
+  instead of BoE or its trade time, and didn't leave the list when it left the bags. It now reads
+  the stack's.
+
 ## 0.7.1-beta
 
 Loot that's no longer in the master looter's bags stops showing up in loot sessions.
