@@ -1149,6 +1149,41 @@ local function buildAppearancePage(page)
 	end
 	refreshFonts()
 	page:HookScript("OnShow", refreshFonts)
+
+	-- The addon's size. Applied once the slider is let go: scaling the window it's in while it's
+	-- being dragged would move the slider out from under the mouse.
+	local scale = SliderWidget.createSlider(page, L["OPTIONS_SCALE"], Primitives.SCALE_MIN, Primitives.SCALE_MAX, 5,
+		function(value)
+			return string.format(L["OPTIONS_PERCENT"], value)
+		end)
+	scale.container:SetPoint("TOPLEFT", 0, fontTop - Theme.LAYOUT.fieldHeight - 18)
+	scale.container:SetPoint("TOPRIGHT", 0, fontTop - Theme.LAYOUT.fieldHeight - 18)
+	local applyTimer
+	local function applySoon()
+		if applyTimer then
+			PLC:CancelTimer(applyTimer)
+		end
+		applyTimer = PLC:ScheduleTimer(function()
+			applyTimer = nil
+			if not IsMouseButtonDown("LeftButton") then
+				Primitives.RefreshScale()
+			end
+		end, 0.3)
+	end
+	scale:SetScript("OnValueChanged", function(_, value)
+		profile.uiScale = value
+		scale:ShowValue(value)
+		applySoon()
+	end)
+	scale:HookScript("OnMouseUp", Primitives.RefreshScale)
+	page:HookScript("OnShow", function()
+		scale:SetValue(profile.uiScale or 100)
+		scale:ShowValue(profile.uiScale or 100)
+	end)
+	scale:SetValue(profile.uiScale or 100)
+	scale:ShowValue(profile.uiScale or 100)
+	Primitives.attachTooltip(scale.container, L["OPTIONS_SCALE"], L["TIP_SCALE"])
+	page.scaleSlider = scale
 end
 
 local function ensurePanel()

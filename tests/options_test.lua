@@ -203,7 +203,7 @@ for _, t in ipairs(tables) do if t.rowHeight == 20 then nameTables = nameTables 
 check("L7", nameTables == 3, "the Auto Loot, Council and About lists all get their row height: " .. nameTables)
 
 -- The right-hand side -------------------------------------------------------------------------------
-local stretched = #sliders == 3
+local stretched = #sliders == 4 -- General has three, Appearance has Scale
 for _, slider in ipairs(sliders) do
 	local first, second = slider.container.points[1], slider.container.points[2]
 	stretched = stretched and first[1] == "TOPLEFT" and second and second[1] == "TOPRIGHT" and second[2] == 0

@@ -12,6 +12,8 @@ PLC.Defaults = {
 	},
 	profile = {
 		theme = "gold", -- a key of Theme.THEMES, see UI/Theme.lua
+		uiScale = 100, -- percent, Options -> Appearance -> Scale (UI/Widgets/Primitives.lua:addonScale)
+		sessionScale = 1, -- the Loot Session window's own, set by dragging its corner sideways
 		font = "Inter", -- a LibSharedMedia font name, see UI/Widgets/Primitives.lua
 
 		-- Data/CouncilRules.lua:Evaluate. The master looter is always council; these add to it.

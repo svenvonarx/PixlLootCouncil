@@ -216,8 +216,51 @@ end
 -- pop-ups, menus and tooltips.
 Primitives.WINDOW_STRATA = "HIGH"
 
+-- The addon's size. Every window is SCALE_BASE (25% over the game's own size) times Options ->
+-- Appearance -> Scale (profile.uiScale, a percentage), times the window's own scale where it has one:
+-- the Loot Session window's, set by dragging its corner sideways.
+Primitives.SCALE_BASE = 1.25
+Primitives.SCALE_MIN, Primitives.SCALE_MAX = 50, 200 -- profile.uiScale's range, in percent
+local scaled = {} -- [frame] = { own = fn returning the window's own scale, set = fn(scale) }
+
+function Primitives.addonScale()
+	local percent = PLC.db and PLC.db.profile and PLC.db.profile.uiScale or 100
+	return Primitives.SCALE_BASE * percent / 100
+end
+
+local function applyScale(frame, entry)
+	local scale = Primitives.addonScale() * (entry.own and entry.own() or 1)
+	if entry.set then
+		entry.set(scale)
+	else
+		frame:SetScale(scale)
+	end
+end
+
+-- own: the window's own scale (nil for none). set: how to scale it, for a window whose position is
+-- kept by LibWindow, which has to know.
+function Primitives.makeScaled(frame, own, set)
+	local entry = { own = own, set = set }
+	scaled[frame] = entry
+	applyScale(frame, entry)
+end
+
+function Primitives.applyScale(frame)
+	if scaled[frame] then
+		applyScale(frame, scaled[frame])
+	end
+end
+
+-- After Options -> Appearance -> Scale changes.
+function Primitives.RefreshScale()
+	for frame, entry in pairs(scaled) do
+		applyScale(frame, entry)
+	end
+end
+
 -- Call once per window right after creating it, instead of refreshFontsOnShow.
 function Primitives.makeWindow(frame)
+	Primitives.makeScaled(frame)
 	Primitives.refreshFontsOnShow(frame)
 	frame:SetFrameStrata(Primitives.WINDOW_STRATA)
 	frame:SetToplevel(true)

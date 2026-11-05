@@ -600,6 +600,11 @@ local function findUpvalue(fn, wanted, seen)
 		end
 	end
 end
+-- Four item icons a row in the Loot Session window, so a raid's loot doesn't make it very tall.
+local pack = findUpvalue(PLC.UI.SessionFrame.Open, "packItemRows")
+local packed = pack({ { idx = 1 }, { idx = 2 }, { idx = 3 }, { idx = 4 }, { idx = 5 } })
+check("G3", #packed == 2 and packed[1].idx4 == 4 and packed[2].idx1 == 5 and packed[2].idx2 == nil, "five items fill one row of four, and start another")
+
 local clock = 100
 _G.GetTime = function() return clock end
 frameMethods.SetMaxBytes = function(f, bytes) f.maxBytes = bytes end

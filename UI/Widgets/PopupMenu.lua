@@ -205,6 +205,12 @@ function PopupMenu.Open(owner, entries, opts)
 		width = opts.width or math.max(220, owner:GetWidth()),
 		maxRows = opts.maxRows or 7,
 	}
+	-- As big as the window it opens from, which can be scaled (Primitives.makeScaled).
+	local ownerScale = owner.GetEffectiveScale and owner:GetEffectiveScale()
+	local parentScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
+	if ownerScale and parentScale and parentScale > 0 then
+		menu:SetScale(ownerScale / parentScale)
+	end
 	menu:ClearAllPoints()
 	if opts.openUp then
 		menu:SetPoint("BOTTOMLEFT", owner, "TOPLEFT", 0, 2)

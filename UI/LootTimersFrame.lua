@@ -160,6 +160,10 @@ local function ensureFrame()
 	LibWindow.RegisterConfig(frame, PLC.db.profile.lootTimersWindow)
 	LibWindow.RestorePosition(frame)
 	LibWindow.MakeDraggable(frame)
+	-- LibWindow keeps the position, so it has to know the scale too.
+	Primitives.makeScaled(frame, nil, function(scale)
+		LibWindow.SetScale(frame, scale)
+	end)
 	frame:SetScript("OnHide", stopTicker)
 
 	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")

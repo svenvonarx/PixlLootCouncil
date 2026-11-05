@@ -395,7 +395,8 @@ local function heightFor(count)
 end
 
 local function rowsOnScreen()
-	local screen = UIParent:GetHeight() or 0
+	-- The screen in this window's units: it's scaled (Primitives.makeScaled), the screen isn't.
+	local screen = (UIParent:GetHeight() or 0) / (frame and frame:GetScale() or 1)
 	if screen <= 0 then
 		return math.huge
 	end

@@ -124,14 +124,16 @@ local function applyTradeBadge(holder, item)
 	end
 end
 
--- Two icons per sidebar row instead of one -- a raid can easily bag a dozen+ items over a few
+-- Several icons per sidebar row (ICONS_PER_ROW) instead of one -- a raid can easily bag a dozen+ items over a few
 -- hours, and a single-wide column meant a lot of scrolling for not much payoff at this narrow a
 -- width. Status is shown via the icon's border color (no room for inline text at this width)
 -- plus a tooltip naming the item and its status on hover; a depleting bar directly under each
 -- icon is its own per-item countdown visual (see docs/SPECIFICATION.md's bagged-item workflow
 -- notes for the Awarded > Pre-awarded > Expired > Pending status priority).
 local ICON_SIZE = 30
-local ICON_GAP = 2 -- between the two icon columns -- kept tight on purpose, see user feedback
+local ICON_GAP = 2 -- between the icon columns -- kept tight on purpose, see user feedback
+-- Four a row: with two, a raid's worth of loot made the window very tall.
+local ICONS_PER_ROW = 4
 -- The window's margin, all around: the toolbar, the bottom buttons and the right edge of the
 -- buttons and the candidate grid. It's the width of a scrollbar's strip plus the 1px border, so the
 -- icons have as much room on their left as the sidebar's scrollbar strip leaves on their right, and
@@ -145,11 +147,11 @@ local ICON_CELL_HEIGHT = ICON_SIZE + BAR_GAP + BAR_HEIGHT
 -- UI/Widgets/DataTable.lua:Layout's `cell:SetPoint("LEFT", row, "LEFT", x, 0)`), so a row any
 -- taller than the cell itself shows up as unwanted top/bottom padding on every icon.
 local ICON_ROW_HEIGHT = ICON_CELL_HEIGHT
--- The two icon columns, plus UI/Widgets/ScrollFrame.lua's own reserved strip for the scrollbar
+-- The icon columns, plus UI/Widgets/ScrollFrame.lua's own reserved strip for the scrollbar
 -- (it carves that out of whatever width it's given, rather than needing extra room outside it --
 -- see ScrollFrame.lua for why), so the icon columns still get their full width and the scrollbar
 -- still fits, both within this one container.
-local ICON_SIDEBAR_WIDTH = ICON_SIZE * 2 + ICON_GAP + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH
+local ICON_SIDEBAR_WIDTH = ICON_SIZE * ICONS_PER_ROW + ICON_GAP * (ICONS_PER_ROW - 1) + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH
 
 -- Recomputes just the depleting bar from whatever update() last stashed on the holder
 -- (holder.deadlineAt/holder.awardedState) -- factored out so it can run both from update() (for
@@ -178,7 +180,7 @@ end
 -- ever gets ONE data item per row) with its own hover tooltip and selection highlight.
 local function iconColumn(suffix)
 	return {
-		width = suffix == "1" and (ICON_SIZE + ICON_GAP) or ICON_SIZE,
+		width = tonumber(suffix) < ICONS_PER_ROW and (ICON_SIZE + ICON_GAP) or ICON_SIZE,
 		isWidget = true,
 		create = function(row)
 			local holder = CreateFrame("Button", nil, row)
@@ -186,10 +188,10 @@ local function iconColumn(suffix)
 
 			holder.iconFrame = CreateFrame("Frame", nil, holder)
 			holder.iconFrame:SetSize(ICON_SIZE, ICON_SIZE)
-			-- TOPLEFT, not TOP -- column 1's holder is ICON_GAP wider than the icon itself (the
-			-- gap reserved between the two columns), and centering would have split that gap
+			-- TOPLEFT, not TOP -- every column but the last has a holder ICON_GAP wider than the icon itself (the
+			-- gap reserved between the columns), and centering would have split that gap
 			-- evenly on both sides of the icon instead of putting all of it on the right, between
-			-- the two icons, which read as an unwanted left-edge padding on every single icon.
+			-- the icons, which read as an unwanted left-edge padding on every single icon.
 			holder.iconFrame:SetPoint("TOPLEFT")
 
 			holder.texture = holder.iconFrame:CreateTexture(nil, "ARTWORK")
@@ -344,7 +346,10 @@ local function iconColumn(suffix)
 	}
 end
 
-local ICON_COLUMNS = { iconColumn("1"), iconColumn("2") }
+local ICON_COLUMNS = {}
+for i = 1, ICONS_PER_ROW do
+	ICON_COLUMNS[i] = iconColumn(tostring(i))
+end
 
 local function flatItemRows()
 	local rows = {}
@@ -368,24 +373,21 @@ local function flatItemRows()
 	return rows
 end
 
--- Packs the flat, sorted item list into the two-icons-per-row shape ICON_COLUMNS expects --
--- row.idx2/link2/etc. are simply absent (not nil-filled) for a trailing odd item out, which
--- iconColumn's update() reads as "nothing in this cell" and hides it.
-local function pairItemRows(flat)
+-- Packs the flat, sorted item list into rows of ICONS_PER_ROW, the shape ICON_COLUMNS expects --
+-- row.idx3/link3/etc. are simply absent (not nil-filled) past the last item, which iconColumn's
+-- update() reads as "nothing in this cell" and hides it.
+local function packItemRows(flat)
 	local rows = {}
-	for i = 1, #flat, 2 do
-		local a, b = flat[i], flat[i + 1]
-		local row = {
-			idx1 = a.idx, link1 = a.link, icon1 = a.icon,
-			awarded1 = a.awarded, awardReason1 = a.awardReason,
-			preAwardGuid1 = a.preAwardGuid, preAwardReason1 = a.preAwardReason,
-			deadlineAt1 = a.deadlineAt,
-		}
-		if b then
-			row.idx2, row.link2, row.icon2 = b.idx, b.link, b.icon
-			row.awarded2, row.awardReason2 = b.awarded, b.awardReason
-			row.preAwardGuid2, row.preAwardReason2 = b.preAwardGuid, b.preAwardReason
-			row.deadlineAt2 = b.deadlineAt
+	for i = 1, #flat, ICONS_PER_ROW do
+		local row = {}
+		for column = 1, ICONS_PER_ROW do
+			local item = flat[i + column - 1]
+			if item then
+				row["idx" .. column], row["link" .. column], row["icon" .. column] = item.idx, item.link, item.icon
+				row["awarded" .. column], row["awardReason" .. column] = item.awarded, item.awardReason
+				row["preAwardGuid" .. column], row["preAwardReason" .. column] = item.preAwardGuid, item.preAwardReason
+				row["deadlineAt" .. column] = item.deadlineAt
+			end
 		end
 		table.insert(rows, row)
 	end
@@ -580,7 +582,7 @@ function refresh()
 		selectedIdx = firstPendingIdx(flat)
 	end
 
-	dataTable:SetRows(pairItemRows(flat))
+	dataTable:SetRows(packItemRows(flat))
 	showDetailFor(selectedIdx)
 
 	updateButtons(flat)
@@ -659,6 +661,53 @@ local function onAwardAllClick()
 	refresh()
 end
 
+-- The corner grip: sideways scales the whole window (profile.sessionScale), so everything in it gets
+-- bigger or smaller together; down and up change its height, for more or fewer items at once. The
+-- top-left corner stays where it is.
+local SCALE_RANGE = { 0.7, 1.6 }
+local HEIGHT_RANGE = { 390, 830 }
+local SCREEN_EDGE = 8 -- pixels the window keeps from the bottom of the screen while resizing
+
+local function makeScalable(window, width)
+	local grip = Primitives.makeResizable(window, width, HEIGHT_RANGE[1], width, HEIGHT_RANGE[2])
+	local start
+	local function follow()
+		local x, y = GetCursorPosition()
+		local profile = PLC.db.profile
+		local widthPx = width * start.effective
+		local scale = start.own * (widthPx + x - start.x) / widthPx
+		profile.sessionScale = math.max(SCALE_RANGE[1], math.min(SCALE_RANGE[2], scale))
+		Primitives.applyScale(window)
+		local effective = window:GetEffectiveScale()
+		local heightPx = start.height * start.effective + (start.y - y)
+		-- Never past the bottom of the screen.
+		local tallest = math.min(HEIGHT_RANGE[2], (start.top - SCREEN_EDGE) / effective)
+		window:SetHeight(math.max(HEIGHT_RANGE[1], math.min(tallest, heightPx / effective)))
+		window:ClearAllPoints()
+		window:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", start.left / effective, start.top / effective)
+	end
+	local function stop()
+		start = nil
+		grip:SetScript("OnUpdate", nil)
+	end
+	grip:SetScript("OnMouseDown", function()
+		local x, y = GetCursorPosition()
+		local effective = window:GetEffectiveScale()
+		start = {
+			x = x, y = y,
+			own = PLC.db.profile.sessionScale or 1,
+			effective = effective,
+			height = window:GetHeight(),
+			left = window:GetLeft() * effective,
+			top = window:GetTop() * effective,
+		}
+		grip:SetScript("OnUpdate", follow)
+	end)
+	grip:SetScript("OnMouseUp", stop)
+	grip:SetScript("OnHide", stop)
+	return grip
+end
+
 local function ensureFrame()
 	if frame then
 		return frame
@@ -666,6 +715,10 @@ local function ensureFrame()
 
 	frame = CreateFrame("Frame", "PixlLootCouncilSessionFrame", UIParent)
 	Primitives.makeWindow(frame)
+	-- Its own scale on top of the addon's, set by dragging the corner sideways (see makeScalable).
+	Primitives.makeScaled(frame, function()
+		return PLC.db.profile.sessionScale or 1
+	end)
 	-- Width is fixed (set at the very end of this function, once VotingFrame.GRID_WIDTH is known
 	-- -- see the comment down there) but every child below positions itself via relative anchors,
 	-- not absolute pixel coordinates, so building them before the frame has a final size is fine;
@@ -926,9 +979,7 @@ local function ensureFrame()
 	-- sidebar. +30 over the pre-Enchanter-row baseline, to compensate for the toolbar row below
 	-- the header without shrinking the visible item list.
 	frame:SetSize(frameWidth, 530)
-	-- Width min and max are the same value -- fixes the width (see the comment above) while
-	-- leaving height genuinely resizable between 390 and 830.
-	Primitives.makeResizable(frame, frameWidth, 390, frameWidth, 830)
+	makeScalable(frame, frameWidth)
 
 	frame:Hide()
 	return frame

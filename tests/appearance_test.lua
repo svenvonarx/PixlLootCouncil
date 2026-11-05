@@ -24,6 +24,7 @@ local frameMethods = {
 	SetPoint = function(f, ...) f.point = { ... } end,
 	SetRotation = function(f, radians) f.rotation = radians end,
 	SetSize = function(f, w, h) f.width, f.height = w, h end,
+	SetScale = function(f, scale) f.scale = scale end,
 	SetHeight = function(f, h) f.height = h end,
 	EnableMouse = function(f, on) f.mouse = on end,
 	SetText = function(f, text) f.text = text end,
@@ -313,6 +314,21 @@ Primitives.makeWindow(window)
 check("S1", window.strata == "HIGH" and window.toplevel == true, "a window shares the one strata and comes forward when clicked")
 window.scripts.OnShow(window)
 check("S2", raised == 1, "and when it opens")
+check("Z1", window.scale == 1.25, "windows are 25% bigger than the game's own size by default")
+PLC.db.profile.uiScale = 80
+Primitives.RefreshScale()
+check("Z2", window.scale == 1.0, "Appearance -> Scale changes every window: 80% of that is the game's size")
+local own = 1.2
+local session = frame()
+Primitives.makeWindow(session)
+Primitives.makeScaled(session, function() return own end)
+check("Z3", math.abs(session.scale - 1.2) < 1e-9, "a window with its own scale (the Loot Session window) gets both")
+own = 1.5
+Primitives.applyScale(session)
+check("Z4", math.abs(session.scale - 1.5) < 1e-9, "and follows its own as it's dragged")
+PLC.db.profile.uiScale = nil
+Primitives.RefreshScale()
+check("Z5", window.scale == 1.25, "with no setting saved yet, the default")
 
 -- Every window goes through makeWindow: they used to call refreshFontsOnShow and pick a strata of
 -- their own, which pinned one window over another however they were clicked.
