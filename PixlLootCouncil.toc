@@ -49,6 +49,7 @@ Data\Responses.lua
 Data\ExcludedItems.lua
 Data\History.lua
 Data\HistoryImport.lua
+Data\HistoryShare.lua
 Data\RCImport.lua
 Data\Session.lua
 Data\Preview.lua

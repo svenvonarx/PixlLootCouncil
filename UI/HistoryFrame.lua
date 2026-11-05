@@ -825,14 +825,15 @@ local function ensureFrame()
 	formatDropdown:SetPoint("RIGHT", exportButton, "LEFT", -8, 0)
 	updateFormatDropdown()
 
-	local clearButton = ButtonWidget.createButton(content, L["HISTORY_CLEAR_SELECTION"], 140)
+	-- This row's four buttons have to end before the player list on the left: 130 + 3 x 80 + gaps.
+	local clearButton = ButtonWidget.createButton(content, L["HISTORY_CLEAR_SELECTION"], 130)
 	clearButton:SetPoint("TOPRIGHT", exportButton, "BOTTOMRIGHT", 0, -8)
 	clearButton:SetScript("OnClick", function()
 		selectedDate, selectedName = nil, nil
 		refresh()
 	end)
 
-	filterButton = ButtonWidget.createButton(content, L["HISTORY_FILTER"], 90)
+	filterButton = ButtonWidget.createButton(content, L["HISTORY_FILTER"], 80)
 	filterButton:SetPoint("RIGHT", clearButton, "LEFT", -8, 0)
 	filterButton:SetScript("OnClick", function(self)
 		if PopupMenu.IsOpen(self) then
@@ -842,9 +843,19 @@ local function ensureFrame()
 		end
 	end)
 
-	local importButton = ButtonWidget.createButton(content, L["HISTORY_IMPORT"], 90)
+	local importButton = ButtonWidget.createButton(content, L["HISTORY_IMPORT"], 80)
 	importButton:SetPoint("RIGHT", filterButton, "LEFT", -8, 0)
 	importButton:SetScript("OnClick", showImport)
+
+	-- Your own awards among what the window shows (selected date and player, and the filters), to
+	-- everyone online: Data/HistoryShare.lua, like /plc share.
+	local shareButton = ButtonWidget.createButton(content, L["HISTORY_SHARE"], 80)
+	shareButton:SetPoint("RIGHT", importButton, "LEFT", -8, 0)
+	shareButton:SetScript("OnClick", function()
+		PLC.History:Share(nil, nil, PLC.History:GetFilteredDB(selectedDate, selectedName))
+	end)
+	Primitives.attachTooltip(shareButton, L["HISTORY_SHARE"], L["TIP_HISTORY_SHARE"])
+	HistoryFrame.shareButton = shareButton
 
 	countText = Primitives.createText(content, "", 11, "dim")
 	countText:SetPoint("TOPRIGHT", clearButton, "BOTTOMRIGHT", 0, -10)

@@ -26,13 +26,22 @@ function Protocol:RegisterHandler(cmd, fn)
 end
 
 -- distribution: standard AceComm distribution strings ("RAID", "PARTY", "INSTANCE_CHAT",
--- "WHISPER", "GUILD"); target is only required for "WHISPER".
-function Protocol:Send(cmd, data, distribution, target)
+-- "WHISPER", "GUILD"); target is only required for "WHISPER". prio: ChatThrottleLib's "BULK",
+-- "NORMAL" (the default) or "ALERT". onSent(): called once the whole message has gone out.
+function Protocol:Send(cmd, data, distribution, target, prio, onSent)
 	local envelope = { v = PROTOCOL_VERSION, cmd = cmd, data = data }
 	local serialized = AceSerializer:Serialize(envelope)
 	local compressed = LibDeflate:CompressDeflate(serialized)
 	local encoded = LibDeflate:EncodeForWoWAddonChannel(compressed)
-	PLC:SendCommMessage(PREFIX, encoded, distribution or "RAID", target)
+	local callback
+	if onSent then
+		callback = function(_, sent, total)
+			if sent and total and sent >= total then
+				onSent()
+			end
+		end
+	end
+	PLC:SendCommMessage(PREFIX, encoded, distribution or "RAID", target, prio, callback)
 end
 
 -- WoW echoes our own PARTY/RAID addon messages back to us. Every sender updates its local state

@@ -785,6 +785,11 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   shrinks, the top-left corner staying put; down: more rows, never past the bottom of the screen.
   `/reload`: the size stays.
 - **Login:** `/plc errors` doesn't list `SKILLLINES_CHANGED` after logging in.
+- **Share:** as the master looter of a past session, open Loot History and press Share: chat says how
+  many entries are going out, and later that they're shared. Another guild member online, missing
+  some, gets them, with one chat line. Select a date or set a class filter first: only those are sent.
+  `/plc share`, `/plc share 2026/11/05` and `/plc share nonsense` (explains the date). A player who
+  awarded nothing sees "no awards of your own". Share again: the others get nothing new.
 
 ### 2.24 Loot that leaves the bags (`Loot/BagTracker.lua`)
 `luajit tests/bags_test.lua` checks the rules. In game, as master looter with two collected items

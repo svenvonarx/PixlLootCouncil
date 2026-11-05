@@ -33,7 +33,7 @@ Group messages in WoW only reach whoever is there to receive them, so someone on
 
 - Every award is recorded, with date, name, class and response filters.
 - Exports to TSV for Google Sheets and Excel.
-- Shared with everyone in the group who has the addon.
+- Shared with everyone in the group who has the addon. Missed some? The master looter presses **Share** (or types `/plc share`) and everyone online in the guild and group gets their awards.
 
 ## Also
 

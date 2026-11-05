@@ -276,6 +276,7 @@ Protocol:RegisterHandler("profession", function(data) PLC.Professions:OnProfessi
 Protocol:RegisterHandler("set_enchanter", function(data) PLC.Session:OnEnchanterReceived(data) end)
 Protocol:RegisterHandler("trade_complete", function(data) PLC.Session:OnTradeCompleteReceived(data) end)
 Protocol:RegisterHandler("history", function(data) PLC.History:OnHistoryReceived(data) end)
+Protocol:RegisterHandler("history_share", function(data, sender) PLC.History:OnHistoryShared(data, sender) end)
 Protocol:RegisterHandler("awards", function(data)
 	if type(data) ~= "table" then
 		return

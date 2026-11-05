@@ -584,6 +584,18 @@ Session:CollectDetectedItems({ [1] = { link = HELMET, quality = 4, boss = "Creat
 check("D6", count(HELMET) == 3, "the same item from another boss is another item")
 PLC.Loot.Detection.IsReviewItem = isReview
 
+-- Sharing from Loot History ------------------------------------------------------------------------------
+PLC.db.profile.historyFilters = PLC.db.profile.historyFilters or { class = {}, hiddenResponses = {} }
+PLC.db.profile.historyFilters.class = PLC.db.profile.historyFilters.class or {}
+PLC.db.profile.historyFilters.hiddenResponses = PLC.db.profile.historyFilters.hiddenResponses or {}
+PLC.UI.HistoryFrame:Open()
+local sharedWith
+local realShare = PLC.History.Share
+PLC.History.Share = function(_, from, to, db) sharedWith = { from = from, to = to, db = db } end
+PLC.UI.HistoryFrame.shareButton.scripts.OnClick()
+check("H20", sharedWith and sharedWith.from == nil and type(sharedWith.db) == "table", "Share sends what the window shows, its filters included")
+PLC.History.Share = realShare
+
 -- Pasting into the import box ---------------------------------------------------------------------------
 -- The game lays out all of a multi-line box's text: a pasted CSV export of a long history froze it.
 local function findUpvalue(fn, wanted, seen)

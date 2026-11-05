@@ -30,6 +30,11 @@ Fixes and changes from the first raid night.
 - **Loot Session window**: four item icons a row instead of two, so it isn't as tall. Drag its
   corner sideways to make the whole window bigger or smaller, and down for more items.
 - **Fixed:** an error about an unknown event (`SKILLLINES_CHANGED`) at every login.
+- **Share loot history**, for anyone who missed awards, such as the ones Award All lost. The
+  **Share** button in Loot History sends the awards you handed out yourself, among the entries shown
+  with your filters, to everyone online in your guild and group. `/plc share` does the same for the
+  last 7 days, `/plc share 2026/11/05` from that date on. Others only take awards the sender handed
+  out themselves, and skip any they already have, so sharing twice is fine.
 
 ## 0.7.4-beta
 

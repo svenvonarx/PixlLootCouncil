@@ -28,11 +28,27 @@ end
 _G.StaticPopupDialogs = {}
 _G.LibStub = function() return { GetLocale = function() return setmetatable({}, { __index = function(_, k) return k end }) end } end
 
-local PLC = { lootDB = { factionrealm = {} }, db = { profile = {} } }
+_G.strtrim = function(text) return (text:gsub("^%s+", ""):gsub("%s+$", "")) end
+_G.UnitName = function() return "Brukt" end
+_G.IsInGuild = function() return true end
+local now = os.time({ year = 2026, month = 11, day = 6, hour = 12 })
+_G.time = function() return now end
+_G.date = os.date
+local printed = {}
+_G.print = function(text) printed[#printed + 1] = tostring(text) end
+
+local PLC = { lootDB = { factionrealm = {} }, db = { profile = { historyFilters = { class = {}, hiddenResponses = {} } } }, Loot = {}, Comms = {} }
 function PLC:RegisterOnEnable() end
-function PLC:RegisterSlashCommand() end
+local slash = {}
+function PLC:RegisterSlashCommand(name, _, fn) slash[name] = fn end
+local sends = {}
+PLC.Comms.Protocol = { Send = function(_, cmd, data, channel, target, prio, onSent)
+	sends[#sends + 1] = { cmd = cmd, data = data, channel = channel, prio = prio, onSent = onSent }
+end }
+PLC.Loot.Announce = { GetChannel = function() return "RAID" end }
 assert(loadfile("Data/History.lua"))("PixlLootCouncil", PLC)
 assert(loadfile("Data/HistoryImport.lua"))("PixlLootCouncil", PLC)
+assert(loadfile("Data/HistoryShare.lua"))("PixlLootCouncil", PLC)
 local History = PLC.History
 
 local passed, failed = 0, 0
@@ -79,6 +95,65 @@ local again = History:ImportFromLocalRC()
 local second = os.clock() - started
 check("B1", count == 40000 and again == 0, "40,000 entries under one name all come over, once")
 check("B2", first < 0.5 and second < 0.5, string.format("in a moment: %.2fs, and %.2fs to import again", first, second))
+
+-- Sharing your own awards ----------------------------------------------------------------------------------
+-- The master looter's awards that never reached everyone: they share them, and only they can.
+PLC.lootDB.factionrealm = {}
+local function award(id, day, owner, class) return entry(id, { date = day, owner = owner, class = class }) end
+History:InsertEntry("Mash-Realm", award("9-1", "2026/11/05", "Brukt-Realm", "WARRIOR"))
+History:InsertEntry("Yolo-Realm", award("9-2", "2026/11/05", "Brukt", "MAGE"))
+History:InsertEntry("Yolo-Realm", award("9-3", "2026/10/01", "Brukt-Realm", "MAGE"))
+History:InsertEntry("Yolo-Realm", award("9-4", "2026/11/05", "Someone-Realm", "MAGE"))
+sends, printed = {}, {}
+local shared = History:Share("2026/11/01")
+check("S1", shared == 2, "only their own awards from that day on: not older ones, not someone else's")
+check("S2", #sends == 2 and sends[1].channel == "GUILD" and sends[2].channel == "RAID" and sends[1].prio == "BULK",
+	"to the guild and the group, behind any session messages")
+check("S3", printed[1]:find("HISTORY_SHARE_SENDING", 1, true) and #printed == 1, "chat says it's sending")
+sends[1].onSent(); check("S4", #printed == 1, "and only says it's done once both have gone")
+sends[2].onSent(); check("S5", #printed == 2 and printed[2]:find("HISTORY_SHARE_DONE", 1, true), "then says so")
+
+PLC.db.profile.historyFilters.class = { WARRIOR = true }
+sends = {}
+History:Share(nil, nil, History:GetFilteredDB(nil, nil))
+check("S6", #sends == 2 and #sends[1].data.entries == 1 and sends[1].data.entries[1].entry.id == "9-1",
+	"from what the window shows (the button): its filters count")
+PLC.db.profile.historyFilters.class = {}
+
+sends, printed = {}, {}
+check("S7", History:Share("2027/01/01") == 0 and #sends == 0 and printed[1]:find("HISTORY_SHARE_NONE", 1, true), "nothing to share: nothing sent, and chat says so")
+
+sends, printed = {}, {}
+slash.share("")
+check("C1", #sends == 2 and #sends[1].data.entries == 2, "/plc share: the last 7 days")
+sends, printed = {}, {}
+slash.share("2026/10/01")
+check("C2", #sends[1].data.entries == 3, "/plc share 2026/10/01: from that day on")
+sends, printed = {}, {}
+slash.share("yesterday")
+check("C3", #sends == 0 and printed[1]:find("HISTORY_SHARE_BAD_DATE", 1, true), "anything else explains the date")
+
+-- Receiving them ------------------------------------------------------------------------------------------
+PLC.lootDB.factionrealm = { ["Mash-Realm"] = { award("9-1", "2026/11/05", "Brukt-Realm") } }
+printed = {}
+History:OnHistoryShared({ entries = {
+	{ name = "Mash-Realm", entry = award("9-1", "2026/11/05", "Brukt-Realm") },
+	{ name = "Yolo-Realm", entry = award("9-2", "2026/11/05", "Brukt") },
+	{ name = "Yolo-Realm", entry = award("9-5", "2026/11/05", "Mallory-Realm") },
+	{ name = "Yolo", entry = award("9-6", "2026/11/05", "Brukt-Realm") },
+} }, "Brukt")
+local stored = History:GetDB()
+check("R1", #stored["Mash-Realm"] == 1 and #stored["Yolo-Realm"] == 2, "what's new comes in, what's there already doesn't twice")
+local ids = {}
+for _, e in ipairs(stored["Yolo-Realm"]) do ids[e.id] = true end
+check("R2", not ids["9-5"], "an award the sender didn't hand out is refused")
+check("R3", ids["9-6"], "a name without its realm gets this realm, like the rest of the history")
+check("R4", #printed == 1 and printed[1]:find("HISTORY_SHARE_RECEIVED", 1, true), "with one chat line")
+printed = {}
+History:OnHistoryShared({ entries = { { name = "Yolo-Realm", entry = award("9-2", "2026/11/05", "Brukt") } } }, "Brukt")
+History:OnHistoryShared("nonsense", "Brukt")
+History:OnHistoryShared({ entries = { "nonsense" } }, "Brukt")
+check("R5", #printed == 0, "nothing new, or nonsense: nothing happens")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

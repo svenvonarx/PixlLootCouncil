@@ -80,6 +80,10 @@ arrive.
 - Every award is recorded, browsable with date, name, class and response filters.
 - Exports to TSV for Google Sheets and English Excel, or for International Excel.
 - Shared with everyone in the group who has the addon, so the whole raid keeps the same record.
+- **Share** sends the awards you handed out yourself, among what the window shows, to everyone online
+  in your guild and group: for anyone who missed some. `/plc share` does the same for the last 7 days,
+  `/plc share 2026/11/05` from that date on. Others only take awards the sender handed out, and skip
+  what they already have.
 
 ### Everything else
 
@@ -149,6 +153,7 @@ off.
 | `/plc loot` | Reopen the Loot Response window |
 | `/plc trades` | Reopen the Loot Trades window |
 | `/plc history` | Open the Loot History window |
+| `/plc share [yyyy/mm/dd]` | Share the awards you handed out with your guild and group: the last 7 days, or from that date on |
 | `/plc options` | Open the options |
 | `/plc additem <link or ID>` | Add an item to the session by hand |
 | `/plc sync` | Re-sync the current session from its holder |
