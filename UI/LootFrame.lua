@@ -67,29 +67,52 @@ local function sessionRows()
 	end
 	local now = time()
 	local responses = PLC.Responses:GetActive()
-	for idx, item in pairs(Session.items) do
+	local idxs = {}
+	for idx in pairs(Session.items) do
+		table.insert(idxs, idx)
+	end
+	table.sort(idxs)
+	-- Copies of one item (a boss can drop the same thing twice) share a row: one answer is for all of
+	-- them, and the master looter still awards each on its own. The first to run out sets the time.
+	local byItem = {}
+	for _, idx in ipairs(idxs) do
+		local item = Session.items[idx]
 		-- Only what's up for review: an item gets its deadline when it's put up (Session:Start), so
 		-- one without is one nobody can get, like an item whose trade time ran out before the
 		-- session. Trade time running out during the session takes the item away too.
 		local open = item.deadlineAt and now <= item.deadlineAt
 		local tradable = not item.untradable and not (item.tradeExpiresAt and now >= item.tradeExpiresAt)
 		if open and tradable and not item.awarded and not myResponse(idx) then
-			table.insert(rows, {
-				id = "session" .. idx,
-				idx = idx,
-				link = item.link,
-				icon = item.icon,
-				deadlineAt = item.deadlineAt,
-				timeoutSeconds = Session.responseTimeoutSeconds,
-				responses = responses,
-				ownerName = Session.owner and PLC.Roster:ShortName(Session.owner.name) or "?",
-				respond = function(key, note)
-					Session:SendMyResponse(idx, key, note)
-				end,
-			})
+			local key = item.itemString or item.link or idx
+			local row = byItem[key]
+			if row then
+				table.insert(row.idxs, idx)
+				row.count = #row.idxs
+				row.deadlineAt = math.min(row.deadlineAt, item.deadlineAt)
+			else
+				local copies = { idx }
+				row = {
+					id = "session" .. idx,
+					idx = idx,
+					idxs = copies,
+					count = 1,
+					link = item.link,
+					icon = item.icon,
+					deadlineAt = item.deadlineAt,
+					timeoutSeconds = Session.responseTimeoutSeconds,
+					responses = responses,
+					ownerName = Session.owner and PLC.Roster:ShortName(Session.owner.name) or "?",
+					respond = function(answer, note)
+						for _, copy in ipairs(copies) do
+							Session:SendMyResponse(copy, answer, note)
+						end
+					end,
+				}
+				byItem[key] = row
+				table.insert(rows, row)
+			end
 		end
 	end
-	table.sort(rows, function(a, b) return a.idx < b.idx end)
 	return rows
 end
 
@@ -174,12 +197,16 @@ local function buildColumns()
 				holder:SetSize(ICON_SIZE, ICON_SIZE)
 				holder.texture = holder:CreateTexture(nil, "ARTWORK")
 				holder.texture:SetAllPoints()
+				-- How many copies the row answers for, like a stack count in the bags.
+				holder.count = holder:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+				holder.count:SetPoint("BOTTOMRIGHT", -1, 1)
 				Primitives.attachItemTooltip(holder)
 				return holder
 			end,
 			update = function(holder, rowData)
 				holder.texture:SetTexture(rowData.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
 				holder.itemLink = rowData.link
+				holder.count:SetText((rowData.count or 1) > 1 and rowData.count or "")
 			end,
 		},
 		{

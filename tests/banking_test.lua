@@ -526,6 +526,22 @@ runningPreview()
 PLC.Preview:Toggle()
 check("U6", Session.preview == false and optionsTold == 2, "and /plc preview")
 
+-- Who needs it most ---------------------------------------------------------------------------------------
+session()
+local savedActive = { unpack(ACTIVE) }
+for i = #ACTIVE, 1, -1 do ACTIVE[i] = nil end
+for i, key in ipairs({ "BIS", "UPGRADE", "OS", "PASS" }) do ACTIVE[i] = { key = key, text = key, color = { r = 1, g = 1, b = 1 } } end
+local THIRD = "Player-Third"
+ROSTER[THIRD] = { name = "Aaron-Realm", class = "WARRIOR" }
+Session.responses[1] = { [ME] = { response = "PASS" }, [MULE] = { response = "OS" }, [OTHER] = { response = "BIS" } }
+panel:ShowItem(1)
+local order = {}
+for _, row in ipairs(panel:buildRows()) do order[#order + 1] = row.shortName end
+check("V1", table.concat(order, ",") == "Other,Mule,Aaron,Pixl", "votes are ordered by answer: BiS first, no answer yet, Pass last: " .. table.concat(order, ","))
+ROSTER[THIRD] = nil
+for i = #ACTIVE, 1, -1 do ACTIVE[i] = nil end
+for i, resp in ipairs(savedActive) do ACTIVE[i] = resp end
+
 -- Collecting the same item twice ------------------------------------------------------------------------
 -- A slow server (a 25-player boss) can confirm a hand-out after the bag scan already saw the item
 -- land: it was listed twice. And reopening a corpse numbers its slots again.

@@ -138,7 +138,26 @@ function Panel:buildRows()
 
 		table.insert(rows, row)
 	end
-	table.sort(rows, function(a, b) return a.name < b.name end)
+	-- By answer, in the order of the buttons (BiS first), so who needs it most is on top. Pass comes
+	-- last, after those who haven't answered yet. Same answer: by name.
+	local rank = {}
+	for i, resp in ipairs(PLC.Responses:GetActive()) do
+		rank[resp.key] = i
+	end
+	local unanswered = #PLC.Responses:GetActive() + 1
+	local function rankOf(row)
+		if row.response == "PASS" then
+			return unanswered + 1
+		end
+		return rank[row.response] or unanswered
+	end
+	table.sort(rows, function(a, b)
+		local ra, rb = rankOf(a), rankOf(b)
+		if ra ~= rb then
+			return ra < rb
+		end
+		return a.name < b.name
+	end)
 	return rows
 end
 

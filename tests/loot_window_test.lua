@@ -35,6 +35,7 @@ local function stub(extra)
 		if k == "SetFrameLevel" then return function(s, v) s.level = v end end
 		if k == "SetDrawLayer" then return function(s, layer, sub) s.layer, s.sublevel = layer, sub end end
 		if k == "SetWordWrap" then return function(s, v) s.wraps = v end end
+		if k == "SetText" then return function(s, v) s.text = v end end
 		if k == "CreateTexture" or k == "CreateFontString" then return function() return stub() end end
 		if type(k) == "string" and k:match("^%u") then return function() end end
 	end })
@@ -255,6 +256,26 @@ check("E2", links() == "[Open]", "and one whose trade time runs out during the s
 -- Closing ---------------------------------------------------------------------------------------
 -- It comes back within a second while anything waits for an answer, so there's nothing to close it with.
 check("C1", not closeButtons and #UISpecialFrames == 0, "no close button, and Escape leaves it open")
+
+-- Two of the same --------------------------------------------------------------------------------------
+-- A boss dropped the same item twice: raiders answer once, for both, and the master looter still
+-- awards each on its own.
+local answered = {}
+PLC.Session.SendMyResponse = function(_, idx, key) answered[#answered + 1] = idx .. "=" .. key end
+PLC.Session.items = {
+	[1] = { link = "[Glaive]", itemString = "item:32837", deadlineAt = now + 40 },
+	[2] = { link = "[Helm]", itemString = "item:32235", deadlineAt = now + 60 },
+	[3] = { link = "[Glaive]", itemString = "item:32837", deadlineAt = now + 60 },
+}
+refresh()
+rows = shownRows()
+local icon = cells(rows[1])
+check("T1", #rows == 2 and links() == "[Glaive],[Helm]", "two copies share one row")
+check("T2", icon.count.text == 2 and cells(rows[2]).count.text == "", "the icon says how many dropped, like a stack in the bags")
+local data = upvalue(LootFrame.Refresh, "buildRows")()
+check("T3", data[1].deadlineAt == now + 40, "the first copy to run out sets the time")
+data[1].respond("BIS")
+check("T4", table.concat(answered, ",") == "1=BIS,3=BIS", "one answer is sent for each copy")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
