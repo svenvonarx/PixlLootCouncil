@@ -329,6 +329,7 @@ L["OPTIONS_AUTOLOOT_EXCEPTIONS"] = "Exceptions (ID d'objet ou Maj-clic sur un ob
 L["OPTIONS_AUTOLOOT_ADD"] = "Ajouter"
 L["OPTIONS_AUTOLOOT_SELF"] = "Responsable du butin"
 L["OPTIONS_AUTOLOOT_LEAVE"] = "Laisser dans la fenêtre"
+L["OPTIONS_AUTOLOOT_UNREVIEWED"] = "%s, non examiné"
 L["OPTIONS_AUTOLOOT_PLAYERS"] = "Joueurs..."
 L["OPTIONS_AUTOLOOT_UNKNOWN_ITEM"] = "Objet inconnu. Utilisez un ID d'objet ou Maj-clic sur l'objet."
 L["OPTIONS_AUTOLOOT_HINT"] = "Noms séparés par des virgules : le premier qui peut recevoir un objet l'obtient. Seul le butin qui parvient au responsable du butin entre en session. Maintenez Maj en ouvrant le butin pour ignorer le butin automatique. Les objets exclus et les objets de quête restent dans la fenêtre : cliquez pour les attribuer vous-même. Vos exceptions priment sur les objets exclus."

@@ -82,12 +82,14 @@ end
 
 -- GetSkillLineInfo can plausibly hit the same "not cached yet right after login/reload" race the
 -- old GetProfessionInfo-based implementation did (unconfirmed for this specific API, but the
--- underlying client-side skill data is the same system either way) -- SKILLLINES_CHANGED is the
+-- underlying client-side skill data is the same system either way) -- SKILL_LINES_CHANGED is the
 -- actual completion signal for that regardless of which API reads it afterward, so re-broadcasting
 -- whenever it fires stays worth keeping as a self-correcting safety net. Bucketed (same pattern as
 -- Data/Roster.lua's GROUP_ROSTER_UPDATE) since multiple skill lines can change in the same burst.
 PLC:RegisterOnEnable(function()
-	PLC:RegisterBucketEvent({ "SKILLLINES_CHANGED" }, 1, function()
+	-- SKILL_LINES_CHANGED: "SKILLLINES_CHANGED" doesn't exist on this client and logged an error at
+	-- every login.
+	PLC:RegisterBucketEvent({ "SKILL_LINES_CHANGED" }, 1, function()
 		Professions:BroadcastOwn()
 	end)
 end)

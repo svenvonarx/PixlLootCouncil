@@ -350,7 +350,8 @@ local function dropExcludedItems()
 	local excluded, example = {}, nil
 	for idx, item in pairs(Session.items) do
 		local itemID = itemIDFromString(item.itemString)
-		if itemID and (PLC.ExcludedItems[itemID] or PLC.PersonalLootItems[itemID]) and not item.awarded
+		if itemID and (PLC.ExcludedItems[itemID] or PLC.PersonalLootItems[itemID] or PLC.UnreviewedItems[itemID])
+			and not item.awarded
 			and (item.instance or item.boss) then
 			excluded[#excluded + 1] = idx
 			example = example or item.link

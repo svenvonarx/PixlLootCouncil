@@ -134,6 +134,7 @@ PLC.CouncilRules = { GetGuildRanks = function() return {} end }
 PLC.Responses = { MAX_COUNT = 7, MAX_TEXT_LETTERS = 12, GetConfigured = function() return {} end, Save = function() end, Reset = function() end, NewKey = function() return "K" end }
 PLC.Loot.AutoLoot = { SELF = "self", LEAVE = "leave" }
 PLC.ExcludedItems = { [32897] = true }
+PLC.UnreviewedItems = { [32229] = true }
 PLC.Session = { preview = false }
 PLC.Preview = { Toggle = function() end }
 local updateNotices = 0

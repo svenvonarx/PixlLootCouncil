@@ -13,6 +13,8 @@ PLC.Loot.AutoLoot = AutoLoot
 --   1. an item exception (Options -> Auto Loot), which always wins
 --   2. never automated: PLC.ExcludedItems (Data/ExcludedItems.lua) and quest items, which stay in the
 --      window for the master looter to assign through Blizzard's own list
+--   2b. loot the raid keeps (PLC.UnreviewedItems, e.g. raw epic gems): the review loot target, but
+--      never reviewed
 --   3. review loot (Detection:IsReviewQuality): profile.autoLoot.reviewTarget. A legendary never goes
 --      to a named player this way: a general rule shouldn't bind one to somebody else
 --   4. anything else the group's loot threshold makes master loot: profile.autoLoot.otherTarget
@@ -68,6 +70,9 @@ function AutoLoot:GetTarget(link, quality)
 	if classID == QUEST_CLASS_ID or PLC.ExcludedItems[itemID] then
 		return self.LEAVE
 	end
+	if PLC.UnreviewedItems[itemID] then
+		return settings().reviewTarget
+	end
 	if PLC.Loot.Detection:IsReviewQuality(link, quality) then
 		local target = settings().reviewTarget
 		if (quality or 0) >= LEGENDARY_QUALITY and target ~= self.LEAVE then
@@ -85,7 +90,8 @@ end
 -- elsewhere.
 function AutoLoot:IsExcludedFromReview(link)
 	local itemID, classID = itemIdentity(link)
-	if classID == QUEST_CLASS_ID or PLC.ExcludedItems[itemID] or PLC.PersonalLootItems[itemID] then
+	if classID == QUEST_CLASS_ID or PLC.ExcludedItems[itemID] or PLC.PersonalLootItems[itemID]
+		or PLC.UnreviewedItems[itemID] then
 		return true
 	end
 	local exception = itemID and settings().exceptions[itemID]

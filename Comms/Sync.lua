@@ -11,6 +11,30 @@ local function channel()
 	return PLC.Loot.Announce:GetChannel()
 end
 
+-- Award All's awards and history entries, collected into one "awards" message. The server lets each
+-- addon prefix send 10 messages at once, then 1 a second, and AceComm splits anything over 255 bytes
+-- into several: one award and its history entry took 3 messages, so a 20-item Award All queued 60
+-- and took over a minute to leave, with the session's end behind them, and logging off in that time
+-- lost all of it. Together they compress to a few messages and go out at once.
+local batch -- { awards = {}, history = {} } between BeginBatch and FlushBatch
+
+function Sync:BeginBatch()
+	batch = { awards = {}, history = {} }
+end
+
+function Sync:FlushBatch(sessionId)
+	local pending = batch
+	batch = nil
+	if not pending or (not next(pending.awards) and not next(pending.history)) then
+		return
+	end
+	local ch = channel()
+	if not ch then
+		return
+	end
+	Protocol:Send("awards", { sessionId = sessionId, awards = pending.awards, history = pending.history }, ch)
+end
+
 function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, enchanterGuid, council, responseSet, preview)
 	local ch = channel()
 	if not ch then
@@ -45,6 +69,10 @@ function Sync:SendResponse(sessionId, idx, guid, response, note)
 end
 
 function Sync:SendAward(sessionId, idx, winnerGuid, reason)
+	if batch then
+		table.insert(batch.awards, { idx = idx, winnerGuid = winnerGuid, reason = reason })
+		return
+	end
 	local ch = channel()
 	if not ch then
 		return
@@ -180,6 +208,10 @@ end
 -- Not session-scoped: a history entry is permanent once written, and every client keeps its own
 -- copy (RCLootCouncil's default sendHistory behavior) -- see Data/History.lua.
 function Sync:SendHistory(name, entry)
+	if batch then
+		table.insert(batch.history, { name = name, entry = entry })
+		return
+	end
 	local ch = channel()
 	if not ch then
 		return
@@ -244,3 +276,16 @@ Protocol:RegisterHandler("profession", function(data) PLC.Professions:OnProfessi
 Protocol:RegisterHandler("set_enchanter", function(data) PLC.Session:OnEnchanterReceived(data) end)
 Protocol:RegisterHandler("trade_complete", function(data) PLC.Session:OnTradeCompleteReceived(data) end)
 Protocol:RegisterHandler("history", function(data) PLC.History:OnHistoryReceived(data) end)
+Protocol:RegisterHandler("awards", function(data)
+	if type(data) ~= "table" then
+		return
+	end
+	for _, award in ipairs(type(data.awards) == "table" and data.awards or {}) do
+		if type(award) == "table" then
+			PLC.Session:OnAwardReceived({ sessionId = data.sessionId, idx = award.idx, winnerGuid = award.winnerGuid, reason = award.reason })
+		end
+	end
+	for _, history in ipairs(type(data.history) == "table" and data.history or {}) do
+		PLC.History:OnHistoryReceived(history)
+	end
+end)

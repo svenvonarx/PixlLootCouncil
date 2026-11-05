@@ -28,13 +28,38 @@ local function iAmHolder()
 	return PLC.Session and PLC.Session.IsHolder and PLC.Session:IsHolder()
 end
 
--- The global SendChatMessage only exists as a deprecation shim here, so prefer the real one.
+-- Chat lines go out one a second: sent all at once, as after Award All, the server dropped some.
+-- ChatThrottleLib also holds a line back while the server says it's too much, and keeps the
+-- addon's chat within its share of what the client may send.
+local SPACING = 1
+local queue = {}
+local sending = false
+
+local function sendNext()
+	local line = table.remove(queue, 1)
+	if not line then
+		sending = false
+		return
+	end
+	if ChatThrottleLib and ChatThrottleLib.SendChatMessage then
+		ChatThrottleLib:SendChatMessage("NORMAL", "PLC", line.text, line.channel)
+	else
+		-- The global SendChatMessage only exists as a deprecation shim here, so prefer the real one.
+		local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+		send(line.text, line.channel)
+	end
+	PLC:ScheduleTimer(sendNext, SPACING)
+end
+
 local function post(text, channel)
 	if PLC.Session.preview then
 		text = L["PREVIEW_CHAT_TAG"] .. text
 	end
-	local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
-	send(text, channel)
+	table.insert(queue, { text = text, channel = channel })
+	if not sending then
+		sending = true
+		sendNext()
+	end
 end
 
 -- One summary line, not one per item -- the per-item breakdown belongs in each candidate's

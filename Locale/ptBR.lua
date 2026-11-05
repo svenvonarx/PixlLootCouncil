@@ -329,6 +329,7 @@ L["OPTIONS_AUTOLOOT_EXCEPTIONS"] = "Exceções (ID do item ou Shift-clique em um
 L["OPTIONS_AUTOLOOT_ADD"] = "Incluir"
 L["OPTIONS_AUTOLOOT_SELF"] = "Mestre do Saque"
 L["OPTIONS_AUTOLOOT_LEAVE"] = "Deixar na janela"
+L["OPTIONS_AUTOLOOT_UNREVIEWED"] = "%s, sem avaliação"
 L["OPTIONS_AUTOLOOT_PLAYERS"] = "Jogadores..."
 L["OPTIONS_AUTOLOOT_UNKNOWN_ITEM"] = "Item desconhecido. Use um ID de item ou Shift-clique no item."
 L["OPTIONS_AUTOLOOT_HINT"] = "Nomes separados por vírgulas: o primeiro que puder receber um item fica com ele. Só o saque que chega ao Mestre do Saque entra em uma sessão. Segure Shift ao abrir o saque para pular o saque automático. Itens excluídos e de missão ficam na janela: clique para atribuir você mesmo. Suas exceções vencem os itens excluídos."

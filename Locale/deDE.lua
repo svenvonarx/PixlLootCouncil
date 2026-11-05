@@ -329,6 +329,7 @@ L["OPTIONS_AUTOLOOT_EXCEPTIONS"] = "Ausnahmen (Gegenstands-ID oder Umschalt-Klic
 L["OPTIONS_AUTOLOOT_ADD"] = "Hinzu"
 L["OPTIONS_AUTOLOOT_SELF"] = "Plündermeister"
 L["OPTIONS_AUTOLOOT_LEAVE"] = "Im Fenster lassen"
+L["OPTIONS_AUTOLOOT_UNREVIEWED"] = "%s, nicht geprüft"
 L["OPTIONS_AUTOLOOT_PLAYERS"] = "Spieler..."
 L["OPTIONS_AUTOLOOT_UNKNOWN_ITEM"] = "Unbekannter Gegenstand. Nutze eine Gegenstands-ID oder Umschalt-Klick."
 L["OPTIONS_AUTOLOOT_HINT"] = "Namen werden durch Kommas getrennt: Der Erste, der einen Gegenstand erhalten kann, bekommt ihn. Nur Beute, die beim Plündermeister ankommt, kommt in eine Sitzung. Halte beim Öffnen Umschalt, um Auto-Plündern zu überspringen. Ausgeschlossene Gegenstände und Questgegenstände bleiben im Fenster: Klicke sie an, um sie selbst zuzuweisen. Deine Ausnahmen schlagen die ausgeschlossenen Gegenstände."

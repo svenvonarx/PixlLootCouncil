@@ -148,6 +148,19 @@ shift = false
 check("B4", #noted == 0 and not PLC.Loot.Detection:IsReviewItem(link(BADGE), 4), "looted by hand, it isn't review loot either")
 close()
 
+-- Kept, not reviewed ------------------------------------------------------------------------------
+-- Raw epic gems go where review loot goes, but the raid keeps them: no session for them.
+local LIONSEYE = 32229
+open({ LIONSEYE, 4 }, { HELM, 4 })
+handlers.LOOT_READY()
+tick(); confirm(); tick(); confirm()
+check("K1", actions[1] == "give " .. LIONSEYE .. " 1", "auto loot takes the gem to the master looter, like review loot")
+check("K2", #noted == 1 and noted[1] == "bagged " .. HELM, "but only the helm joins a session")
+close()
+PLC.db.profile.autoLoot.reviewTarget = "leave"
+check("K3", PLC.Loot.AutoLoot:GetTarget(link(LIONSEYE), 4) == "leave", "with review loot left in the window, so is the gem")
+PLC.db.profile.autoLoot.reviewTarget = "self"
+
 -- Raider mode -------------------------------------------------------------------------------------
 -- Another addon (Gargul) runs this master looter's loot: nothing is handed out, taken or noted.
 PLC.db.profile.raiderMode = true

@@ -436,6 +436,40 @@ end
 -- `delivered`: Loot/AutoLoot.lua confirmed these reached this client's bags. Otherwise the ML is
 -- looting by hand, and each entry waits (with its lootSlot) for Loot/BagTracker.lua to find its bag
 -- copy. Filtered by Detection:IsReviewItem so trash doesn't get hoovered into the backlog.
+-- Items Session:AddTrackedItem took from the bags stay claimable this long by the loot window's own
+-- hand-out confirmation, which may arrive after the bag scan.
+local CLAIM_SECONDS = 60
+
+local function itemIDOf(itemString)
+	return tonumber((itemString or ""):match("item:(%d+)"))
+end
+
+-- A recent item from the bags, not yet claimed by a hand-out, for this link's item.
+local function findFromBags(link)
+	local itemString = itemStringFromLink(link)
+	for idx = 1, Session.nextIdx - 1 do
+		local item = Session.items[idx]
+		if item and item.fromBagsAt and not item.awarded and time() - item.fromBagsAt <= CLAIM_SECONDS
+			and itemIDOf(item.itemString) == itemIDOf(itemString) then
+			return item
+		end
+	end
+	return nil
+end
+
+-- The loot window knows where it came from; the bags didn't.
+local function claimFromBags(item, info)
+	item.fromBagsAt = nil
+	item.boss = item.boss or info.boss
+	item.bossName = info.bossName or item.bossName
+	item.instance = info.instance or item.instance
+	item.difficultyName = info.difficultyName or item.difficultyName
+	item.mapID = info.mapID or item.mapID
+	item.difficultyID = info.difficultyID or item.difficultyID
+	item.groupSize = info.groupSize or item.groupSize
+	persist()
+end
+
 function Session:CollectDetectedItems(lootSlotInfo, delivered)
 	local newlyCollected = {}
 	local realLoot = false
@@ -446,14 +480,37 @@ function Session:CollectDetectedItems(lootSlotInfo, delivered)
 		PLC.Preview:Stop(L["PREVIEW_ENDED_REAL_LOOT"])
 	end
 
-	for lootSlot, info in pairs(lootSlotInfo) do
+	-- In slot order, so two copies of one item are matched the same way every time.
+	local slots = {}
+	for lootSlot in pairs(lootSlotInfo) do
+		table.insert(slots, lootSlot)
+	end
+	table.sort(slots)
+	local matched = {}
+	for _, lootSlot in ipairs(slots) do
+		local info = lootSlotInfo[lootSlot]
 		if PLC.Loot.Detection:IsReviewItem(info.link, info.quality) then
 			local alreadyCollected = false
-			for idx = 1, self.nextIdx - 1 do
-				local existing = self.items[idx]
-				if not delivered and existing and existing.lootSlot == lootSlot and existing.link == info.link then
+			if delivered then
+				-- The bag scan can see it land before the hand-out is confirmed, when the server is
+				-- slow (a 25-player boss): it's already listed, from the bags.
+				local found = findFromBags(info.link)
+				if found then
+					claimFromBags(found, info)
 					alreadyCollected = true
-					break
+				end
+			else
+				-- Noted before, from this corpse: reopening a corpse numbers its slots again, so
+				-- it's the same corpse and item, not the same slot. Each copy counts once.
+				for idx = 1, self.nextIdx - 1 do
+					local existing = self.items[idx]
+					if existing and not matched[existing] and existing.lootSlot and existing.link == info.link
+						and existing.boss == info.boss then
+						matched[existing] = true
+						existing.lootSlot = lootSlot
+						alreadyCollected = true
+						break
+					end
 				end
 			end
 			if not alreadyCollected then
@@ -480,6 +537,7 @@ function Session:CollectDetectedItems(lootSlotInfo, delivered)
 				}
 				self.items[idx] = entry
 				newlyCollected[idx] = entry
+				matched[entry] = true -- a second copy in this window is a second item
 			end
 		end
 	end
@@ -529,6 +587,7 @@ function Session:AddTrackedItem(link, itemGUID)
 		icon = icon,
 		bagged = true,
 		itemGUID = itemGUID,
+		fromBagsAt = time(), -- see findFromBags: the loot window's confirmation may still come
 		instance = instanceName,
 		difficultyName = difficultyName,
 		mapID = mapID,
@@ -900,13 +959,29 @@ function Session:AwardAllPreAwarded()
 		print(L["CHAT_PREFIX"] .. L["SESSION_NOT_HOLDER"])
 		return
 	end
-	local count = 0
+	-- In item order, so raid chat lists them the way the Loot Session window does. Everything goes
+	-- out in one message (Comms/Sync.lua:BeginBatch), and the session's end right after it.
+	local idxs = {}
 	for idx, item in pairs(self.items) do
 		if item.preAwardGuid and not item.awarded then
+			table.insert(idxs, idx)
+		end
+	end
+	table.sort(idxs)
+	local count = 0
+	PLC.Comms.Sync:BeginBatch()
+	local ok, err = pcall(function()
+		for _, idx in ipairs(idxs) do
+			local item = self.items[idx]
 			if self:AwardBaggedItem(idx, item.preAwardGuid, item.preAwardReason) then
 				count = count + 1
 			end
 		end
+	end)
+	-- Whatever was awarded goes out, even if something went wrong on the way.
+	PLC.Comms.Sync:FlushBatch(self.sessionId)
+	if not ok then
+		error(err, 0)
 	end
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_AWARD_ALL_RESULT"], count))
 	-- Award All is now also the deliberate "I'm done reviewing" signal, not just a bulk-commit --

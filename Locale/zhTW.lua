@@ -329,6 +329,7 @@ L["OPTIONS_AUTOLOOT_EXCEPTIONS"] = "例外（物品 ID 或 Shift+點擊物品）
 L["OPTIONS_AUTOLOOT_ADD"] = "新增"
 L["OPTIONS_AUTOLOOT_SELF"] = "分配者"
 L["OPTIONS_AUTOLOOT_LEAVE"] = "留在視窗中"
+L["OPTIONS_AUTOLOOT_UNREVIEWED"] = "%s，不審議"
 L["OPTIONS_AUTOLOOT_PLAYERS"] = "玩家..."
 L["OPTIONS_AUTOLOOT_UNKNOWN_ITEM"] = "未知物品，請使用物品 ID 或 Shift+點擊物品。"
 L["OPTIONS_AUTOLOOT_HINT"] = "名稱以逗號分隔：第一個能接收物品的人會得到它。只有交到分配者手中的戰利品才會進入分配。打開戰利品時按住 Shift 可略過自動分配。被排除的物品和任務物品留在視窗中，點擊可手動分配。你的例外優先於被排除的物品。"

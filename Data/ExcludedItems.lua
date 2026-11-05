@@ -9,6 +9,12 @@ PLC.ExcludedItems = {
 	[32428] = true, -- Heart of Darkness (Black Temple)
 	[34664] = true, -- Sunmote (Sunwell Plateau)
 	[23572] = true, -- Primal Nether
+}
+
+-- Loot the raid keeps instead of handing out: auto loot takes it like review loot (Options -> Auto
+-- Loot's review loot target, the master looter by default), but sessions never review it. An
+-- exception under Options -> Auto Loot still decides where it goes.
+PLC.UnreviewedItems = {
 	-- Raw epic gems (Hyjal, Black Temple and Sunwell trash)
 	[32227] = true, -- Crimson Spinel
 	[32228] = true, -- Empyrean Sapphire

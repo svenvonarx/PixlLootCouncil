@@ -268,6 +268,14 @@ Session.items[2].preAwardGuid, Session.items[2].preAwardReason = MULE, "award"
 Session.items[1].preAwardGuid, Session.items[1].preAwardReason = ME, "bank"
 Session:AwardAllPreAwarded()
 check("B22", windows.trades == 1 and Session.items[2] and not Session.items[2].traded, "with a real award left, Loot Trades does open")
+local order = {}
+for _, message in ipairs(sent) do
+	if message.command == "BeginBatch" or message.command == "SendAward" or message.command == "FlushBatch" or message.command == "SendSessionEnd" then
+		order[#order + 1] = message.command
+	end
+end
+check("B22a", table.concat(order, ",") == "BeginBatch,SendAward,SendAward,FlushBatch,SendSessionEnd",
+	"Award All's awards go out together, and the session's end after them: " .. table.concat(order, ","))
 
 -- What must not change ------------------------------------------------------------------------------
 session()
@@ -517,6 +525,48 @@ check("U5", Session.preview == false and optionsTold == 2, "so does the holder e
 runningPreview()
 PLC.Preview:Toggle()
 check("U6", Session.preview == false and optionsTold == 2, "and /plc preview")
+
+-- Collecting the same item twice ------------------------------------------------------------------------
+-- A slow server (a 25-player boss) can confirm a hand-out after the bag scan already saw the item
+-- land: it was listed twice. And reopening a corpse numbers its slots again.
+local isReview = PLC.Loot.Detection.IsReviewItem
+PLC.Loot.Detection.IsReviewItem = function() return true end
+_G.GetInstanceInfo = function() return "Black Temple", "raid", 4, "25 Player", 25, 0, false, 564, 25 end
+local GLAIVE = "|cffa335ee|Hitem:32837:0:0|h[Warglaive]|h|r"
+local function count(link)
+	local id, n = link:match("item:(%d+)"), 0
+	for _, item in pairs(Session.items) do if (item.itemString or ""):match("item:(%d+)") == id then n = n + 1 end end
+	return n
+end
+session("Player-Other") -- someone else's pass: nothing is broadcast from here
+Session.state = "inactive"
+Session.nextIdx = 3
+Session:AddTrackedItem(GLAIVE, "GUID-1")
+Session:CollectDetectedItems({ [2] = { link = GLAIVE, quality = 4, boss = "Creature-Illidan", bossName = "Illidan Stormrage" } }, true)
+check("D1", count(GLAIVE) == 1, "a hand-out confirmed after the bag scan listed the item is the same item")
+local glaive
+for _, item in pairs(Session.items) do if (item.itemString or ""):match("item:(%d+)") == "32837" then glaive = item end end
+check("D2", glaive and glaive.bossName == "Illidan Stormrage" and glaive.itemGUID == "GUID-1", "and it keeps both: the boss, and its copy in the bags")
+Session:CollectDetectedItems({ [3] = { link = GLAIVE, quality = 4, boss = "Creature-Illidan" } }, true)
+check("D3", count(GLAIVE) == 2, "a second copy handed out is a second item")
+
+local WARGLAIVE_OFF = "|cffa335ee|Hitem:32838:0:0|h[Warglaive Off]|h|r"
+local HELMET = "|cffa335ee|Hitem:32235:0:0|h[Cursed Vision]|h|r"
+Session:CollectDetectedItems({
+	[3] = { link = WARGLAIVE_OFF, quality = 4, boss = "Creature-Illidan" },
+	[4] = { link = HELMET, quality = 4, boss = "Creature-Illidan" },
+	[5] = { link = HELMET, quality = 4, boss = "Creature-Illidan" },
+})
+check("D4", count(WARGLAIVE_OFF) == 1 and count(HELMET) == 2, "noted by hand: two copies are two items")
+Session:CollectDetectedItems({
+	[1] = { link = WARGLAIVE_OFF, quality = 4, boss = "Creature-Illidan" },
+	[2] = { link = HELMET, quality = 4, boss = "Creature-Illidan" },
+	[3] = { link = HELMET, quality = 4, boss = "Creature-Illidan" },
+})
+check("D5", count(WARGLAIVE_OFF) == 1 and count(HELMET) == 2, "reopening the corpse, its slots numbered again, adds nothing")
+Session:CollectDetectedItems({ [1] = { link = HELMET, quality = 4, boss = "Creature-Shahraz" } })
+check("D6", count(HELMET) == 3, "the same item from another boss is another item")
+PLC.Loot.Detection.IsReviewItem = isReview
 
 -- Pasting into the import box ---------------------------------------------------------------------------
 -- The game lays out all of a multi-line box's text: a pasted CSV export of a long history froze it.

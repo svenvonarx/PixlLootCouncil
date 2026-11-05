@@ -486,6 +486,9 @@ local function buildAutoLootPage(page)
 		{
 			width = 140,
 			render = function(rowData)
+				if rowData.unreviewed then
+					return string.format(L["OPTIONS_AUTOLOOT_UNREVIEWED"], targetLabel(rowData.target))
+				end
 				return targetLabel(rowData.target)
 			end,
 		},
@@ -515,6 +518,13 @@ local function buildAutoLootPage(page)
 		for itemID in pairs(PLC.ExcludedItems) do
 			if not settings.exceptions[itemID] then
 				table.insert(rows, { itemID = itemID, target = AutoLoot.LEAVE, builtIn = true, name = C_Item.GetItemInfo(itemID) or ("item:" .. itemID) })
+			end
+		end
+		-- Kept by the raid: where review loot goes, but never reviewed.
+		for itemID in pairs(PLC.UnreviewedItems) do
+			if not settings.exceptions[itemID] then
+				table.insert(rows, { itemID = itemID, target = settings.reviewTarget, builtIn = true, unreviewed = true,
+					name = C_Item.GetItemInfo(itemID) or ("item:" .. itemID) })
 			end
 		end
 		table.sort(rows, function(a, b) return a.name < b.name end)

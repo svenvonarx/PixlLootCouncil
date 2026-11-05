@@ -329,6 +329,7 @@ L["OPTIONS_AUTOLOOT_EXCEPTIONS"] = "Eccezioni (ID oggetto o Maiusc+clic su un og
 L["OPTIONS_AUTOLOOT_ADD"] = "Aggiungi"
 L["OPTIONS_AUTOLOOT_SELF"] = "Responsabile del bottino"
 L["OPTIONS_AUTOLOOT_LEAVE"] = "Lascia nella finestra"
+L["OPTIONS_AUTOLOOT_UNREVIEWED"] = "%s, non valutato"
 L["OPTIONS_AUTOLOOT_PLAYERS"] = "Giocatori..."
 L["OPTIONS_AUTOLOOT_UNKNOWN_ITEM"] = "Oggetto sconosciuto. Usa un ID oggetto o Maiusc+clic sull'oggetto."
 L["OPTIONS_AUTOLOOT_HINT"] = "I nomi sono separati da virgole: il primo che può ricevere un oggetto lo ottiene. Solo il bottino che arriva al responsabile entra in una sessione. Tieni premuto Maiusc aprendo il bottino per saltare il bottino automatico. Gli oggetti esclusi e quelli di missione restano nella finestra: cliccali per assegnarli tu. Le tue eccezioni vincono sugli oggetti esclusi."
