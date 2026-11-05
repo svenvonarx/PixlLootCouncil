@@ -4,7 +4,9 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
-## Unreleased
+## 0.8.1-beta
+
+More raid materials kept out of loot sessions, and every item rule yours to change.
 
 - **Mark of the Illidari, Heart of Darkness, Primal Nether and Nether Vortex** are now handled like
   raw epic gems: auto looted to the master looter, never up for review. Sunmote still stays in the
