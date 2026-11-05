@@ -4,7 +4,9 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
-## Unreleased
+## 0.7.2-beta
+
+Raw epic gems stay out of loot sessions, and stacked loot shows its real trade status.
 
 - **Raw epic gems are excluded**: Crimson Spinel, Empyrean Sapphire, Lionseye, Shadowsong Amethyst,
   Pyrestone and Seaspray Emerald. Like Mark of the Illidari, they stay in the loot window for you to
