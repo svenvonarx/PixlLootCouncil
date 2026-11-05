@@ -4,9 +4,10 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
-## Unreleased
+## 0.8.0-beta
 
-Fixes and changes from the first raid night.
+Fixes and changes from the first raid night. **Everyone in the raid needs this version**: Award All
+now sends its results in a way older versions don't understand.
 
 - **Fixed: Award All could lose awards.** Every award and its history entry went out as its own
   addon messages, and the server lets an addon send 10 at once, then 1 a second. So a big Award All
