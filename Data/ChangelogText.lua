@@ -4,6 +4,13 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
+## 0.7.3-beta
+
+- **Fixed:** importing a big loot history from RCLootCouncil could freeze the game for minutes, or
+  crash it. Every entry was checked against all the entries stored for that player, so thousands
+  under one name, such as a disenchanter's, took minutes. Importing tens of thousands of entries now
+  takes a moment.
+
 ## 0.7.2-beta
 
 Raw epic gems stay out of loot sessions, and stacked loot shows its real trade status.

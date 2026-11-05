@@ -35,9 +35,11 @@ function History:ImportRCData(data)
 		return 0
 	end
 	local count = 0
+	local idsByName = {} -- see History:StoredIds: a big import has to look ids up, not search lists
 	for name, entries in pairs(data) do
 		if type(name) == "string" and type(entries) == "table" then
 			local fullName = History.NormalizeName(name)
+			idsByName[fullName] = idsByName[fullName] or self:StoredIds(fullName)
 			for _, entry in ipairs(entries) do
 				if type(entry) == "table" and entry.lootWon then
 					entry.SR = nil -- RC strips raw session responses before storing, too
@@ -47,7 +49,7 @@ function History:ImportRCData(data)
 						-- Very old RC entries can lack an id; derive a stable one so re-imports dedupe.
 						entry.id = "0-" .. tostring(entry.date) .. tostring(entry.time) .. tostring(entry.lootWon)
 					end
-					if self:InsertEntry(fullName, entry) then
+					if self:InsertEntry(fullName, entry, idsByName[fullName]) then
 						count = count + 1
 					end
 				end

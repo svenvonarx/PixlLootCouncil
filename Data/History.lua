@@ -86,12 +86,22 @@ local function itemsReplaced(winnerGuid, link)
 	return id1 and (select(2, C_Item.GetItemInfo(id1))), id2 and (select(2, C_Item.GetItemInfo(id2)))
 end
 
-local function insertEntry(name, entry)
+-- ids: History:StoredIds(name), for adding many entries. Without it, every entry would look through
+-- the whole list, which freezes the game on a big import: thousands of entries under one name, such
+-- as a disenchanter's, take minutes.
+local function insertEntry(name, entry, ids)
 	local db = History:GetDB()
 	db[name] = db[name] or {}
-	for _, existing in ipairs(db[name]) do
-		if existing.id == entry.id then
+	if ids then
+		if ids[entry.id] then
 			return false
+		end
+		ids[entry.id] = true
+	else
+		for _, existing in ipairs(db[name]) do
+			if existing.id == entry.id then
+				return false
+			end
 		end
 	end
 	table.insert(db[name], entry)
@@ -99,8 +109,20 @@ local function insertEntry(name, entry)
 end
 
 -- Inserts unless an entry with the same id is already stored for that name. Returns true if added.
-function History:InsertEntry(name, entry)
-	return insertEntry(name, entry)
+-- ids: optional, see StoredIds; it's kept up to date.
+function History:InsertEntry(name, entry, ids)
+	return insertEntry(name, entry, ids)
+end
+
+-- The ids stored for one name, as a set, to check many entries against at once.
+function History:StoredIds(name)
+	local ids = {}
+	for _, entry in ipairs(self:GetDB()[name] or {}) do
+		if entry.id then
+			ids[entry.id] = true
+		end
+	end
+	return ids
 end
 
 -- RC's DateTimeSort key: the epoch and counter encoded in the entry id ("<serverTime>-<counter>").
@@ -342,10 +364,13 @@ end
 -- lootDB existed. Only array-of-entries values (each with an id) are moved.
 PLC:RegisterOnEnable(function()
 	local old = PLC.db.factionrealm
+	local idsByName = {}
 	for name, entries in pairs(old) do
 		if type(entries) == "table" and type(entries[1]) == "table" and entries[1].id and entries[1].lootWon then
+			local fullName = normalizeName(name)
+			idsByName[fullName] = idsByName[fullName] or History:StoredIds(fullName)
 			for _, entry in ipairs(entries) do
-				insertEntry(normalizeName(name), entry)
+				insertEntry(fullName, entry, idsByName[fullName])
 			end
 			old[name] = nil
 		end
