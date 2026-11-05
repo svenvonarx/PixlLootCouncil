@@ -12,19 +12,19 @@ Group messages in WoW only reach whoever is there to receive them, so someone on
 
 - **Auto loot.** Open a corpse and the loot goes where it should, with no candidate list to click through. Send epics and patterns to yourself and everything else to a mule, with fallback names if someone's bags are full. Hold Shift to do a corpse by hand, or press it to take over halfway. Badges of Justice, which everyone loots for themselves, never go up for review.
 - **Master looter list.** Choose who should run the loot, in order. Switch the group to Master Loot and the first of them who's online gets it. It can set the loot threshold at the same moment, and anything you change afterwards sticks.
-- **Excluded items.** Raid materials like Mark of the Illidari, and raw epic gems like Lionseye, stay in the window for you to assign yourself.
+- **Excluded items.** Raid materials like Mark of the Illidari stay in the window for you to assign yourself. Raw epic gems like Lionseye are auto looted but never go up for review.
 - **Loot Timers.** A small list of everything waiting for review, most urgent first, with the 2-hour trade time left on each item, so nothing expires in your bags.
 - **Preview mode.** Run the whole workflow with your group on fictional items before raid night. Nothing goes to the history, and your real loot list comes back afterwards.
 
 ## For the council
 
-- **One review window.** See every candidate's response, note, equipped items and item level difference. Anyone who already received the item is marked, and hovering a name shows what they've received.
+- **One review window.** See every candidate's response, note, equipped items and item level difference, sorted from BiS down to Pass. Anyone who already received the item is marked, and hovering a name shows what they've received.
 - **Stage, then commit.** Pick a winner for each item, send it to the raid's Enchanter, or keep it as **Banking**, then hand everything out with **Award All**.
 - **You decide who's on it**: raid leader and assistants, guild ranks, or individual names.
 
 ## For raiders
 
-- A compact **Loot Response** window: one line per item, with a countdown across the row and an optional note. It's only as tall as the items need, and you can resize it to suit your screen.
+- A compact **Loot Response** window: one line per item, with a countdown across the row and an optional note. An item that dropped twice is one line, answered once. It's only as tall as the items need, and you can resize it to suit your screen.
 - Your awards show up in **Loot Trades**, where **Trade** opens the trade and places the items and **Follow** walks you to the other player.
 - The master looter can customize the response buttons, and everyone in the session sees the same ones.
 - **Raider mode**: master looting for your own runs with another addon, such as Gargul? Pick Raider in the welcome window, or type `/plc raider`. As master looter, PixlLootCouncil then loots, collects and starts nothing by itself, and sessions others start still open.
@@ -39,7 +39,7 @@ Group messages in WoW only reach whoever is there to receive them, so someone on
 
 - **Every client language**, translated throughout.
 - **Windows that stack like on a desktop**: the one you open or click comes to the front.
-- **Eight themes**, and any font your addons have registered.
+- **Eight themes**, any font your addons have registered, and a Scale setting for the size of every window.
 - **A quiet update reminder** when your version is out of date.
 
 ## Coming from RCLootCouncil

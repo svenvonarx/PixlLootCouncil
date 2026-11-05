@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+Fixes and changes from the first raid night.
+
+- **Fixed: Award All could lose awards.** Every award and its history entry went out as its own
+  addon messages, and the server lets an addon send 10 at once, then 1 a second. So a big Award All
+  took over a minute to send, with the session's end at the back. Council members kept seeing a
+  running session, and logging off in that time lost the rest. Award All now sends everything in one
+  message, followed by the session's end, which takes a moment. **Everyone needs this version** to
+  see Award All's results.
+- **Fixed: some award lines were missing from raid chat.** They were all sent at once, and the
+  server dropped some. They now go out one a second.
+- **Fixed: loot listed twice**, as happened with Illidan. When the server was slow to confirm a
+  hand-out, the bag check had already listed the item, and the confirmation listed it again.
+  Reopening a corpse could also list noted items again, because its loot slots are numbered anew.
+- **Raw epic gems are auto looted again**, wherever review loot goes, but never go up for review.
+  0.7.2 left them in the loot window instead.
+- **Votes are sorted** in the Loot Session window: by answer, in the order of the buttons (BiS
+  first), then those who haven't answered, with Pass last.
+- **An item that dropped twice is answered once.** Its copies share one line in the Loot Response
+  window, with a count on the icon. The master looter still awards each copy on its own.
+- **Bigger windows**: everything is 25% bigger, and Options → Appearance → Scale sets the size from
+  50% to 200%.
+- **Loot Session window**: four item icons a row instead of two, so it isn't as tall. Drag its
+  corner sideways to make the whole window bigger or smaller, and down for more items.
+- **Fixed:** an error about an unknown event (`SKILLLINES_CHANGED`) at every login.
+
 ## 0.7.4-beta
 
 - **Fixed:** pasting a long text into Loot History's import box, such as RCLootCouncil's CSV export

@@ -37,10 +37,10 @@ arrive.
 - **Master looter list.** Choose who should run the loot, in order. When you switch the group to
   Master Loot, the first of them who's online in the group gets it, and the loot threshold can be set
   at the same moment. Changing either afterwards sticks.
-- **Excluded items.** Raid materials such as Mark of the Illidari, and raw epic gems such as Lionseye,
-  stay in the loot window for you to
-  assign through Blizzard's list. The curated list is in `Data/ExcludedItems.lua`, and your exceptions
-  override it.
+- **Excluded items.** Raid materials such as Mark of the Illidari stay in the loot window for you to
+  assign through Blizzard's list. Raw epic gems such as Lionseye are auto looted like review loot but
+  never reviewed, since raids keep them. The curated lists are in `Data/ExcludedItems.lua`, and your
+  exceptions override them.
 - **Trade-time tracking.** Each item in your bags shows how long it can still be traded: soulbound
   loot has a 2-hour trade window, and BoE recipes from the raid have no limit. You get a chat reminder
   at 20 and 5 minutes, and expired items are flagged.
@@ -91,8 +91,9 @@ arrive.
   Simplified and Traditional Chinese.
 - **Windows stack like on a desktop**: the one you open or click comes to the front, and the game's
   confirmation pop-ups and tooltips always show above them.
-- **Themes and fonts**: eight themes under Options → Appearance, and any font your addons have
-  registered.
+- **Themes, fonts and size**: eight themes under Options → Appearance, any font your addons have
+  registered, and a Scale setting for how big the windows are. Drag the Loot Session window's corner
+  sideways to make just that window bigger.
 - **Version check**: Options → About lists the version everyone in your group runs. If yours is out of
   date you get a quiet reminder: one chat line a day, and one pop-up if you're a whole version behind,
   never in combat, an instance or a loot session.

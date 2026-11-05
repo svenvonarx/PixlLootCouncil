@@ -760,6 +760,32 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
 - **Addon list:** on the character screen and in game: the icon is sharp beside the name, the addon is
   under Loot with Gargul and RCLootCouncil, and hovering it shows the new description.
 
+### 2.25 First raid night (0.8.0)
+`luajit tests/award_all_test.lua`, `banking_test.lua`, `loot_window_test.lua`, `autoloot_test.lua` and
+`appearance_test.lua` check the rules. In game, with at least two clients:
+- **Award All:** in a preview with 8+ items, stage them all and press Award All. On the other client,
+  the items show as awarded and the session ends within a few seconds, not a minute. Their Loot
+  History has every entry. Raid chat gets one award line a second, none missing.
+- **Award All, then log off:** do it again and log the master looter off right after Award All: the
+  other client still gets every award and the end of the session.
+- **Gems:** as master looter with auto loot on, loot a raw epic gem (BT/Hyjal trash): it goes to you
+  (or wherever review loot goes) and doesn't join the Loot Session window. Options → Auto Loot lists
+  the six gems as "…, not reviewed".
+- **Loot listed twice:** loot a boss with several epics with auto loot on, ideally with some lag: each
+  item is in the Loot Session window once. With Shift, close and reopen the corpse after taking one
+  item: what's left isn't added again.
+- **Vote order:** in a session, answer BiS, Upgrade and Pass on three clients and leave one
+  unanswered: the Loot Session window lists BiS, Upgrade, the unanswered one, then Pass.
+- **Two of the same:** `/plc additem` the same item twice and start a session: raiders see one line
+  with a 2 on the icon. Answering it answers both; the master looter sees two items with the same
+  answers and awards them separately.
+- **Size:** every window is a quarter bigger than in 0.7. Options → Appearance → Scale: drag it to 80%
+  and let go; all windows, dropdowns included, go back to the old size. Loot Timers keeps its place.
+- **Loot Session window:** four icons a row. Drag the corner sideways: the whole window grows and
+  shrinks, the top-left corner staying put; down: more rows, never past the bottom of the screen.
+  `/reload`: the size stays.
+- **Login:** `/plc errors` doesn't list `SKILLLINES_CHANGED` after logging in.
+
 ### 2.24 Loot that leaves the bags (`Loot/BagTracker.lua`)
 `luajit tests/bags_test.lua` checks the rules. In game, as master looter with two collected items
 waiting in the Loot Session window (a preview doesn't count, its items are stand-ins):
