@@ -196,6 +196,7 @@ loadLua("Core/Events.lua", "PixlLootCouncil", PLC)
 PLC.Session = { state = "inactive", items = {}, responses = {}, preview = false, responseTimeoutSeconds = 60 }
 PLC.Roster = { ShortName = function(_, name) return name and name:match("^[^-]+") or name end }
 PLC.Professions = { ENCHANTING_KEY = "ENCHANTING", known = {} }
+PLC.AutoPass = { ShouldPass = function() return false end }
 for _, file in ipairs({ "Data/CouncilRules.lua", "Data/Gear.lua", "Data/Responses.lua", "Data/History.lua",
 	"Data/HistoryImport.lua", "Comms/RCWire.lua", "Loot/Announce.lua", "Data/RCBridge.lua", "UI/LootFrame.lua" }) do
 	loadLua(file, "PixlLootCouncil", PLC)

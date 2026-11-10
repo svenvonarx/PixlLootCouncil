@@ -57,6 +57,29 @@ local function myResponse(idx)
 	return responses and responses[guid]
 end
 
+-- Items this character can't use get a Pass by themselves (Data/AutoPass.lua), with a note so the
+-- council knows why, and never show here. Sent once the rows are built: sending refreshes this
+-- window, which mustn't happen in the middle of building it.
+local passing = {} -- [idx] = true, a pass on its way
+
+local function shouldAutoPass(idx, item)
+	if passing[idx] or not PLC.db.profile.autoPass or not PLC.Responses:Find("PASS") then
+		return passing[idx] == true
+	end
+	if PLC.AutoPass:ShouldPass(item.link, item.itemString) then
+		passing[idx] = true
+		PLC:ScheduleTimer(function()
+			passing[idx] = nil
+			local Session = PLC.Session
+			if Session.state == "active" and Session.items[idx] and not myResponse(idx) then
+				Session:SendMyResponse(idx, "PASS", PLC.AutoPass:Note())
+			end
+		end, 0)
+		return true
+	end
+	return false
+end
+
 -- A row is everything this window needs from a source of items, so a session of this addon and one
 -- from an RCLootCouncil master looter (Data/RCBridge.lua) look the same here.
 local function sessionRows()
@@ -82,7 +105,7 @@ local function sessionRows()
 		-- session. Trade time running out during the session takes the item away too.
 		local open = item.deadlineAt and now <= item.deadlineAt
 		local tradable = not item.untradable and not (item.tradeExpiresAt and now >= item.tradeExpiresAt)
-		if open and tradable and not item.awarded and not myResponse(idx) then
+		if open and tradable and not item.awarded and not myResponse(idx) and not shouldAutoPass(idx, item) then
 			local key = item.itemString or item.link or idx
 			local row = byItem[key]
 			if row then

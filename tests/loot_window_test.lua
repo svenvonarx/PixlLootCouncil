@@ -62,6 +62,8 @@ PLC.UI.Widgets.Primitives = setmetatable({
 PLC.UI.Widgets.Button = { createButton = function(_, text)
 	return stub({ width = #text * 6 + 20, height = 28 })
 end }
+local soon = {}
+function PLC:ScheduleTimer(fn) soon[#soon + 1] = fn end
 function PLC:ScheduleRepeatingTimer() return {} end
 function PLC:CancelTimer() end
 function PLC:RegisterSlashCommand() end
@@ -72,7 +74,8 @@ local function signature(set)
 	for i, r in ipairs(set) do keys[i] = r.key .. "=" .. r.text end
 	return table.concat(keys, ",")
 end
-PLC.Responses = { GetActive = function() return SET end, Signature = signature }
+PLC.Responses = { GetActive = function() return SET end, Signature = signature,
+	Find = function(_, key) for _, r in ipairs(SET) do if r.key == key then return r end end end }
 PLC.RCBridge = { GetRows = function() return {} end, GetResponseSets = function() return {} end }
 PLC.Roster = { ShortName = function(_, name) return name end }
 PLC.Session = { state = "active", items = {}, responses = {}, responseTimeoutSeconds = 60, owner = { name = "Pixl" } }
@@ -276,6 +279,33 @@ local data = upvalue(LootFrame.Refresh, "buildRows")()
 check("T3", data[1].deadlineAt == now + 40, "the first copy to run out sets the time")
 data[1].respond("BIS")
 check("T4", table.concat(answered, ",") == "1=BIS,3=BIS", "one answer is sent for each copy")
+
+-- Can't use it --------------------------------------------------------------------------------------------
+-- Another class's token, plate for a mage: a Pass goes by itself, with a note, and it isn't shown.
+PLC.db.profile.autoPass = true
+if not PLC.Responses:Find("PASS") then SET[#SET + 1] = { key = "PASS", text = "Pass" } end
+PLC.AutoPass = { ShouldPass = function(_, link) return link == "[Plate]" end, Note = function() return "AUTOPASS_NOTE" end }
+local sentPasses = {}
+PLC.Session.SendMyResponse = function(_, idx, key, note)
+	sentPasses[#sentPasses + 1] = idx .. "=" .. key .. ":" .. tostring(note)
+	PLC.Session.responses[idx] = { [UnitGUID("player")] = { response = key, note = note } } -- as the real one records it
+end
+PLC.Session.items = {
+	[1] = { link = "[Plate]", itemString = "item:1", deadlineAt = now + 60 },
+	[2] = { link = "[Cloth]", itemString = "item:2", deadlineAt = now + 60 },
+}
+PLC.Session.responses = {}
+refresh()
+check("P1", links() == "[Cloth]", "an item this character can't use isn't shown")
+check("P2", #sentPasses == 0 and #soon == 1, "its Pass waits until the window is drawn")
+soon[1](); soon = {}
+check("P3", sentPasses[1] == "1=PASS:AUTOPASS_NOTE", "then goes out, with a note saying why")
+refresh()
+check("P4", #soon == 0, "and only once")
+PLC.db.profile.autoPass = false
+PLC.Session.items[3] = { link = "[Plate]", itemString = "item:3", deadlineAt = now + 60 }
+refresh()
+check("P5", links():find("[Plate]", 1, true) ~= nil and #soon == 0, "turned off, everything shows")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

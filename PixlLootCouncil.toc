@@ -46,6 +46,7 @@ Data\UpdateNotice.lua
 Data\Gear.lua
 Data\Professions.lua
 Data\Responses.lua
+Data\AutoPass.lua
 Data\ExcludedItems.lua
 Data\History.lua
 Data\HistoryImport.lua

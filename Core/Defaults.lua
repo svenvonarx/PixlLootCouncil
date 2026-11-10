@@ -12,6 +12,7 @@ PLC.Defaults = {
 	},
 	profile = {
 		theme = "gold", -- a key of Theme.THEMES, see UI/Theme.lua
+		autoPass = true, -- pass by itself on loot this character can't use, Data/AutoPass.lua
 		uiScale = 100, -- percent, Options -> Appearance -> Scale (UI/Widgets/Primitives.lua:addonScale)
 		sessionScale = 1, -- the Loot Session window's own, set by dragging its corner sideways
 		font = "Inter", -- a LibSharedMedia font name, see UI/Widgets/Primitives.lua

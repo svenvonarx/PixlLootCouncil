@@ -133,6 +133,8 @@ local function buildGeneralPage(page)
 	group(L["OPTIONS_GROUP_LOOT"])
 	checkbox(L["OPTIONS_AUTO_START"], L["TIP_AUTO_START"], function() return profile.autoStartSession end,
 		function(checked) profile.autoStartSession = checked end)
+	checkbox(L["OPTIONS_AUTO_PASS"], L["TIP_AUTO_PASS"], function() return profile.autoPass end,
+		function(checked) profile.autoPass = checked end)
 	y = y - 4
 	createQualityField(page, y, L["OPTIONS_LOOT_THRESHOLD"], L["TIP_LOOT_THRESHOLD"], "lootThreshold", QUALITIES)
 	y = y - FIELD_STEP - GROUP_GAP + 8
