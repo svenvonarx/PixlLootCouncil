@@ -14,17 +14,19 @@ Group messages in WoW only reach whoever is there to receive them, so someone on
 - **Master looter list.** Choose who should run the loot, in order. Switch the group to Master Loot and the first of them who's online gets it. It can set the loot threshold at the same moment, and anything you change afterwards sticks.
 - **Item rules.** Raid materials like Mark of the Illidari and Nether Vortex, and raw epic gems, are auto looted to you but never go up for review. Change any of them, or add your own, under Options → Auto Loot.
 - **Loot Timers.** A small list of everything waiting for review, most urgent first, with the 2-hour trade time left on each item, so nothing expires in your bags.
-- **Preview mode.** Run the whole workflow with your group on fictional items before raid night. Nothing goes to the history, and your real loot list comes back afterwards.
+- **Preview mode.** Run the whole workflow with your group on fictional items before raid night, or a whole night's worth with `/plc preview 40`. Nothing goes to the history, and your real loot list comes back afterwards.
 
 ## For the council
 
 - **One review window.** See every candidate's response, note, equipped items and item level difference, sorted from BiS down to Pass. Anyone who already received the item is marked, and hovering a name shows what they've received.
 - **Stage, then commit.** Pick a winner for each item, send it to the raid's Enchanter, or keep it as **Banking**, then hand everything out with **Award All**.
+- **Look back.** Awarded items stay in the window with the votes they were awarded on, until the master looter clears them.
 - **You decide who's on it**: raid leader and assistants, guild ranks, or individual names.
 
 ## For raiders
 
 - A compact **Loot Response** window: one line per item, with a countdown across the row and an optional note. An item that dropped twice is one line, answered once. It's only as tall as the items need, and you can resize it to suit your screen.
+- **Only what you can use.** Another class's tokens, armor or weapons you can't use and patterns for a profession you don't have get a Pass by themselves, so the window shows only what's worth answering.
 - Your awards show up in **Loot Trades**, where **Trade** opens the trade and places the items and **Follow** walks you to the other player.
 - The master looter can customize the response buttons, and everyone in the session sees the same ones.
 - **Raider mode**: master looting for your own runs with another addon, such as Gargul? Pick Raider in the welcome window, or type `/plc raider`. As master looter, PixlLootCouncil then loots, collects and starts nothing by itself, and sessions others start still open.

@@ -791,6 +791,26 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   `/plc share`, `/plc share 2026/11/05` and `/plc share nonsense` (explains the date). A player who
   awarded nothing sees "no awards of your own". Share again: the others get nothing new.
 
+### 2.27 Second raid night (0.9.0)
+`luajit tests/protocol_test.lua`, `delivery_test.lua`, `bags_test.lua`, `banking_test.lua`,
+`autopass_test.lua` and `loot_window_test.lua` check the rules. In game, with the raid:
+- **Busy session:** `/plc preview 40`, then everyone runs to a portal and zones (or `/reload`s) at
+  different moments. While they catch up, the master looter adds an item (`/plc additem`): it shows
+  for everyone within seconds. The Loot Session window says "Sending to the raid..." while there's a
+  queue, and stops.
+- **Award All:** stage all 40 and press Award All: chat says the raid has the awards within a few
+  seconds; everyone's Loot History has them and the session ends for the council.
+- **Listed twice:** kill the Illidari Council and open two of the corpses: each item is listed once.
+  If a duplicate still shows up, it's removed within about 30 seconds with a chat line.
+- **Boss names:** hand an item to yourself through Blizzard's list: its history entry names the boss.
+- **Looking back:** after Award All, the items stay in the Loot Session window, after the ones still
+  open. Clicking one shows everyone's votes and who got it. Start another session: they're still
+  there with their votes. Remove All asks about everything but what's still to hand over.
+- **Pass:** as a mage, a plate item or a warrior token doesn't show in the Loot Response window; the
+  council sees a Pass from you with "Can't use this". A cloak shows. Options → General → turn it off:
+  everything shows.
+- **Loot Timers:** 13 items fit without scrolling; the rows are about as tall as Gargul's.
+
 ### 2.26 Item rules (`Data/ExcludedItems.lua`, Options → Auto Loot)
 `luajit tests/autoloot_test.lua` and `options_test.lua` check the rules. In game:
 - **The list:** Options → Auto Loot lists Mark of the Illidari, Heart of Darkness, Primal Nether,

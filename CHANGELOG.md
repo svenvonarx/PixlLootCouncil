@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+Fixes and changes from the second raid night.
+
+- **Fixed: minutes of delay after leaving a raid.** Everyone's loading screen ended at a different
+  moment, and each asked to catch up. The master looter answered each with the whole session, at
+  the server's 1 message a second, and new items (Gruul's loot), awards and the session's end waited
+  behind all of it. Catch-ups, shared history and gear now go on their own channel and never hold
+  up the session's own messages. Only one catch-up answer is sent at a time, for everyone who asked.
+- **You can see it sending.** The Loot Session window shows when messages are still going out to the
+  raid, and after Award All chat says once the raid has the awards. Stay online until it does.
+- **Fixed: loot listed twice again**, as with Illidan and the Illidari Council, whose four corpses
+  share one loot. Items lying in a corpse are matched by item, not by corpse. The list also never
+  holds more copies of an item than your bags do: extra copies leave it, with a chat line. Auto
+  loot gives the server more time to confirm a hand-out before calling it failed, and loot that
+  reaches your bags some other way gets its boss instead of "Unknown" in the history.
+- **Awarded items stay in the Loot Session window**, after the ones still to decide, with the votes
+  they were awarded on, so you can look back at who else wanted a spare token. The winner's row says
+  who got it. They stay until the master looter removes them: Remove All clears everything except
+  what's awarded and not yet handed over.
+- **Pass by itself on loot you can't use**, as RCLootCouncil does: another class's tokens, armor or
+  weapons you can't use, patterns for a profession you don't have or already know, and caster
+  weapons for warriors, rogues and hunters (or physical ones for priests, mages and warlocks). The
+  council sees the Pass with a note saying why. Options → General turns it off.
+- **Compact Loot Timers**, like Gargul's list: smaller rows, up to 16 before it scrolls.
+- **`/plc preview 40`** starts a preview with a raid night's worth of real Black Temple and Hyjal
+  loot, some of it twice, to try a busy session with the raid.
+
 ## 0.8.1-beta
 
 More raid materials kept out of loot sessions, and every item rule yours to change.

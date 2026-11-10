@@ -50,8 +50,9 @@ arrive.
   reaches your bags.
 - **Auto-start.** Collecting loot can start a session by itself a few seconds later.
 - **Preview mode.** `/plc preview` or Options → Preview runs the whole workflow with your group on
-  fictional items and trade timers. Nothing is saved to the history, and your real loot list comes
-  back afterwards.
+  fictional items and trade timers. `/plc preview 40` does it with a raid night's worth of real Black
+  Temple and Hyjal loot, to try a busy session. Nothing is saved to the history, and your real loot
+  list comes back afterwards.
 
 ### For the council
 
@@ -128,12 +129,16 @@ arrive.
 ### Council members
 
 Open `/plc` during a session to see responses, notes and gear comparisons, and to follow the master
-looter's staged picks. Who's on the council is set by the master looter under **Options → Council**.
+looter's staged picks. Awarded items stay listed with the votes they were awarded on, so you can look
+back at who else wanted something. Who's on the council is set by the master looter under
+**Options → Council**.
 
 ### Raiders
 
 When a session starts, the **Loot Response** window opens. Pick a response for each item and add a
-note if you like. It stays open until every item is answered or its time
+note if you like. Items your character can't use (another class's token, plate on a mage, a pattern
+for a profession you don't have) get a Pass by themselves and don't show; Options → General turns
+that off. It stays open until every item is answered or its time
 runs out. Awarded items show up in **Loot Trades** with a **Trade** button.
 
 If you pick Raider in the welcome window, you're in **raider mode**: when you're master looter, the
@@ -149,7 +154,7 @@ off.
 | `/plc timers` | Show or hide the Loot Timers window |
 | `/plc autoloot` | Turn auto loot on or off |
 | `/plc raider` | Turn raider mode on or off: as master looter, leave the loot to you or another addon |
-| `/plc preview` | Start or stop a practice session with fictional loot |
+| `/plc preview [count]` | Start or stop a practice session with fictional loot, with that many items if given |
 | `/plc about` | Show your version, your group's versions and the credits |
 | `/plc loot` | Reopen the Loot Response window |
 | `/plc trades` | Reopen the Loot Trades window |
