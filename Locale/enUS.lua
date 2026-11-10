@@ -130,6 +130,7 @@ L["TRADETIME_SHORT_EXPIRED"] = "exp"
 L["TRADETIME_SHORT_BOE"] = "BoE"
 L["TRADETIME_REMINDER"] = "%s can only be traded for %s more -- award and hand it out soon."
 L["BAGS_ITEM_GONE"] = "%s left your bags without being awarded, so it's no longer in the loot session."
+L["BAGS_ITEM_LISTED_TWICE"] = "%s was listed more often than it's in your bags, so the extra copy is gone from the loot session."
 L["TRADE_NO_TRADABLE"] = "No tradable %s found in your bags -- drag it into the trade window manually."
 
 L["VOTINGFRAME_AWARD"] = "Award"

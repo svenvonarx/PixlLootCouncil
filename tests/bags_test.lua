@@ -8,6 +8,7 @@ _G.print = function(s) printed[#printed + 1] = tostring(s) end
 _G.LibStub = function() return { GetLocale = function() return setmetatable({}, { __index = function(_, k) return k end }) end } end
 _G.NUM_BAG_SLOTS = 4
 _G.strtrim = function(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
+_G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 
 local now = 1000
 _G.time = function() return now end
@@ -19,6 +20,7 @@ local function link(id) return "|cffa335ee|Hitem:" .. id .. ":0:0|h[" .. id .. "
 _G.C_Container = {
 	GetContainerNumSlots = function(b) return b == 0 and 16 or 0 end,
 	GetContainerItemLink = function(b, slot) return b == 0 and bag[slot] and link(bag[slot].id) or nil end,
+	GetContainerItemInfo = function(b, slot) return b == 0 and bag[slot] and { stackCount = bag[slot].count or 1 } or nil end,
 }
 _G.ItemLocation = { CreateFromBagAndSlot = function(_, b, slot) return { bag = b, slot = slot } end }
 _G.C_Item = {
@@ -138,6 +140,33 @@ check("X1", Session.items[1] == nil and Session.items[2] == nil and Session.item
 	"raw epic gems collected before they were excluded leave the list; the helm stays")
 check("X2", #printed == 1 and printed[1]:find("SESSION_DROPPED_EXCLUDED", 1, true), "with one chat line for all of them")
 check("X3", Session.items[4] ~= nil, "a gem added by hand stays")
+
+-- Listed twice ---------------------------------------------------------------------------------------------
+-- More copies listed than the bags hold: one was listed twice. The extra goes, never an awarded one.
+local GLAIVE = 30004
+setup({ id = GLAIVE, guid = "W1" }, { id = GLAIVE })
+later(1)
+check("L1", Session.items[2] ~= nil, "an extra copy isn't dropped on the first scan")
+later(10)
+check("L2", Session.items[1] ~= nil and Session.items[2] == nil, "but a scan and 10 seconds later: the one without a bag copy of its own goes")
+check("L3", #printed == 1 and printed[1]:find("BAGS_ITEM_LISTED_TWICE", 1, true), "with a chat line naming it")
+
+setup({ id = VORTEX, guid = "V1" }, { id = VORTEX })
+bag[1].count = 2
+later(1); later(10)
+check("L4", Session.items[1] ~= nil and Session.items[2] ~= nil, "two in one stack are two")
+
+setup({ id = GLAIVE, guid = "W1", awarded = true }, { id = GLAIVE }, { id = GLAIVE })
+later(1); later(10)
+check("L5", Session.items[1] ~= nil and Session.items[2] == nil and Session.items[3] == nil, "an awarded copy is in the bags until it's traded: the others are the extras")
+
+setup({ id = GLAIVE, guid = "W1", awarded = true }, { id = GLAIVE, awarded = true })
+later(1); later(10)
+check("L6", Session.items[1] ~= nil and Session.items[2] ~= nil, "awarded copies are never removed")
+
+setup({ id = GLAIVE, guid = "W1" }, { id = GLAIVE, manual = true })
+later(1); later(10)
+check("L7", Session.items[2] ~= nil, "an item added by hand may be in someone else's bags: it doesn't count")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

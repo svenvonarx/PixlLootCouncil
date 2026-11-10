@@ -491,26 +491,36 @@ function Session:CollectDetectedItems(lootSlotInfo, delivered)
 		local info = lootSlotInfo[lootSlot]
 		if PLC.Loot.Detection:IsReviewItem(info.link, info.quality) then
 			local alreadyCollected = false
-			if delivered then
+			-- Noted before and still lying in a corpse: the same item again, not a new one. Matched by
+			-- item, not corpse or slot: reopening a corpse numbers its slots anew, and the Illidari
+			-- Council's four corpses share one loot, so the same items showed on each. Each copy
+			-- counts once.
+			local noted
+			for idx = 1, self.nextIdx - 1 do
+				local existing = self.items[idx]
+				if existing and not matched[existing] and existing.lootSlot and not existing.awarded
+					and existing.link == info.link then
+					noted = existing
+					break
+				end
+			end
+			if noted then
+				matched[noted] = true
+				alreadyCollected = true
+				if delivered then
+					-- Now it's in the master looter's bags: where Loot/BagTracker.lua finds it.
+					noted.lootSlot = nil
+					noted.bagged = true
+				else
+					noted.lootSlot = lootSlot
+				end
+			elseif delivered then
 				-- The bag scan can see it land before the hand-out is confirmed, when the server is
 				-- slow (a 25-player boss): it's already listed, from the bags.
 				local found = findFromBags(info.link)
 				if found then
 					claimFromBags(found, info)
 					alreadyCollected = true
-				end
-			else
-				-- Noted before, from this corpse: reopening a corpse numbers its slots again, so
-				-- it's the same corpse and item, not the same slot. Each copy counts once.
-				for idx = 1, self.nextIdx - 1 do
-					local existing = self.items[idx]
-					if existing and not matched[existing] and existing.lootSlot and existing.link == info.link
-						and existing.boss == info.boss then
-						matched[existing] = true
-						existing.lootSlot = lootSlot
-						alreadyCollected = true
-						break
-					end
 				end
 			end
 			if not alreadyCollected then
@@ -594,6 +604,11 @@ function Session:AddTrackedItem(link, itemGUID)
 		difficultyID = difficultyID,
 		groupSize = groupSize,
 	}
+	-- Where it came from, if a recent loot window held it.
+	local source = PLC.Loot.Detection.RecentSource and PLC.Loot.Detection:RecentSource(entry.link)
+	if source then
+		entry.boss, entry.bossName = source.boss, source.bossName
+	end
 	self.items[idx] = entry
 	self.isCollector = true
 	persist()

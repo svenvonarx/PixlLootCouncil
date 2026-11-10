@@ -120,6 +120,7 @@ L["TRADETIME_SHORT_EXPIRED"] = "fin"
 L["TRADETIME_SHORT_BOE"] = "BoE"
 L["TRADETIME_REMINDER"] = "%s solo se puede comerciar %s más. Asígnalo y entrégalo pronto."
 L["BAGS_ITEM_GONE"] = "%s salió de tus bolsas sin haberse asignado, así que ya no está en la sesión de botín."
+L["BAGS_ITEM_LISTED_TWICE"] = "%s aparecía más veces de las que está en tus bolsas, así que la copia de más ya no está en la sesión de botín."
 L["TRADE_NO_TRADABLE"] = "No se encontró %s comerciable en tus bolsas. Arrástralo a mano a la ventana de comercio."
 
 L["VOTINGFRAME_AWARD"] = "Asignar"

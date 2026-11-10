@@ -120,6 +120,7 @@ L["TRADETIME_SHORT_EXPIRED"] = "만료"
 L["TRADETIME_SHORT_BOE"] = "BoE"
 L["TRADETIME_REMINDER"] = "%s은(는) 앞으로 %s만 거래할 수 있습니다. 서둘러 분배하고 전달하세요."
 L["BAGS_ITEM_GONE"] = "%s 아이템이 분배되지 않은 채 가방에서 사라져 전리품 세션에서 제외되었습니다."
+L["BAGS_ITEM_LISTED_TWICE"] = "%s 아이템이 가방에 있는 것보다 더 많이 목록에 있어, 남는 사본을 전리품 세션에서 제외했습니다."
 L["TRADE_NO_TRADABLE"] = "가방에서 거래 가능한 %s을(를) 찾을 수 없습니다. 거래 창에 직접 끌어다 놓으세요."
 
 L["VOTINGFRAME_AWARD"] = "분배"

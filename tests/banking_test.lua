@@ -580,8 +580,17 @@ Session:CollectDetectedItems({
 	[3] = { link = HELMET, quality = 4, boss = "Creature-Illidan" },
 })
 check("D5", count(WARGLAIVE_OFF) == 1 and count(HELMET) == 2, "reopening the corpse, its slots numbered again, adds nothing")
-Session:CollectDetectedItems({ [1] = { link = HELMET, quality = 4, boss = "Creature-Shahraz" } })
-check("D6", count(HELMET) == 3, "the same item from another boss is another item")
+-- The Illidari Council's four corpses share one loot: opening a second one showed the same items.
+local LEGS = "|cffa335ee|Hitem:31099:0:0|h[Leggings of the Forgotten Vanquisher]|h|r"
+Session:CollectDetectedItems({ [1] = { link = LEGS, quality = 4, boss = "Creature-Gathios" } })
+Session:CollectDetectedItems({ [1] = { link = LEGS, quality = 4, boss = "Creature-Veras" } })
+check("D6", count(LEGS) == 1, "the same item seen on another council corpse is the same item")
+Session:CollectDetectedItems({ [1] = { link = LEGS, quality = 4, boss = "Creature-Veras" } }, true)
+local legs
+for _, item in pairs(Session.items) do if (item.itemString or ""):match("item:(%d+)") == "31099" then legs = item end end
+check("D7", count(LEGS) == 1 and legs.bagged and not legs.lootSlot, "handed out to the master looter after it was noted: still the same item, now in the bags")
+Session:CollectDetectedItems({ [1] = { link = LEGS, quality = 4, boss = "Creature-Illidan" } })
+check("D8", count(LEGS) == 2, "once the first is in the bags, another one lying in a corpse is another item")
 PLC.Loot.Detection.IsReviewItem = isReview
 
 -- Sharing from Loot History ------------------------------------------------------------------------------

@@ -98,8 +98,35 @@ end
 
 local raiderModeHinted = false
 
+-- What the loot windows of the last RECENT_SECONDS held, by item: where an item came from, for loot
+-- that reaches the bags some other way (Blizzard's own assign list, a hand-out the server confirmed
+-- late), which listed "Unknown" as its boss in the history.
+local RECENT_SECONDS = 600
+local recent = {} -- [itemID] = { info, at }
+
+local function rememberSources()
+	local now = time()
+	for _, info in pairs(Detection.lootSlotInfo) do
+		local itemID = info.link and tonumber(info.link:match("item:(%d+)"))
+		if itemID then
+			recent[itemID] = { info = info, at = now }
+		end
+	end
+end
+
+-- The loot window info of a recent corpse that held this item, or nil.
+function Detection:RecentSource(link)
+	local itemID = link and tonumber(tostring(link):match("item:(%d+)"))
+	local seen = itemID and recent[itemID]
+	if seen and time() - seen.at <= RECENT_SECONDS then
+		return seen.info
+	end
+	return nil
+end
+
 local function onLootReady()
 	scanLootSlots()
+	rememberSources()
 
 	-- Silent background collection (Loot/AutoLoot.lua) -- not gated on an active review session,
 	-- only on actually being the live master looter. The full Loot Session window stays closed on

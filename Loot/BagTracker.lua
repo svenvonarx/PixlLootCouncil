@@ -233,16 +233,30 @@ local function inRaidInstance()
 	return inInstance and instanceType == "raid"
 end
 
--- Everything in the bags right now: [guid] = { bag, slot, link, itemID }, and every itemID seen,
--- with or without a GUID.
+-- How many items a bag slot holds: a stack can hold several.
+local function stackCount(bag, slot)
+	if C_Container and C_Container.GetContainerItemInfo then
+		local info = C_Container.GetContainerItemInfo(bag, slot)
+		return info and info.stackCount or 1
+	elseif GetContainerItemInfo then
+		return select(2, GetContainerItemInfo(bag, slot)) or 1
+	end
+	return 1
+end
+
+-- Everything in the bags right now: [guid] = { bag, slot, link, itemID }, every itemID seen, with or
+-- without a GUID, and how many of each there are.
 local function snapshotBags()
-	local snapshot, itemIDs = {}, {} -- itemIDs: [itemID] = an entry with a GUID, or true
+	local snapshot, itemIDs, counts = {}, {}, {} -- itemIDs: [itemID] = an entry with a GUID, or true
 	local getNumSlots, getLink = getContainerFns()
 	for bag = 0, NUM_BAG_SLOTS do
 		for slot = 1, getNumSlots(bag) or 0 do
 			local link = getLink(bag, slot)
 			if link then
 				local itemID = itemIDFromString(link)
+				if itemID then
+					counts[itemID] = (counts[itemID] or 0) + stackCount(bag, slot)
+				end
 				local guid = BagTracker:GetItemGUID(bag, slot)
 				if guid then
 					snapshot[guid] = { bag = bag, slot = slot, link = link, itemID = itemID }
@@ -254,7 +268,7 @@ local function snapshotBags()
 			end
 		end
 	end
-	return snapshot, itemIDs
+	return snapshot, itemIDs, counts
 end
 
 -- Does a newly bagged raid item belong in the loot session backlog?
@@ -315,6 +329,82 @@ local function findGoneItems(snapshot, itemIDs)
 		end
 	end
 	return gone
+end
+
+-- More copies of an item listed than the bags hold: one was listed twice, however that happened (a
+-- slow server, corpses sharing loot). The extras leave the list, unawarded ones without a bag copy
+-- of their own first, after the same wait as for gone items. What's awarded and not yet traded is
+-- still in the bags, so it counts too, but is never removed here.
+local excessSince = {} -- [itemID] = time the extra copies were first seen
+
+local function inBags(item)
+	return not item.traded and (item.itemGUID or (item.bagged and not item.lootSlot)) and item.instance ~= nil
+end
+
+local function findExtraCopies(counts)
+	local Session = PLC.Session
+	local extra = {}
+	if Session.preview or not Session:CanManage() then
+		wipe(excessSince)
+		return extra
+	end
+	local copies = {} -- [itemID] = { idx, ... }
+	for idx, item in pairs(Session.items) do
+		local itemID = itemIDFromString(item.itemString)
+		if itemID and inBags(item) then
+			copies[itemID] = copies[itemID] or {}
+			table.insert(copies[itemID], idx)
+		end
+	end
+	local now = time()
+	for itemID in pairs(excessSince) do
+		if not copies[itemID] then
+			excessSince[itemID] = nil
+		end
+	end
+	for itemID, idxs in pairs(copies) do
+		local held = counts[itemID] or 0
+		-- None held at all is for findGoneItems, which knows each copy's own GUID.
+		local excess = held > 0 and #idxs - held or 0
+		if excess <= 0 then
+			excessSince[itemID] = nil
+		elseif not excessSince[itemID] then
+			excessSince[itemID] = now
+		elseif now - excessSince[itemID] >= GONE_AFTER then
+			table.sort(idxs, function(a, b)
+				local ia, ib = Session.items[a], Session.items[b]
+				if (ia.itemGUID ~= nil) ~= (ib.itemGUID ~= nil) then
+					return ib.itemGUID ~= nil -- without a GUID of its own first
+				end
+				return a > b -- then the newest
+			end)
+			for _, idx in ipairs(idxs) do
+				if excess == 0 then
+					break
+				end
+				if not Session.items[idx].awarded then
+					table.insert(extra, idx)
+					excess = excess - 1
+				end
+			end
+			excessSince[itemID] = nil
+		end
+	end
+	return extra
+end
+
+local function dropExtraCopies(extra)
+	local Session = PLC.Session
+	local links = {}
+	for i, idx in ipairs(extra) do
+		links[i] = Session.items[idx].link or "?"
+	end
+	if Session:RemoveItems(extra) == 0 then
+		return
+	end
+	for _, link in ipairs(links) do
+		print(L["CHAT_PREFIX"] .. string.format(L["BAGS_ITEM_LISTED_TWICE"], link))
+	end
 end
 
 local function dropGoneItems(gone)
@@ -384,7 +474,7 @@ function BagTracker:Scan()
 	if not hasGuidApi() then
 		return
 	end
-	local snapshot, itemIDs = snapshotBags()
+	local snapshot, itemIDs, counts = snapshotBags()
 	local known = PLC.db.char.knownBagGuids
 	local firstRun = known == nil
 	local changed = false
@@ -442,6 +532,10 @@ function BagTracker:Scan()
 		local gone = findGoneItems(snapshot, itemIDs)
 		if #gone > 0 then
 			dropGoneItems(gone)
+		end
+		local extra = findExtraCopies(counts)
+		if #extra > 0 then
+			dropExtraCopies(extra)
 		end
 	end
 

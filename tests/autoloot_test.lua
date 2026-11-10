@@ -9,6 +9,7 @@ _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 _G.strsplit = function(sep, s) local a, b = s:match("^(.-)" .. sep .. "(.*)$"); if a then return a, b end return s end
 _G.strlower = string.lower
 _G.MAX_RAID_MEMBERS = 40
+_G.time = os.time
 _G.LOOT_SLOT_MONEY = 2
 _G.LibStub = function() return { GetLocale = function() return setmetatable({}, { __index = function(_, k) return k end }) end } end
 
@@ -128,6 +129,9 @@ handlers.LOOT_READY()
 tick()
 check("S7", #actions == 1, "the next window is automatic again")
 close()
+
+check("S8", PLC.Loot.Detection:RecentSource(link(HELM)) and PLC.Loot.Detection:RecentSource(link(HELM)).boss == "Creature-0-1",
+	"the corpse an item lay in is remembered, for loot that reaches the bags some other way")
 
 -- Badge of Justice -----------------------------------------------------------------------------------
 open({ BADGE, 4 }, { HELM, 4 })

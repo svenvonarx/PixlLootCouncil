@@ -120,6 +120,7 @@ L["TRADETIME_SHORT_EXPIRED"] = "abgel."
 L["TRADETIME_SHORT_BOE"] = "BoE"
 L["TRADETIME_REMINDER"] = "%s ist nur noch für %s handelbar. Vergib und übergib es bald."
 L["BAGS_ITEM_GONE"] = "%s ist nicht mehr in deinen Taschen, ohne vergeben worden zu sein, und ist deshalb nicht mehr in der Beutesitzung."
+L["BAGS_ITEM_LISTED_TWICE"] = "%s war öfter aufgeführt, als es in deinen Taschen liegt, deshalb ist die überzählige Kopie nicht mehr in der Beutesitzung."
 L["TRADE_NO_TRADABLE"] = "Kein handelbares %s in deinen Taschen gefunden. Zieh es von Hand ins Handelsfenster."
 
 L["VOTINGFRAME_AWARD"] = "Vergeben"

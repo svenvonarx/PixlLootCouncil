@@ -120,6 +120,7 @@ L["TRADETIME_SHORT_EXPIRED"] = "fini"
 L["TRADETIME_SHORT_BOE"] = "LqE"
 L["TRADETIME_REMINDER"] = "%s n'est plus échangeable que pendant %s. Attribuez-le et remettez-le bientôt."
 L["BAGS_ITEM_GONE"] = "%s a quitté vos sacs sans avoir été attribué, il n'est donc plus dans la session de butin."
+L["BAGS_ITEM_LISTED_TWICE"] = "%s figurait plus de fois qu'il n'est dans vos sacs : la copie en trop n'est plus dans la session de butin."
 L["TRADE_NO_TRADABLE"] = "Aucun %s échangeable dans vos sacs. Glissez-le à la main dans la fenêtre d'échange."
 
 L["VOTINGFRAME_AWARD"] = "Donner"

@@ -9,7 +9,7 @@ PLC.Loot.Award = Award
 -- can only belong to the transfer in flight: done(true) on LOOT_SLOT_CLEARED, done(false, reason)
 -- on a known error, and if nothing arrives the timeout re-checks the slot. Under master loot only
 -- GiveMasterLoot moves an item: LootSlot would open Blizzard's candidate list instead.
-local HANDOUT_TIMEOUT = 1.5
+local HANDOUT_TIMEOUT = 4 -- a 25-player boss can take the server a while: too short, and a hand-out that went through counted as failed
 
 Award.pending = nil -- { slot, link, done, timer }
 
