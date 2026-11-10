@@ -6,7 +6,7 @@ local ScrollFrame = PLC.UI.Widgets.ScrollFrame
 -- A virtualized list: a fixed pool of row frames sized to the visible rows, rebound on
 -- scroll/column change instead of created/destroyed per row.
 --
--- Column spec: either a text column { width, justify, render = function(rowData) return text,
+-- Column spec: either a text column { width, justify, size (text size, 11 by default), render = function(rowData) return text,
 -- r, g, b end }, or a widget column { width, isWidget = true, create = function(row) return
 -- widget end, update = function(widget, rowData) end } -- used for VotingFrame's per-row Award
 -- button. Either can have `inset` (pixels in from the column's left edge); a widget column can have
@@ -166,7 +166,7 @@ function Table:Layout()
 				if col.isWidget then
 					cell = col.create(row)
 				else
-					cell = Primitives.createText(row, "", 11)
+					cell = Primitives.createText(row, "", col.size or 11)
 					cell:SetJustifyH(col.justify or "LEFT")
 				end
 				row.cells[colIndex] = cell

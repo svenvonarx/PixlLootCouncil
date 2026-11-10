@@ -26,10 +26,15 @@ local tickerHandle
 local hadRows = false -- the last render had rows; see render()
 local seen = setmetatable({}, { __mode = "k" }) -- [session item] = true, already announced by showing
 
-local ROW_HEIGHT = 26
-local MAX_VISIBLE_ROWS = 8
-local FOOTER_HEIGHT = 44
-local CONTENT_GAP = 8
+-- Compact, like Gargul's list: a raid night's loot fits without scrolling, each row's time draining
+-- behind its icon and name.
+local ROW_HEIGHT = 18
+local ICON_SIZE = 16
+local TEXT_SIZE = 10
+local MAX_VISIBLE_ROWS = 16
+local FOOTER_HEIGHT = 34
+local CONTENT_GAP = 4
+local SIDE = 6
 
 -- Sort order, most urgent first: on a timer, no time limit, too late.
 local GROUP_TIMER, GROUP_NO_LIMIT, GROUP_EXPIRED = 1, 2, 3
@@ -77,11 +82,11 @@ end
 
 local COLUMNS = {
 	{
-		width = 28,
+		width = ICON_SIZE + 4,
 		isWidget = true,
 		create = function(row)
 			local holder = CreateFrame("Frame", nil, row)
-			holder:SetSize(22, 22)
+			holder:SetSize(ICON_SIZE, ICON_SIZE)
 			holder.texture = holder:CreateTexture(nil, "ARTWORK")
 			holder.texture:SetAllPoints()
 			Primitives.attachItemTooltip(holder)
@@ -93,12 +98,12 @@ local COLUMNS = {
 		end,
 	},
 	{
-		width = 166,
+		width = 170,
 		isWidget = true,
 		create = function(row)
 			local holder = CreateFrame("Frame", nil, row)
-			holder:SetSize(162, 22)
-			holder.text = Primitives.createText(holder, "", 11)
+			holder:SetSize(166, ICON_SIZE)
+			holder.text = Primitives.createText(holder, "", TEXT_SIZE)
 			holder.text:SetPoint("LEFT")
 			holder.text:SetPoint("RIGHT")
 			holder.text:SetJustifyH("LEFT")
@@ -112,8 +117,9 @@ local COLUMNS = {
 		end,
 	},
 	{
-		width = 64,
+		width = 52,
 		justify = "RIGHT",
+		size = TEXT_SIZE,
 		render = function(rowData)
 			local _, text, colorName = statusOf(rowData.item)
 			local r, g, b = Primitives.color(colorName)
@@ -152,7 +158,7 @@ local function ensureFrame()
 
 	frame = CreateFrame("Frame", "PixlLootCouncilLootTimersFrame", UIParent)
 	Primitives.refreshFontsOnShow(frame)
-	frame:SetSize(rowContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + 20, 140)
+	frame:SetSize(rowContentWidth + PLC.UI.Widgets.ScrollFrame.RESERVED_WIDTH + SIDE * 2, 140)
 	-- The one window outside Primitives.makeWindow's stack, below the others and the game's own
 	-- panels: it's meant to stay up during a raid, out of everything's way.
 	frame:SetFrameStrata("LOW")
@@ -201,8 +207,8 @@ local function ensureFrame()
 	Primitives.createSeparator(frame, -Theme.LAYOUT.headerHeight)
 
 	local content = CreateFrame("Frame", nil, frame)
-	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 10, -CONTENT_GAP)
-	content:SetPoint("BOTTOMRIGHT", -10, FOOTER_HEIGHT)
+	content:SetPoint("TOPLEFT", header, "BOTTOMLEFT", SIDE, -CONTENT_GAP)
+	content:SetPoint("BOTTOMRIGHT", -SIDE, FOOTER_HEIGHT)
 
 	dataTable = DataTable.Create(content, ROW_HEIGHT)
 	dataTable:SetColumns(COLUMNS)
@@ -220,14 +226,14 @@ local function ensureFrame()
 	emptyText:SetPoint("CENTER")
 
 	startButton = ButtonWidget.createButton(frame, L["SESSIONFRAME_START"], 130)
-	startButton:SetPoint("BOTTOM", 0, 8)
+	startButton:SetPoint("BOTTOM", 0, 4)
 	startButton:SetScript("OnClick", function()
 		PLC.Session:Start()
 		PLC.UI.SessionFrame:Expand()
 	end)
 
 	statusText = Primitives.createText(frame, L["LOOTTIMERS_SESSION_RUNNING"], 11, "dim")
-	statusText:SetPoint("BOTTOM", 0, 16)
+	statusText:SetPoint("BOTTOM", 0, 12)
 
 	frame:Hide()
 	return frame
