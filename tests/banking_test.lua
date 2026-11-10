@@ -248,7 +248,8 @@ panel:ShowItem(1); bank.scripts.OnClick()
 local banked = Session.items[1]
 Session:AwardAllPreAwarded()
 check("B12", banked.awarded == ME and banked.awardReason == "bank" and banked.traded, "Award All finishes it: awarded to the holder, nothing to trade")
-check("B13", Session.items[1] == nil, "so it's out of the session")
+check("B13", Session.items[1] == banked and banked.votes and banked.votes[ME].response == "BIS",
+	"and stays listed, finished, with the votes it was awarded on, until the master looter removes it")
 check("B14", #sentOf("SendAward") == 1 and sentOf("SendAward")[1][4] == "bank" and #sentOf("SendTradeComplete") == 1, "everyone hears the reason, and that it's done")
 check("B15", windows.trades == nil, "Loot Trades stays closed with nothing to trade")
 check("B16", #chat == 1 and chat[1][1] == "ANNOUNCE_BANK" and LOCALE["ANNOUNCE_BANK"]:find("%s", 1, true) ~= nil, "raid chat gets the bank line, with no name")
@@ -281,7 +282,7 @@ check("B22a", table.concat(order, ",") == "BeginBatch,SendAward,SendAward,FlushB
 session()
 Session:SetPreAward(1, ME, "award"); Session:SetPreAward(2, ME, "disenchant")
 Session:AwardAllPreAwarded()
-check("B23", Session.items[1] == nil, "a self-award still finishes by itself")
+check("B23", Session.items[1] and Session.items[1].traded, "a self-award still finishes by itself")
 check("B24", Session.items[2] and not Session.items[2].traded and windows.trades == 1, "a self-disenchant still waits in Loot Trades")
 
 session()
@@ -651,6 +652,27 @@ box.scripts.OnTextChanged(box, true)
 importFrame.importButton.scripts.OnClick()
 check("P5", imported == "", "clearing the box forgets the paste")
 PLC.History.ImportPlayerExport = realImport
+
+-- Looking back -------------------------------------------------------------------------------------------
+-- Awarded items stay, with the votes they were awarded on: a spare token, and who else wanted it?
+session()
+Session:SetPreAward(1, MULE, "award"); Session:SetPreAward(2, ME, "bank")
+Session:AwardAllPreAwarded()
+local flat = findUpvalue(PLC.UI.SessionFrame.Open, "flatItemRows")()
+check("K1", #flat == 2 and flat[1].awarded and flat[2].awarded, "after Award All both items are still listed")
+Session.responses = {} -- what the next review pass starts with
+local myVote
+panel:ShowItem(1)
+for _, row in ipairs(panel:buildRows()) do if row.guid == ME then myVote = row.response end end
+check("K2", myVote == "BIS", "and a new pass doesn't erase the votes it was awarded on")
+local winner
+for _, row in ipairs(panel:buildRows()) do if row.awardedTo then winner = row.guid end end
+check("K3", winner == MULE, "the winner's row says who got it")
+local canManage = Session.CanManage
+Session.CanManage = function() return true end -- the master looter, who holds what they collected
+Session:RemoveAllItems()
+Session.CanManage = canManage
+check("K4", Session.items[1] and not Session.items[2], "Remove All clears what's finished, and keeps what's still to hand over")
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

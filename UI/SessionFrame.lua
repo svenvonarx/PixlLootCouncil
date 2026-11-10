@@ -365,9 +365,10 @@ end
 local function flatItemRows()
 	local rows = {}
 	for idx, item in pairs(PLC.Session.items) do
-		-- Awarded items stay in Session.items until traded (so UI/TradeFrame.lua can track them),
-		-- but they're never shown here -- otherwise they'd reappear in the next review pass.
-		if not item.awarded then
+		-- Awarded items stay listed, after the ones still to decide, so the council can look back at
+		-- their votes, until the master looter removes them (Session:End). A new review pass only
+		-- puts up what isn't awarded.
+		do
 			table.insert(rows, {
 				idx = idx,
 				link = item.link,
@@ -380,7 +381,12 @@ local function flatItemRows()
 			})
 		end
 	end
-	table.sort(rows, function(a, b) return a.idx < b.idx end)
+	table.sort(rows, function(a, b)
+		if (a.awarded ~= nil) ~= (b.awarded ~= nil) then
+			return b.awarded ~= nil
+		end
+		return a.idx < b.idx
+	end)
 	return rows
 end
 
@@ -479,12 +485,14 @@ function showDetailFor(idx)
 		setDetailLabel(item)
 		detailItemHover.itemLink = item.link
 		local active = PLC.Session.state == "active"
-		local canRemove = not active and not item.awarded and PLC.Session:CanManage()
+		-- Awarded and handed over, it's finished, and can go; awarded and not, Loot Trades needs it.
+		local canRemove = not active and (not item.awarded or item.traded) and PLC.Session:CanManage()
 		detailRemoveButton:SetShown(canRemove)
 		local isHolder = PLC.Session:IsHolder()
-		detailDisenchantButton:SetShown(active and isHolder)
-		detailBankButton:SetShown(active and isHolder)
-		layoutDetailHeader((active and (isHolder and "buttons" or "count")) or (canRemove and "remove") or nil)
+		local decided = item.awarded ~= nil
+		detailDisenchantButton:SetShown(active and isHolder and not decided)
+		detailBankButton:SetShown(active and isHolder and not decided)
+		layoutDetailHeader((active and (isHolder and not decided and "buttons" or "count")) or (canRemove and "remove") or nil)
 		detailVoteCountText:SetShown(active)
 		detailContainer:Show()
 		votingPanel:ShowItem(idx)
@@ -660,8 +668,14 @@ StaticPopupDialogs["PIXLLOOTCOUNCIL_REMOVE_ALL"] = {
 	hideOnEscape = true,
 }
 
+-- Everything but what's awarded and still to hand over (Session:RemoveAllItems).
 local function onRemoveAllClick()
-	local count = #flatItemRows()
+	local count = 0
+	for _, item in pairs(PLC.Session.items) do
+		if not item.awarded or item.traded then
+			count = count + 1
+		end
+	end
 	if count > 0 then
 		StaticPopup_Show("PIXLLOOTCOUNCIL_REMOVE_ALL", count)
 	end

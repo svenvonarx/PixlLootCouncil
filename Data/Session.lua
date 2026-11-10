@@ -299,6 +299,24 @@ end
 -- What every client should agree on while a review pass runs: the items sent in it, each marked
 -- awarded or staged. The holder counts only what it sent in this pass (item.sentIn), since it keeps
 -- older items the others never got. Everyone else counts all they have.
+-- Everyone's answers for an item: the running pass's, or, once it's awarded, the ones it was awarded
+-- on (item.votes), which a later pass doesn't clear, so they can still be looked at.
+function Session:VotesFor(idx)
+	local item = self.items[idx]
+	return self.responses[idx] or (item and item.votes)
+end
+
+-- What a new pass keeps of the last one: its awarded items, with their votes, to look back at.
+local function keepAwarded(items)
+	local kept = {}
+	for idx, item in pairs(items) do
+		if item.awarded then
+			kept[idx] = item
+		end
+	end
+	return kept
+end
+
 local function itemSummary(items, sessionId)
 	local parts = {}
 	for idx, item in pairs(items) do
@@ -397,6 +415,8 @@ local function applyReceivedItems(items)
 			entry.awardedAt = time()
 		end
 		entry.link, entry.icon = reconstructItemVisuals(entry.itemString)
+		entry.sentIn = Session.sessionId -- this pass's, for the heartbeat's comparison (itemSummary)
+		entry.votes = entry.votes or (existing and existing.votes)
 		Session.items[idx] = entry
 		if not entry.link then
 			pendingVisuals[idx] = true
@@ -829,6 +849,7 @@ function Session:AwardBaggedItem(idx, winnerGuid, reason)
 	reason = reason or "award"
 	item.awarded = winnerGuid
 	item.awardReason = reason
+	item.votes = self.responses[idx] or item.votes
 	item.awardedAt = time() -- feeds UI/TradeFrame.lua's "awarded Xm ago" timer
 	item.preAwardGuid = nil
 	item.preAwardReason = nil
@@ -903,7 +924,9 @@ local function removeItems(idxs)
 	local removed = {}
 	for _, idx in ipairs(idxs) do
 		local item = Session.items[idx]
-		if item and not item.awarded then
+		-- Awarded and handed over, it's finished: it can go too. Awarded and not yet handed over,
+		-- Loot Trades still needs it.
+		if item and (not item.awarded or item.traded) then
 			Session.items[idx] = nil
 			Session.responses[idx] = nil
 			table.insert(removed, idx)
@@ -939,12 +962,12 @@ function Session:RemoveItems(idxs)
 	return #removed
 end
 
--- Every item that hasn't been awarded yet (awarded items stay until they're traded). Ends an active
+-- Every item that isn't waiting to be handed over: not awarded, or awarded and traded. Ends an active
 -- review pass if that leaves it with nothing to review.
 function Session:RemoveAllItems()
 	local idxs = {}
 	for idx, item in pairs(self.items) do
-		if not item.awarded then
+		if not item.awarded or item.traded then
 			table.insert(idxs, idx)
 		end
 	end
@@ -1037,7 +1060,7 @@ function Session:OnSessionStartReceived(data)
 	self.owner = data.owner
 	self.enchanterGuid = data.enchanterGuid
 	self.state = "active"
-	self.items = {}
+	self.items = keepAwarded(self.items)
 	self.responses = {}
 	self.lastHolderSeenAt = time()
 	lastHeartbeatAt = time()
@@ -1136,6 +1159,7 @@ function Session:OnAwardReceived(data)
 	if item then
 		item.awarded = data.winnerGuid
 		item.awardReason = data.reason or "award"
+		item.votes = self.responses[data.idx] or item.votes
 		item.awardedAt = time()
 		item.preAwardGuid = nil
 		item.preAwardReason = nil
@@ -1234,7 +1258,7 @@ function Session:OnHeartbeatReceived(data)
 	-- Items only change through the holder's own messages, so a different summary means one got
 	-- lost, or that one is still arriving: a long one comes in pieces, and the throttle library can
 	-- let a short heartbeat past it. Two in a row, then.
-	local itemsBehind = data.items ~= itemSummary(self.items)
+	local itemsBehind = data.items ~= itemSummary(self.items, self.sessionId)
 	-- Answers come from everyone, so one can always be on its way when a heartbeat arrives. What's
 	-- missing is what the holder already had a heartbeat ago and still hasn't come, and, the other
 	-- way round, answers this client gave before the last heartbeat that the holder still lacks.
@@ -1304,27 +1328,13 @@ function Session:End()
 	stopHeartbeat()
 	self.state = "ended"
 
-	-- Prune fully TRADED items -- not item.awarded. This used to prune on item.awarded, back when
-	-- End() was always pressed well after Award All, by which point everything awarded had
-	-- already been physically traded too. Now that Award All ends the session itself, immediately
-	-- after committing (see AwardAllPreAwarded), item.awarded is true for everything the instant
-	-- End() runs here -- pruning on that condition would have deleted every just-awarded item from
-	-- Session.items before UI/TradeFrame.lua ever got a chance to show it, and before
-	-- Loot/Trade.lua had any record left to mark traded once it actually happened. item.traded is
-	-- the real "nothing left to do" signal; an awarded-but-not-yet-traded item now correctly
-	-- survives End() (and persists across a reload -- see persist()'s own isCollector check below)
-	-- for as long as it takes to actually hand it off, exactly like UI/TradeFrame.lua's "items to
-	-- hand out"/"items to collect" sections need. Not-yet-awarded items still carry forward to the
-	-- next Start() same as before; preAwardGuid/preAwardReason (this review pass's own scratch
-	-- state, Session:SetPreAward) are still cleared here too, not just in Start(), so a pick
-	-- staged but never committed doesn't keep showing as "Staged" during the inactive gap.
-	for idx, item in pairs(self.items) do
-		if item.traded then
-			self.items[idx] = nil
-		else
-			item.preAwardGuid = nil
-			item.preAwardReason = nil
-		end
+	-- Nothing leaves by itself: awarded items stay, with the votes they were awarded on, so the
+	-- council can look back at who wanted what (a spare token, a mistake), until the master looter
+	-- removes them (Remove, Remove All). Not-yet-awarded items carry forward to the next Start();
+	-- picks staged but never committed stop showing as "Staged".
+	for _, item in pairs(self.items) do
+		item.preAwardGuid = nil
+		item.preAwardReason = nil
 	end
 	self.isCollector = next(self.items) ~= nil
 	persist()
@@ -1491,7 +1501,7 @@ function Session:OnSyncDataReceived(data)
 	self.owner = data.owner
 	self.enchanterGuid = data.enchanterGuid
 	self.state = "active"
-	self.items = {}
+	self.items = keepAwarded(self.items)
 	self.responseTimeoutSeconds = data.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
 	self.responseSet = PLC.Responses.Sanitize(data.responseSet) or PLC.Responses:GetDefaults()
 	applyReceivedItems(data.items)

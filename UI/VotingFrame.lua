@@ -35,6 +35,13 @@ local ROLE_ABBR = { TANK = TANK, HEALER = HEALER, DAMAGER = DAMAGER }
 -- and the vertical gap between two rows' buttons are the same single number.
 local BUTTON_GAP = 6
 
+-- What an awarded item's winner row and header say, by award reason.
+local AWARDED_LABELS = {
+	award = "SESSIONFRAME_AWARDED",
+	disenchant = "SESSIONFRAME_DISENCHANTED",
+	bank = "SESSIONFRAME_BANKED",
+}
+
 local function classColor(class)
 	local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
 	if c then
@@ -70,7 +77,7 @@ function Panel:buildRows()
 		return rows
 	end
 	local item = PLC.Session.items[self.currentIdx]
-	local responses = PLC.Session.responses[self.currentIdx]
+	local responses = PLC.Session:VotesFor(self.currentIdx)
 
 	-- Computed once per shown item, not once per candidate row -- the new item's own ilvl is the
 	-- same for every candidate being compared. equipLoc feeds into PLC.Gear:SlotsForEquipLoc
@@ -113,6 +120,8 @@ function Panel:buildRows()
 			-- read "Staged" just because the item is staged for disenchant (see Panel:Disenchant's
 			-- own header-level "Staged" swap instead). Banking the same: the holder didn't win it.
 			staged = item ~= nil and item.preAwardGuid == guid and item.preAwardReason == "award",
+			-- Awarded already: who got it, shown where the Award button was.
+			awardedTo = item ~= nil and item.awarded == guid and (item.awardReason or "award") or nil,
 		}
 
 		local slotIDs = equipLoc and PLC.Gear:SlotsForEquipLoc(guid, equipLoc)
@@ -173,6 +182,10 @@ function Panel:updateHeader()
 		end
 	end
 	local text = string.format(L["VOTINGFRAME_VOTE_COUNT"], responded, total)
+	local awardedItem = self.currentIdx and PLC.Session.items[self.currentIdx]
+	if awardedItem and awardedItem.awarded then
+		text = text .. "  |  " .. L[AWARDED_LABELS[awardedItem.awardReason or "award"] or AWARDED_LABELS.award]
+	end
 	-- The holder sees a staged disenchant or banking on its button itself; everyone else only has
 	-- this header line to see it.
 	local item = self.currentIdx and PLC.Session.items[self.currentIdx]
@@ -270,7 +283,7 @@ function Panel:OnItemUpdated(idx, guid)
 		self:updateStageButtons()
 		return
 	end
-	local responses = PLC.Session.responses[idx]
+	local responses = PLC.Session:VotesFor(idx)
 	local r = responses and responses[guid]
 	self.rowsData[rowIndex].response = r and r.response
 	self.rowsData[rowIndex].note = r and r.note
@@ -536,10 +549,19 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton, bankButton)
 			end,
 			update = function(button, rowData)
 				-- Only the session holder awards. Everyone else on the council sees the holder's
-				-- staged pick (broadcast via Session:SetPreAward) but no button.
+				-- staged pick (broadcast via Session:SetPreAward) but no button. Once it's awarded,
+				-- nobody gets a button: the winner's row says so instead.
 				local isHolder = PLC.Session:IsHolder()
-				button:SetShown(isHolder)
-				button.stagedLabel:SetShown(not isHolder and rowData.staged)
+				local item = PLC.Session.items[self.currentIdx or 0]
+				local decided = item and item.awarded
+				button:SetShown(isHolder and not decided)
+				if decided then
+					button.stagedLabel:SetText(rowData.awardedTo and L[AWARDED_LABELS[rowData.awardedTo] or AWARDED_LABELS.award] or "")
+					button.stagedLabel:SetShown(rowData.awardedTo ~= nil)
+				else
+					button.stagedLabel:SetText(L["VOTINGFRAME_STAGED"])
+					button.stagedLabel:SetShown(not isHolder and rowData.staged)
+				end
 				-- "Staged" swap (previously the separate Pre-Award button's own state) now lives
 				-- directly on this one button -- there's nothing left for a second column to do.
 				if rowData.staged then
