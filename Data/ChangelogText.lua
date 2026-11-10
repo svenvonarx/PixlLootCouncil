@@ -4,9 +4,10 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
-## Unreleased
+## 0.9.0-beta
 
-Fixes and changes from the second raid night.
+Fixes and changes from the second raid night. **Everyone in the raid needs this version**: catch-ups,
+shared history and gear now travel on a channel older versions don't listen to.
 
 - **Fixed: minutes of delay after leaving a raid.** Everyone's loading screen ended at a different
   moment, and each asked to catch up. The master looter answered each with the whole session, at
