@@ -17,7 +17,7 @@ function PLC:ScheduleTimer(fn, delay) timers[#timers + 1] = { fn = fn, delay = d
 local wire = {}
 local handlers = {}
 PLC.Comms.Protocol = {
-	Send = function(_, cmd, data, channel) wire[#wire + 1] = { cmd = cmd, data = data, channel = channel } end,
+	Send = function(_, cmd, data, channel, _, _, onSent) wire[#wire + 1] = { cmd = cmd, data = data, channel = channel, onSent = onSent } end,
 	RegisterHandler = function(_, cmd, fn) handlers[cmd] = fn end,
 }
 local holder = true
@@ -42,11 +42,14 @@ for idx = 1, 20 do
 	Sync:SendHistory("Name" .. idx .. "-Realm", { id = "1-" .. idx })
 end
 check("A1", #wire == 0, "nothing leaves while Award All is still awarding")
-Sync:FlushBatch("S1")
+local reached = false
+Sync:FlushBatch("S1", function() reached = true end)
 Sync:SendSessionEnd("S1")
 check("A2", #wire == 2 and wire[1].cmd == "awards" and #wire[1].data.awards == 20 and #wire[1].data.history == 20,
 	"then all 20 awards and their history go out in one message")
 check("A3", wire[2].cmd == "session_end", "with the session's end right after it")
+wire[1].onSent()
+check("A3a", reached, "and the master looter hears once it has reached the raid")
 Sync:SendAward("S1", 21, "Player-21", "award")
 check("A4", wire[3] and wire[3].cmd == "award", "outside Award All, an award goes on its own as before")
 wire = {}

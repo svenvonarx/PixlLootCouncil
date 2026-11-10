@@ -22,7 +22,8 @@ function Sync:BeginBatch()
 	batch = { awards = {}, history = {} }
 end
 
-function Sync:FlushBatch(sessionId)
+-- onSent(): once everything has gone out to the raid.
+function Sync:FlushBatch(sessionId, onSent)
 	local pending = batch
 	batch = nil
 	if not pending or (not next(pending.awards) and not next(pending.history)) then
@@ -32,7 +33,7 @@ function Sync:FlushBatch(sessionId)
 	if not ch then
 		return
 	end
-	Protocol:Send("awards", { sessionId = sessionId, awards = pending.awards, history = pending.history }, ch)
+	Protocol:Send("awards", { sessionId = sessionId, awards = pending.awards, history = pending.history }, ch, nil, nil, onSent)
 end
 
 function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, enchanterGuid, council, responseSet, preview)
@@ -135,15 +136,18 @@ end
 -- Unlike every other command, the sync reply goes to exactly one player (the requester), never
 -- the whole group -- a full-state snapshot has no reason to be seen by anyone else.
 -- To one player, or the whole group when several asked at once (no targetName).
-function Sync:SendSyncData(snapshot, targetName)
+-- onSent(): once it has all gone out (or right away, with no one to send it to).
+function Sync:SendSyncData(snapshot, targetName, onSent)
 	if not targetName then
 		local ch = channel()
 		if ch then
-			Protocol:Send("session_sync_data", snapshot, ch)
+			Protocol:Send("session_sync_data", snapshot, ch, nil, nil, onSent)
+		elseif onSent then
+			onSent()
 		end
 		return
 	end
-	Protocol:Send("session_sync_data", snapshot, "WHISPER", targetName)
+	Protocol:Send("session_sync_data", snapshot, "WHISPER", targetName, nil, onSent)
 end
 
 -- Not session-scoped (no sessionId) -- every client broadcasts this periodically regardless of

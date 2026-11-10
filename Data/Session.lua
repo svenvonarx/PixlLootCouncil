@@ -978,8 +978,12 @@ function Session:AwardAllPreAwarded()
 			end
 		end
 	end)
-	-- Whatever was awarded goes out, even if something went wrong on the way.
-	PLC.Comms.Sync:FlushBatch(self.sessionId)
+	-- Whatever was awarded goes out, even if something went wrong on the way. The holder hears when
+	-- it has reached the raid, so nobody logs off with the awards still waiting to leave.
+	local preview = self.preview
+	PLC.Comms.Sync:FlushBatch(self.sessionId, count > 0 and not preview and function()
+		print(L["CHAT_PREFIX"] .. string.format(L["SESSION_AWARDS_SENT"], count))
+	end or nil)
 	if not ok then
 		error(err, 0)
 	end
@@ -1397,25 +1401,40 @@ local function sessionSnapshot()
 	}
 end
 
--- One answer for everyone who asked in the last SYNC_GATHER seconds: a raid zoning out together
--- costs one message instead of one each.
-local function answerSyncRequests()
-	syncAnswerTimer = nil
-	local names = {}
-	for name in pairs(syncRequesters) do
-		names[#names + 1] = name
+-- One answer, to the whole group, for everyone who asked in the last SYNC_GATHER seconds: a raid
+-- zoning out together costs one answer instead of one each. And never a second while one is still
+-- going out (a whole session is a dozen messages or more, at the server's 1 a second): whoever asks
+-- meanwhile gets the next one, once this one is out. Before, a raid's loading screens ending one by
+-- one queued an answer each, minutes of them, in front of the session's own messages.
+local syncInFlight = false
+local answerSyncRequests
+
+local function scheduleSyncAnswer()
+	if not syncInFlight then
+		syncAnswerTimer = syncAnswerTimer or PLC:ScheduleTimer(answerSyncRequests, SYNC_GATHER)
 	end
-	wipe(syncRequesters)
-	if #names == 0 or not Session:IsHolder() then
+end
+
+function answerSyncRequests()
+	syncAnswerTimer = nil
+	if not next(syncRequesters) or not Session:IsHolder() then
+		wipe(syncRequesters)
 		return
 	end
-	PLC.Comms.Sync:SendSyncData(sessionSnapshot(), #names == 1 and names[1] or nil)
+	wipe(syncRequesters)
+	syncInFlight = true
+	PLC.Comms.Sync:SendSyncData(sessionSnapshot(), nil, function()
+		syncInFlight = false
+		if next(syncRequesters) then
+			scheduleSyncAnswer()
+		end
+	end)
 end
 
 function Session:OnSyncRequestReceived(data, sender)
 	if self:IsHolder() then
 		syncRequesters[sender or "?"] = true
-		syncAnswerTimer = syncAnswerTimer or PLC:ScheduleTimer(answerSyncRequests, SYNC_GATHER)
+		scheduleSyncAnswer()
 	elseif self:IsOwner() and self.sessionId and (self.state == "ended" or self.state == "force_ended") then
 		-- Someone still thinks the review pass this client ran is on: it missed the end.
 		PLC.Comms.Sync:SendSyncData({ sessionId = self.sessionId, ended = true }, sender)

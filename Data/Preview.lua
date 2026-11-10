@@ -27,6 +27,18 @@ local BOE_ITEM = { id = 30324, quality = 4, boe = true } -- Plans: Red Havoc Boo
 -- Trade time left on each item, covering every state the timers can show. 0 = already expired.
 local TRADE_SECONDS = { 7140, 5400, 3300, 1100, 280, 0 }
 
+-- A real raid night's loot, for /plc preview <count>: Black Temple and Hyjal, from tier tokens and
+-- every armor type to weapons and patterns. A raid hands out 110 to 145 items in a night.
+local NIGHT = {
+	31089, 31090, 31091, 31092, 31093, 31094, 31095, 31096, 31097, 31098, 31099, 31100, 31101, 31102, 31103, -- tier tokens
+	32235, 32236, 32237, 32242, 32247, 32250, 32251, 32253, 32256, 32262, 32263, 32265, 32268, 32269, 32270,
+	32273, 32278, 32280, 32325, 32327, 32329, 32333, 32334, 32336, 32339, 32344, 32345, 32349, 32350, 32365,
+	32366, 32369, 32373, 32374, 32375, 32376, 32496, 32497, 32500, 32501, 32505, 32512, 32518, 32525, 32526,
+	32528, 32590, 32593, 32606, 30902, 30908, 30918, 34009, 34011, 34012,
+	32738, 32744, 32747, 32749, 32750, 32753, -- patterns
+}
+local MAX_COUNT = 150
+
 local STASHED_FIELDS = {
 	"sessionId", "owner", "state", "items", "responses", "nextIdx", "lastHolderSeenAt",
 	"responseTimeoutSeconds", "responseSet", "council", "enchanterGuid", "isCollector", "sentFirstBatch",
@@ -107,7 +119,27 @@ local function previewEntry(idx, source)
 	}
 end
 
-local function buildItems()
+-- `count` items from a raid night, spread over the 2-hour trade window. Some come twice, as a boss
+-- can drop the same thing twice.
+local function buildNight(count)
+	local items = {}
+	local pool = shuffled(NIGHT)
+	for idx = 1, count do
+		local id = pool[(idx - 1) % #pool + 1]
+		if idx % 9 == 0 then
+			id = pool[(idx - 2) % #pool + 1] -- a copy of the one before
+		end
+		local entry = previewEntry(idx, { id = id, quality = 4 })
+		entry.tradeRemaining = math.floor(7140 - (idx - 1) * 6600 / math.max(1, count - 1))
+		items[idx] = entry
+	end
+	return items
+end
+
+local function buildItems(count)
+	if count then
+		return buildNight(count)
+	end
 	local items = {}
 	local pool = shuffled(POOL)
 	for idx, seconds in ipairs(TRADE_SECONDS) do
@@ -122,7 +154,9 @@ local function buildItems()
 	return items
 end
 
-function Preview:Start()
+-- count: as many items as a raid night brings (/plc preview 40), to try a busy session; without
+-- it, a few items with every trade state.
+function Preview:Start(count)
 	local Session = PLC.Session
 	if Session.preview then
 		print(L["CHAT_PREFIX"] .. L["PREVIEW_ALREADY_RUNNING"])
@@ -137,7 +171,7 @@ function Preview:Start()
 		return
 	end
 	self:Enter()
-	local items = buildItems()
+	local items = buildItems(count and math.max(1, math.min(MAX_COUNT, math.floor(count))))
 	Session:ApplyItems(items)
 	Session.nextIdx = #items + 1
 	Session:Start()
@@ -185,14 +219,15 @@ function Preview:OnPreviewEndReceived(data)
 	end
 end
 
-function Preview:Toggle()
+function Preview:Toggle(count)
 	if PLC.Session.preview then
 		self:Stop()
 	else
-		self:Start()
+		self:Start(count)
 	end
 end
 
-PLC:RegisterSlashCommand("preview", L["SLASH_PREVIEW"], function()
-	Preview:Toggle()
+-- /plc preview, or /plc preview 40 for a raid night's worth of items.
+PLC:RegisterSlashCommand("preview", L["SLASH_PREVIEW"], function(args)
+	Preview:Toggle(tonumber(strtrim(args or "")))
 end)

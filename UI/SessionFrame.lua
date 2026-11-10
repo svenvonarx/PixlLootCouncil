@@ -74,11 +74,22 @@ local function startTicker()
 		if dataTable then
 			dataTable:Refresh()
 		end
+		SessionFrame:UpdateSending()
 		local item = selectedIdx and PLC.Session.items[selectedIdx]
 		if item and detailItemLabel then
 			setDetailLabel(item)
 		end
 	end, 1)
+end
+
+function SessionFrame:UpdateSending()
+	if not header or not header.sending or not (PLC.Comms and PLC.Comms.Protocol and PLC.Comms.Protocol.Pending) then
+		return
+	end
+	local session, bulk = PLC.Comms.Protocol:Pending()
+	local waiting = session + bulk
+	header.sending:SetText(waiting > 0 and string.format(L["SESSIONFRAME_SENDING"], waiting) or "")
+	header.sending:SetShown(waiting > 0)
 end
 
 local function stopTicker()
@@ -793,6 +804,12 @@ local function ensureFrame()
 	header.minimize:HookScript("OnLeave", function()
 		GameTooltip:Hide()
 	end)
+
+	-- What's still on its way to the raid (Comms/Protocol.lua:Pending): the server lets an addon send
+	-- 1 message a second after the first 10, so a busy moment can take a while, and this says so.
+	header.sending = Primitives.createText(header, "", 11, "accent")
+	header.sending:SetPoint("RIGHT", header.minimize, "LEFT", -10, 0)
+	header.sending:Hide()
 
 	Primitives.createSeparator(frame, -Theme.LAYOUT.headerHeight)
 

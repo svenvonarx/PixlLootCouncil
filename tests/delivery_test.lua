@@ -43,6 +43,7 @@ local LATENCY = 0.3
 local queue = {}
 local sent = {} -- every message, for counting
 local dropRule -- function(message, recipient) -> true to lose it
+local sendSeconds = {} -- [cmd] = seconds a message takes to leave, as with the server's limit of 1 a second
 local lateRule -- function(message, recipient) -> extra seconds before it arrives
 local function deepcopy(v)
 	if type(v) ~= "table" then return v end
@@ -50,12 +51,19 @@ local function deepcopy(v)
 	for k, x in pairs(v) do c[deepcopy(k)] = deepcopy(x) end
 	return c
 end
-local function send(from, cmd, data, distribution, target)
-	local message = { from = from, cmd = cmd, data = deepcopy(data), distribution = distribution, target = target, at = now + LATENCY }
+local function send(from, cmd, data, distribution, target, onSent)
+	local message = { from = from, cmd = cmd, data = deepcopy(data), distribution = distribution, target = target,
+		at = now + LATENCY + (sendSeconds[cmd] or 0), onSent = onSent }
 	sent[#sent + 1] = message
 	queue[#queue + 1] = message
 end
 local function deliver(message)
+	-- It has left the sender: what AceComm's callback reports.
+	if message.onSent and not message.only then
+		local onSent = message.onSent
+		message.onSent = nil
+		as(message.from, onSent)
+	end
 	for _, client in ipairs(clients) do
 		local addressed = client ~= message.from and client.inGroup
 			and ((message.distribution == "WHISPER" and client.name == message.target)
@@ -130,7 +138,7 @@ local function newClient(name, guid)
 	local quiet = setmetatable({}, { __index = function() return noop end })
 	PLC.Comms.Protocol = {
 		RegisterHandler = function(_, cmd, fn) client.handlers[cmd] = fn end,
-		Send = function(_, cmd, data, distribution, target) send(client, cmd, data, distribution, target) end,
+		Send = function(_, cmd, data, distribution, target, _, onSent) send(client, cmd, data, distribution, target, onSent) end,
 	}
 	PLC.Roster = {
 		Get = function(_, g) for _, c in ipairs(clients) do if c.guid == g then return { name = c.name .. "-Realm", class = "MAGE" } end end end,
@@ -422,6 +430,24 @@ end)
 zone(di, 3)
 advance(6)
 check("D24", di.Session.items[1] and di.Session.items[1].awarded == di.guid, "an award made earlier comes with the catch-up, so Di's item to collect stays")
+
+-- Leaving BT for Gruul ---------------------------------------------------------------------------------------
+-- Everyone's loading screen ends at a different moment, and a whole session takes a while to send at
+-- the server's 1 message a second. One answer each queued minutes of them, in front of everything.
+reset()
+for _, r in ipairs(raiders) do r.zoning = true end
+startSession(4)
+advance(3)
+sendSeconds.session_sync_data = 15
+for i, r in ipairs(raiders) do
+	r.zoning = false
+	as(r, r.PLC.Events.Dispatch, "PLAYER_ENTERING_WORLD", false, false)
+	advance(3) -- the next one's loading screen ends a little later
+end
+advance(60)
+check("D30", everyone(hasSession), "everyone back from the loading screen one by one catches up")
+check("D31", count("session_sync_data") <= 2, "with at most two answers, not one each: " .. count("session_sync_data"))
+sendSeconds.session_sync_data = nil
 
 -- What it costs ------------------------------------------------------------------------------------------------
 check("D25", holder.PLC.db.profile.sessionHeartbeatSeconds == 10, "heartbeats every 10 seconds by default, so a repair takes about 20")
