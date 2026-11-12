@@ -4,7 +4,7 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
-## Unreleased
+## 0.9.2-beta
 
 - **Fixed:** a preview ended the moment you pressed Award All when nothing was left to trade, which is
   always the case alone, so the Loot Trades window with who got what never showed. The preview now
