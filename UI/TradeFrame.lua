@@ -8,8 +8,9 @@ local Theme = PLC.UI.Theme
 
 -- Every awarded item this client still has to deal with, in one list: items the session owner
 -- has to hand out (or disenchant themselves), and items awarded to this player that they still
--- have to collect. Rows disappear as Loot/Trade.lua confirms each handoff; the window hides itself
--- once the list is empty. Layout deliberately mirrors UI/LootFrame.lua (one DataTable filling the
+-- have to collect. Below them, who got what in the last review pass, for everyone: this is where
+-- awards are announced, instead of a line each in raid chat. A handoff Loot/Trade.lua confirmed
+-- turns into such a result row; the window hides itself once the list is empty. Layout deliberately mirrors UI/LootFrame.lua (one DataTable filling the
 -- content area) -- an earlier two-section version with stacked labels/containers anchored its
 -- tables outside the window, so rows never rendered.
 local TradeFrame = {}
@@ -28,29 +29,48 @@ local OVERDUE_SECONDS = 180 -- elapsed text turns warning-colored past this; inf
 local DOUBLE_CLICK_SECONDS = 0.5
 
 -- kind: "handout" (I own the session, item goes to someone else), "self" (I own the session and
--- awarded it to myself -- only reachable for disenchant, a self-award auto-completes), or
--- "collect" (someone else's session awarded it to me).
+-- awarded it to myself -- only reachable for disenchant, a self-award auto-completes), "collect"
+-- (someone else's session awarded it to me), or "result": nothing for me to do, just who got it,
+-- for the awards of the last review pass.
 local function classify(item, myGuid)
-	if not item.awarded or item.traded then
+	if not item.awarded then
 		return nil
 	end
-	if PLC.Session:IsOwner() then
-		return item.awarded == myGuid and "self" or "handout"
+	if not item.traded then
+		if PLC.Session:IsOwner() then
+			return item.awarded == myGuid and "self" or "handout"
+		end
+		if item.awarded == myGuid then
+			return "collect"
+		end
 	end
-	if item.awarded == myGuid then
-		return "collect"
+	if PLC.Session.sessionId and item.sentIn == PLC.Session.sessionId then
+		return "result"
 	end
 	return nil
 end
 
+local REASON_LABELS = { award = "SESSIONFRAME_AWARDED", disenchant = "SESSIONFRAME_DISENCHANTED", bank = "SESSIONFRAME_BANKED" }
+
+-- The winner as the award recorded them, or as the roster knows them now.
+local function winnerOf(item)
+	local entry = PLC.Roster:Get(item.awarded)
+	local name = item.winnerName or (entry and entry.name)
+	return name and PLC.Roster:ShortName(name) or "?", item.winnerClass or (entry and entry.class)
+end
+
+-- Returns the rows, what's still to do first, and how many of them are still to do.
 local function buildRows()
 	local rows = {}
+	local actionable = 0
 	local myGuid = UnitGUID("player")
 	for idx, item in pairs(PLC.Session.items) do
 		local kind = classify(item, myGuid)
 		if kind then
-			local partnerName
-			if kind == "handout" then
+			local partnerName, partnerClass
+			if kind == "result" then
+				partnerName, partnerClass = winnerOf(item)
+			elseif kind == "handout" then
 				local entry = PLC.Roster:Get(item.awarded)
 				partnerName = string.format(L["TRADEFRAME_TO"], (entry and PLC.Roster:ShortName(entry.name)) or "?")
 			elseif kind == "collect" then
@@ -59,20 +79,32 @@ local function buildRows()
 			else
 				partnerName = L["TRADEFRAME_SELF"]
 			end
+			if kind ~= "result" then
+				actionable = actionable + 1
+			end
 			table.insert(rows, {
 				idx = idx,
 				link = item.link,
 				icon = item.icon,
 				kind = kind,
 				isSelf = kind == "self",
+				isResult = kind == "result",
+				mine = item.awarded == myGuid,
 				partnerName = partnerName,
+				partnerClass = partnerClass,
+				reasonLabel = L[REASON_LABELS[item.awardReason or "award"] or REASON_LABELS.award],
 				awardedAt = item.awardedAt,
 				item = item,
 			})
 		end
 	end
-	table.sort(rows, function(a, b) return a.idx < b.idx end)
-	return rows
+	table.sort(rows, function(a, b)
+		if a.isResult ~= b.isResult then
+			return b.isResult
+		end
+		return a.idx < b.idx
+	end)
+	return rows, actionable
 end
 
 local function startTicker()
@@ -127,9 +159,14 @@ local COLUMNS = {
 		end,
 	},
 	{
+		-- Who it goes to or comes from; for a result, who got it, in their class color.
 		width = 110,
 		justify = "LEFT",
 		render = function(rowData)
+			local color = rowData.isResult and rowData.partnerClass and RAID_CLASS_COLORS and RAID_CLASS_COLORS[rowData.partnerClass]
+			if color then
+				return rowData.partnerName, color.r, color.g, color.b
+			end
 			return rowData.partnerName
 		end,
 	},
@@ -139,6 +176,10 @@ local COLUMNS = {
 		width = 110,
 		justify = "LEFT",
 		render = function(rowData)
+			if rowData.isResult then
+				local r, g, b = Primitives.color(rowData.mine and "accent" or "dim")
+				return rowData.reasonLabel, r, g, b
+			end
 			local tradeText, tradeColor = PLC.Loot.BagTracker:StatusText(rowData.item)
 			if tradeText and (rowData.item.tradeExpiresAt or rowData.item.untradable) then
 				local r, g, b = Primitives.color(tradeColor)
@@ -167,7 +208,7 @@ local COLUMNS = {
 			return holder
 		end,
 		update = function(holder, rowData)
-			holder.tradeButton:SetShown(not rowData.isSelf)
+			holder.tradeButton:SetShown(not rowData.isSelf and not rowData.isResult)
 			holder.tradeButton:SetScript("OnClick", function()
 				PLC.Loot.Trade:StartTrade(rowData.idx)
 			end)
@@ -184,7 +225,7 @@ local COLUMNS = {
 			return ButtonWidget.createButton(row, L["TRADEFRAME_FOLLOW"], FOLLOW_BUTTON_WIDTH)
 		end,
 		update = function(button, rowData)
-			button:SetShown(not rowData.isSelf)
+			button:SetShown(not rowData.isSelf and not rowData.isResult)
 			button:SetScript("OnClick", function()
 				PLC.Loot.Trade:FollowPartner(rowData.idx)
 			end)
@@ -212,6 +253,7 @@ local COLUMNS = {
 				button.lastClick = nil
 			end
 			button.idx = rowData.idx
+			button:SetShown(not rowData.isResult)
 			button:SetScript("OnClick", function(self)
 				local now = GetTime()
 				if self.lastClick and now - self.lastClick <= DOUBLE_CLICK_SECONDS then
@@ -292,11 +334,13 @@ local function ensureFrame()
 end
 
 -- Called from Data/Session.lua's notifyTradeFrame on every award/trade/session change, and once a
--- second while shown. Auto-shows when the list goes from empty to non-empty, but never reopens
--- itself after a manual close while items are still pending (unlike UI/LootFrame.lua, which
--- deliberately keeps nagging about an unanswered vote).
-function TradeFrame:Refresh()
-	local rows = buildRows()
+-- second while shown. Auto-shows when there's something to do where there was nothing, but never
+-- reopens itself after a manual close while items are still pending (unlike UI/LootFrame.lua,
+-- which deliberately keeps nagging about an unanswered vote). Results alone never open it by
+-- themselves, or it would come up at every login: Open does, when an Award All arrives.
+-- open: show it whatever was closed before.
+function TradeFrame:Refresh(open)
+	local rows, actionable = buildRows()
 	if #rows == 0 then
 		stopTicker()
 		if frame then
@@ -310,15 +354,21 @@ function TradeFrame:Refresh()
 	dataTable:SetRows(rows)
 	f.title:SetText(PLC.Session.preview and (L["TRADEFRAME_TITLE"] .. " - " .. L["PREVIEW_LABEL"]) or L["TRADEFRAME_TITLE"])
 
-	if wasEmpty then
-		userClosed = false
+	if actionable == 0 then
+		wasEmpty = true
+	else
+		if wasEmpty then
+			userClosed = false
+		end
+		wasEmpty = false
 	end
-	wasEmpty = false
 
-	if not userClosed then
+	if open or f:IsShown() or (actionable > 0 and not userClosed) then
 		f:Show()
+		startTicker()
+	else
+		stopTicker()
 	end
-	startTicker()
 end
 
 function TradeFrame:OnSessionUpdated()
@@ -326,10 +376,10 @@ function TradeFrame:OnSessionUpdated()
 end
 
 -- Forces the window open even if it was manually closed (still hides itself if there's nothing to
--- trade). Called on Award All and when an award for this player arrives.
+-- show). Called on Award All, for the master looter and for everyone who hears of it.
 function TradeFrame:Open()
 	userClosed = false
-	self:Refresh()
+	self:Refresh(true)
 end
 
 -- Manual reopen (slash command, Loot Session toolbar): says so instead of silently doing nothing.

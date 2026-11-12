@@ -14,8 +14,8 @@ local ITEMS = {
 	["[Plate]"] = { lines = { { "Chest", right = "Plate", rightRed = true } }, equipLoc = "INVTYPE_CHEST", classID = 4 },
 	["[Cloth]"] = { lines = { { "Chest", right = "Cloth" } }, equipLoc = "INVTYPE_CHEST", classID = 4 },
 	["[Cloak]"] = { lines = { { "Back", right = "Cloth", rightRed = true } }, equipLoc = "INVTYPE_CLOAK", classID = 4 },
-	["[Pattern]"] = { lines = { { "Requires Leatherworking (375)", red = true } }, equipLoc = "", classID = 9 },
-	["[Known]"] = { lines = { { "Already known", red = true } }, equipLoc = "", classID = 9 },
+	["[Pattern]"] = { lines = { { "Requires Leatherworking (375)", red = true } }, equipLoc = "", classID = 9, subType = "Leatherworking" },
+	["[Known]"] = { lines = { { "Already known", red = true } }, equipLoc = "", classID = 9, subType = "Leatherworking" },
 	["[Caster staff]"] = { lines = { { "Two-Hand", right = "Staff" } }, equipLoc = "INVTYPE_2HWEAPON", classID = 2,
 		stats = { ITEM_MOD_INTELLECT_SHORT = 30 } },
 	["[Agility sword]"] = { lines = { { "One-Hand", right = "Sword" } }, equipLoc = "INVTYPE_WEAPON", classID = 2,
@@ -28,7 +28,7 @@ _G.C_Item = {
 		local item = ITEMS[link]
 		if not item then return nil end
 		lookups = lookups + 1
-		return link, link, 4, 70, 70, "", "", 1, item.equipLoc, 0, 0, item.classID
+		return link, link, 4, 70, 70, "", item.subType or "", 1, item.equipLoc, 0, 0, item.classID
 	end,
 	GetItemStats = function(link) return ITEMS[link] and ITEMS[link].stats end,
 }
@@ -92,6 +92,14 @@ check("A6", passes("[Caster staff]") == true and passes("[Agility sword]") == fa
 class = "PALADIN"
 check("A7", passes("[Caster staff]") == false and passes("[Agility sword]") == false, "hybrids never pass on stats")
 check("A8", passes("[Spell dagger]") == false, "nor does anyone on a weapon without main stats")
+-- A leatherworker not yet at 375: the pattern is still theirs to answer.
+_G.ITEM_SPELL_KNOWN = "Already known"
+_G.GetNumSkillLines = function() return 3 end
+_G.GetSkillLineInfo = function(i) return ({ "Professions", "Leatherworking", "Skinning" })[i], i == 1, nil, 360 end
+check("A8a", AutoPass:ShouldPass("[Pattern]", "pattern-lw") == false, "a pattern for your own profession that only needs more skill doesn't pass")
+check("A8b", AutoPass:ShouldPass("[Known]", "known-lw") == true, "one you already know still does")
+_G.GetSkillLineInfo = function(i) return ({ "Professions", "Tailoring", "Skinning" })[i], i == 1, nil, 375 end
+check("A8c", AutoPass:ShouldPass("[Pattern]", "pattern-tailor") == true, "and one for a profession you don't have")
 check("A9", AutoPass:ShouldPass("[Not cached]") == nil, "an item the game doesn't know yet: can't tell, so it shows")
 passes("[Token]")
 local before = lookups

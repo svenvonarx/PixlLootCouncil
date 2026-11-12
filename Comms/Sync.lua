@@ -11,18 +11,21 @@ local function channel()
 	return PLC.Loot.Announce:GetChannel()
 end
 
--- Award All's awards and history entries, collected into one "awards" message. The server lets each
+-- Award All's awards and history entries, collected instead of sent one by one. The server lets each
 -- addon prefix send 10 messages at once, then 1 a second, and AceComm splits anything over 255 bytes
 -- into several: one award and its history entry took 3 messages, so a 20-item Award All queued 60
 -- and took over a minute to leave, with the session's end behind them, and logging off in that time
--- lost all of it. Together they compress to a few messages and go out at once.
+-- lost all of it. Now the awards go out as one small "awards" message, which is what everyone's
+-- windows show and what the session's end waits behind: a second or two at any size. The history
+-- entries, most of the bytes, follow on the bulk prefix (history_share, which takes entries the
+-- sender awarded), without holding anything up.
 local batch -- { awards = {}, history = {} } between BeginBatch and FlushBatch
 
 function Sync:BeginBatch()
 	batch = { awards = {}, history = {} }
 end
 
--- onSent(): once everything has gone out to the raid.
+-- onSent(): once everything, the history included, has gone out to the raid.
 function Sync:FlushBatch(sessionId, onSent)
 	local pending = batch
 	batch = nil
@@ -33,7 +36,17 @@ function Sync:FlushBatch(sessionId, onSent)
 	if not ch then
 		return
 	end
-	Protocol:Send("awards", { sessionId = sessionId, awards = pending.awards, history = pending.history }, ch, nil, nil, onSent)
+	local left = next(pending.history) and 2 or 1
+	local function partSent()
+		left = left - 1
+		if left == 0 and onSent then
+			onSent()
+		end
+	end
+	Protocol:Send("awards", { sessionId = sessionId, awards = pending.awards }, ch, nil, nil, partSent)
+	if next(pending.history) then
+		Protocol:Send("history_share", { entries = pending.history, quiet = true }, ch, nil, nil, partSent)
+	end
 end
 
 function Sync:SendSessionStart(sessionId, owner, items, responseTimeoutSeconds, enchanterGuid, council, responseSet, preview)
@@ -258,21 +271,21 @@ function Sync:SendTradeComplete(sessionId, idx)
 	Protocol:Send("trade_complete", { sessionId = sessionId, idx = idx }, ch)
 end
 
-Protocol:RegisterHandler("session_start", function(data) PLC.Session:OnSessionStartReceived(data) end)
+Protocol:RegisterHandler("session_start", function(data, sender) PLC.Session:OnSessionStartReceived(data, sender) end)
 Protocol:RegisterHandler("item_add", function(data) PLC.Session:OnItemAddReceived(data) end)
 Protocol:RegisterHandler("item_remove", function(data) PLC.Session:OnItemRemoveReceived(data) end)
 Protocol:RegisterHandler("council", function(data) PLC.Session:OnCouncilReceived(data) end)
 Protocol:RegisterHandler("stage", function(data) PLC.Session:OnStageReceived(data) end)
 Protocol:RegisterHandler("response", function(data) PLC.Session:OnResponseReceived(data) end)
 Protocol:RegisterHandler("award", function(data) PLC.Session:OnAwardReceived(data) end)
-Protocol:RegisterHandler("session_heartbeat", function(data) PLC.Session:OnHeartbeatReceived(data) end)
+Protocol:RegisterHandler("session_heartbeat", function(data, sender) PLC.Session:OnHeartbeatReceived(data, sender) end)
 Protocol:RegisterHandler("session_end", function(data) PLC.Session:OnSessionEndReceived(data) end)
 Protocol:RegisterHandler("responses", function(data) PLC.Session:OnResponsesReceived(data) end)
 Protocol:RegisterHandler("version", function(data) PLC.Presence:NoteVersion(data.version) end)
 Protocol:RegisterHandler("preview_end", function(data) PLC.Preview:OnPreviewEndReceived(data) end)
 Protocol:RegisterHandler("session_force_end", function(data) PLC.Session:OnForceEndReceived(data) end)
 Protocol:RegisterHandler("session_sync_request", function(data, sender) PLC.Session:OnSyncRequestReceived(data, sender) end)
-Protocol:RegisterHandler("session_sync_data", function(data) PLC.Session:OnSyncDataReceived(data) end)
+Protocol:RegisterHandler("session_sync_data", function(data, sender) PLC.Session:OnSyncDataReceived(data, sender) end)
 Protocol:RegisterHandler("presence", function(data) PLC.Presence:OnPresenceReceived(data) end)
 Protocol:RegisterHandler("version_check", function() PLC.Presence:OnVersionCheckReceived() end)
 Protocol:RegisterHandler("gear", function(data) PLC.Gear:OnGearReceived(data) end)
@@ -285,12 +298,19 @@ Protocol:RegisterHandler("awards", function(data)
 	if type(data) ~= "table" then
 		return
 	end
+	local any = false
 	for _, award in ipairs(type(data.awards) == "table" and data.awards or {}) do
 		if type(award) == "table" then
+			any = true
 			PLC.Session:OnAwardReceived({ sessionId = data.sessionId, idx = award.idx, winnerGuid = award.winnerGuid, reason = award.reason })
 		end
 	end
+	-- From a master looter on 0.8 or 0.9, which sent the history in the same message.
 	for _, history in ipairs(type(data.history) == "table" and data.history or {}) do
 		PLC.History:OnHistoryReceived(history)
+	end
+	-- Who got what, for everyone, whether they got anything or not.
+	if any and data.sessionId == PLC.Session.sessionId and PLC.UI and PLC.UI.TradeFrame and PLC.UI.TradeFrame.Open then
+		PLC.UI.TradeFrame:Open()
 	end
 end)

@@ -164,6 +164,11 @@ setup({ id = GLAIVE, guid = "W1", awarded = true }, { id = GLAIVE, awarded = tru
 later(1); later(10)
 check("L6", Session.items[1] ~= nil and Session.items[2] ~= nil, "awarded copies are never removed")
 
+setup({ id = GLAIVE, guid = "W1", awarded = true }, { id = GLAIVE, guid = "W2" })
+bag[1] = nil -- the awarded copy was handed over outside the addon: mailed, or a trade it didn't see
+later(1); later(10); later(30)
+check("L8", Session.items[2] ~= nil and #printed == 0, "the copy that's really in the bags is never the one removed")
+
 setup({ id = GLAIVE, guid = "W1" }, { id = GLAIVE, manual = true })
 later(1); later(10)
 check("L7", Session.items[2] ~= nil, "an item added by hand may be in someone else's bags: it doesn't count")

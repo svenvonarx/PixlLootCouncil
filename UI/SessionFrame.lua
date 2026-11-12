@@ -47,6 +47,7 @@ local removeAllButton
 local selectedIdx -- which session item's response grid is currently shown in the detail area
 local refresh -- forward-declared: onRemoveClick (defined before it) calls it
 local showDetailFor -- forward-declared: iconColumn's OnClick (defined before it) calls it
+local lookingBackIdx -- the item the user clicked, kept selected even once it's awarded
 local tickerHandle
 
 -- Item name plus its trade status ("Tradable for 1h 52m", Loot/BagTracker.lua) in the detail header.
@@ -269,10 +270,7 @@ local function iconColumn(suffix)
 			end)
 			holder:SetScript("OnClick", function()
 				if holder.itemIdx then
-					showDetailFor(holder.itemIdx)
-					if dataTable then
-						dataTable:Refresh()
-					end
+					SessionFrame:SelectItem(holder.itemIdx)
 				end
 			end)
 
@@ -464,6 +462,16 @@ local function layoutDetailHeader(rowContent)
 	end
 end
 
+-- An item picked on purpose, by clicking its icon: an awarded one stays selected, to look back at
+-- its votes (see refresh).
+function SessionFrame:SelectItem(idx)
+	lookingBackIdx = idx
+	showDetailFor(idx)
+	if dataTable then
+		dataTable:Refresh()
+	end
+end
+
 function showDetailFor(idx)
 	selectedIdx = idx
 	local item = idx and PLC.Session.items[idx]
@@ -594,11 +602,17 @@ function refresh()
 	local flat = flatItemRows()
 
 	-- Auto-selects the first not-yet-awarded item, and auto-advances off whatever was selected
-	-- once it gets awarded -- never auto-advances AWAY from an item the user deliberately picked
-	-- while it's still pending. Resolved before SetRows below, since icon cells read `selectedIdx`
-	-- directly (a closed-over upvalue, not a parameter) while rendering.
-	if not selectedIdx or (PLC.Session.items[selectedIdx] and PLC.Session.items[selectedIdx].awarded) then
-		selectedIdx = firstPendingIdx(flat)
+	-- once it gets awarded -- never auto-advances AWAY from an item the user deliberately picked:
+	-- one still pending, or an awarded one clicked to look back at its votes (lookingBackIdx).
+	-- With nothing left to decide, the selection stays, or goes to the first item, so the window
+	-- never goes blank while there's something to look at. Resolved before SetRows below, since
+	-- icon cells read `selectedIdx` directly (a closed-over upvalue, not a parameter) while rendering.
+	local selected = selectedIdx and PLC.Session.items[selectedIdx]
+	if not selected then
+		selectedIdx, lookingBackIdx = nil, nil
+	end
+	if not selected or (selected.awarded and selectedIdx ~= lookingBackIdx) then
+		selectedIdx = firstPendingIdx(flat) or selectedIdx or (flat[1] and flat[1].idx)
 	end
 
 	dataTable:SetRows(packItemRows(flat))

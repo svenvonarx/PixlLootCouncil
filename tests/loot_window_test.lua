@@ -8,6 +8,7 @@ _G.print = function() end
 local now = 1000
 _G.time = function() return now end
 _G.UnitGUID = function() return "Player-1-AAAA" end
+_G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 _G.UISpecialFrames = {}
 _G.tinsert = table.insert
 _G.LibStub = function() return { GetLocale = function() return setmetatable({}, { __index = function(_, k) return k end }) end } end
@@ -63,7 +64,7 @@ PLC.UI.Widgets.Button = { createButton = function(_, text)
 	return stub({ width = #text * 6 + 20, height = 28 })
 end }
 local soon = {}
-function PLC:ScheduleTimer(fn) soon[#soon + 1] = fn end
+function PLC:ScheduleTimer(fn) soon[#soon + 1] = fn; return {} end -- a handle, like AceTimer
 function PLC:ScheduleRepeatingTimer() return {} end
 function PLC:CancelTimer() end
 function PLC:RegisterSlashCommand() end
@@ -265,6 +266,14 @@ check("C1", not closeButtons and #UISpecialFrames == 0, "no close button, and Es
 -- awards each on its own.
 local answered = {}
 PLC.Session.SendMyResponse = function(_, idx, key) answered[#answered + 1] = idx .. "=" .. key end
+local batches = 0
+PLC.Session.SendMyResponses = function(_, answers)
+	batches = batches + 1
+	local idxs = {}
+	for idx in pairs(answers) do idxs[#idxs + 1] = idx end
+	table.sort(idxs)
+	for _, idx in ipairs(idxs) do answered[#answered + 1] = idx .. "=" .. answers[idx].response end
+end
 PLC.Session.items = {
 	[1] = { link = "[Glaive]", itemString = "item:32837", deadlineAt = now + 40 },
 	[2] = { link = "[Helm]", itemString = "item:32235", deadlineAt = now + 60 },
@@ -278,7 +287,9 @@ check("T2", icon.count.text == 2 and cells(rows[2]).count.text == "", "the icon 
 local data = upvalue(LootFrame.Refresh, "buildRows")()
 check("T3", data[1].deadlineAt == now + 40, "the first copy to run out sets the time")
 data[1].respond("BIS")
-check("T4", table.concat(answered, ",") == "1=BIS,3=BIS", "one answer is sent for each copy")
+check("T4", table.concat(answered, ",") == "1=BIS,3=BIS" and batches == 1, "one answer counts for each copy, in one message")
+data[2].respond("OS")
+check("T5", answered[3] == "2=OS" and batches == 1, "a single item is answered on its own as before")
 
 -- Can't use it --------------------------------------------------------------------------------------------
 -- Another class's token, plate for a mage: a Pass goes by itself, with a note, and it isn't shown.
@@ -286,20 +297,27 @@ PLC.db.profile.autoPass = true
 if not PLC.Responses:Find("PASS") then SET[#SET + 1] = { key = "PASS", text = "Pass" } end
 PLC.AutoPass = { ShouldPass = function(_, link) return link == "[Plate]" end, Note = function() return "AUTOPASS_NOTE" end }
 local sentPasses = {}
-PLC.Session.SendMyResponse = function(_, idx, key, note)
-	sentPasses[#sentPasses + 1] = idx .. "=" .. key .. ":" .. tostring(note)
-	PLC.Session.responses[idx] = { [UnitGUID("player")] = { response = key, note = note } } -- as the real one records it
+local passMessages = 0
+PLC.Session.SendMyResponses = function(_, answers)
+	passMessages = passMessages + 1
+	for idx, answer in pairs(answers) do
+		sentPasses[#sentPasses + 1] = idx .. "=" .. answer.response .. ":" .. tostring(answer.note)
+		PLC.Session.responses[idx] = { [UnitGUID("player")] = answer } -- as the real one records it
+	end
 end
 PLC.Session.items = {
 	[1] = { link = "[Plate]", itemString = "item:1", deadlineAt = now + 60 },
 	[2] = { link = "[Cloth]", itemString = "item:2", deadlineAt = now + 60 },
+	[5] = { link = "[Plate]", itemString = "item:5", deadlineAt = now + 60 },
 }
 PLC.Session.responses = {}
 refresh()
 check("P1", links() == "[Cloth]", "an item this character can't use isn't shown")
 check("P2", #sentPasses == 0 and #soon == 1, "its Pass waits until the window is drawn")
 soon[1](); soon = {}
-check("P3", sentPasses[1] == "1=PASS:AUTOPASS_NOTE", "then goes out, with a note saying why")
+table.sort(sentPasses)
+check("P3", sentPasses[1] == "1=PASS:AUTOPASS_NOTE" and sentPasses[2] == "5=PASS:AUTOPASS_NOTE", "then goes out, with a note saying why")
+check("P3a", passMessages == 1, "every pass in one message, so the player's own answers don't queue behind them")
 refresh()
 check("P4", #soon == 0, "and only once")
 PLC.db.profile.autoPass = false

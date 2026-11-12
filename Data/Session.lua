@@ -47,6 +47,7 @@ local heartbeatTimerHandle
 local persist -- forward-declared: SetEnchanter (above its definition) calls it
 local restored = false -- restoreFromSaved has run, so IsHolder() can be trusted
 local syncAsked = false -- already asked for a resync since joining this group
+local resumedAtLogin = false -- a running pass was resumed at login; checked once the group is known
 
 -- Catching up (Session:CatchUp). Group messages only reach whoever is there to hear them: someone on
 -- a loading screen, or whose message got lost, simply never gets it, and the holder can miss
@@ -151,6 +152,16 @@ end
 -- up on a session they weren't there for: logging in, reloading, or joining the group mid-session
 -- all end up here, once the group is actually known -- one request per group membership.
 function Session:OnRosterRebuilt()
+	-- A pass resumed at login belongs to whoever runs the loot now. In a group whose master looter
+	-- is someone else, this client's old pass would pull the raid off theirs: it ends instead.
+	if resumedAtLogin and IsInGroup() then
+		resumedAtLogin = false
+		if self:IsHolder() and not self.preview and PLC.CouncilRules:IsMasterLootMethod()
+			and PLC.CouncilRules:GetMasterLooterUnit() and not PLC.CouncilRules:AmIMasterLooter() then
+			print(L["CHAT_PREFIX"] .. L["SESSION_NOT_MASTER_LOOTER"])
+			self:End()
+		end
+	end
 	if not IsInGroup() then
 		syncAsked = false
 	elseif restored and not syncAsked and not self:IsHolder() then
@@ -246,6 +257,9 @@ function persist()
 	if Session.preview then
 		return -- the real session stays exactly as it was saved
 	end
+	-- Item numbers never start over, even once the list is empty and nothing else is saved: raiders
+	-- keep awarded items by number.
+	PLC.db.char.nextIdx = Session.nextIdx
 	if Session:IsHolder() or Session.isCollector then
 		PLC.db.char.activeSession = {
 			sessionId = Session.sessionId,
@@ -402,8 +416,14 @@ local function applyReceivedItems(items)
 			entry.tradeRemaining = nil
 		end
 		-- An item_add can re-send an item this client already has (the holder learned its trade
-		-- time later) -- keep the award/trade state we already know about.
+		-- time later) -- keep the award/trade state we already know about. Only for the same item
+		-- of the same pass: an awarded item kept from an earlier pass (keepAwarded) can have the
+		-- same number, when the holder's numbering started over or the holder is someone else, and
+		-- the new item must not inherit its award.
 		local existing = Session.items[idx]
+		if existing and (existing.sentIn ~= Session.sessionId or existing.itemString ~= entry.itemString) then
+			existing = nil
+		end
 		if existing then
 			entry.awarded = entry.awarded or existing.awarded
 			entry.awardReason = entry.awardReason or existing.awardReason
@@ -849,19 +869,15 @@ function Session:AwardBaggedItem(idx, winnerGuid, reason)
 	reason = reason or "award"
 	item.awarded = winnerGuid
 	item.awardReason = reason
+	item.winnerName, item.winnerClass = winnerEntry.name, winnerEntry.class -- for Loot Trades' results
 	item.votes = self.responses[idx] or item.votes
 	item.awardedAt = time() -- feeds UI/TradeFrame.lua's "awarded Xm ago" timer
 	item.preAwardGuid = nil
 	item.preAwardReason = nil
 	persist()
 	PLC.Comms.Sync:SendAward(self.sessionId, item.idx, winnerGuid, reason)
-	-- No local "trade it to them!" print here anymore -- the raid-chat announcement below already
-	-- communicates who got what, and UI/TradeFrame.lua's own "items to hand out" row is the
-	-- holder's actual actionable reminder now; a third, redundant local system-message line on top
-	-- of both was exactly what the user asked to drop.
-	if PLC.Loot.Announce and PLC.Loot.Announce.AnnounceAward then
-		PLC.Loot.Announce:AnnounceAward({ link = item.link, winnerName = winnerEntry.name, reason = reason })
-	end
+	-- Who got what shows in everyone's Loot Trades window (UI/TradeFrame.lua); raid chat gets one
+	-- line for the whole Award All (AwardAllPreAwarded), not one per item.
 	if PLC.History and PLC.History.RecordAward and not self.preview then
 		PLC.History:RecordAward(item, winnerGuid, reason)
 	end
@@ -1022,6 +1038,9 @@ function Session:AwardAllPreAwarded()
 	PLC.Comms.Sync:FlushBatch(self.sessionId, count > 0 and not preview and function()
 		print(L["CHAT_PREFIX"] .. string.format(L["SESSION_AWARDS_SENT"], count))
 	end or nil)
+	if count > 0 then
+		PLC.Loot.Announce:AnnounceAwards(count)
+	end
 	if not ok then
 		error(err, 0)
 	end
@@ -1031,14 +1050,9 @@ function Session:AwardAllPreAwarded()
 	-- could keep going on other items, was declined). End() already handles broadcasting
 	-- session_end, stopping the heartbeat, and pruning -- nothing else here needs to change.
 	self:End()
-	-- Banked items and self-awards are finished by now, so there may be nothing to trade at all.
-	for _, item in pairs(self.items) do
-		if item.awarded and not item.traded then
-			if PLC.UI and PLC.UI.TradeFrame and PLC.UI.TradeFrame.Open then
-				PLC.UI.TradeFrame:Open()
-			end
-			break
-		end
+	-- Loot Trades: what's to hand out, and who got what.
+	if count > 0 and PLC.UI and PLC.UI.TradeFrame and PLC.UI.TradeFrame.Open then
+		PLC.UI.TradeFrame:Open()
 	end
 end
 
@@ -1051,8 +1065,24 @@ local function matchPreviewState(preview)
 	end
 end
 
-function Session:OnSessionStartReceived(data)
-	if self:IsHolder() then
+-- Whether `sender` may be running a loot session. With Master Loot on and a master looter known,
+-- only the master looter: anyone else still holding an old pass (left running, resumed at login)
+-- would otherwise pull the whole raid onto it. Without Master Loot, or before the group is known,
+-- anyone, as before.
+local function mayHold(sender)
+	if not sender or not PLC.CouncilRules:IsMasterLootMethod() then
+		return true
+	end
+	local unit = PLC.CouncilRules:GetMasterLooterUnit()
+	local name = unit and UnitName(unit)
+	if not name or name == UNKNOWNOBJECT then
+		return true
+	end
+	return strlower((strsplit("-", name))) == strlower((strsplit("-", sender)))
+end
+
+function Session:OnSessionStartReceived(data, sender)
+	if self:IsHolder() or not mayHold(sender) then
 		return
 	end
 	matchPreviewState(data.preview)
@@ -1134,6 +1164,32 @@ function Session:SendMyResponse(idx, response, note)
 	self:notifyLootFrame()
 end
 
+-- Several answers in one message: an item that dropped twice, or everything this character can't
+-- use (Data/AutoPass.lua). One by one they'd queue behind the server's limit of 1 message a second,
+-- with the player's own answers behind them. answers: { [idx] = { response, note } }.
+function Session:SendMyResponses(answers)
+	if self.state ~= "active" then
+		return
+	end
+	local guid = UnitGUID("player")
+	local sent = {}
+	for idx, answer in pairs(answers) do
+		if self.items[idx] and answer.response then
+			self.responses[idx] = self.responses[idx] or {}
+			self.responses[idx][guid] = { response = answer.response, note = answer.note }
+			sent[idx] = { response = answer.response, note = answer.note }
+		end
+	end
+	if not next(sent) then
+		return
+	end
+	PLC.Comms.Sync:SendResponses(self.sessionId, guid, sent)
+	for idx in pairs(sent) do
+		self:notifyVotingFrame(idx, guid)
+	end
+	self:notifyLootFrame()
+end
+
 function Session:OnResponseReceived(data)
 	if not data.sessionId or data.sessionId ~= self.sessionId then
 		return
@@ -1159,6 +1215,8 @@ function Session:OnAwardReceived(data)
 	if item then
 		item.awarded = data.winnerGuid
 		item.awardReason = data.reason or "award"
+		local winner = PLC.Roster:Get(data.winnerGuid)
+		item.winnerName, item.winnerClass = winner and winner.name, winner and winner.class
 		item.votes = self.responses[data.idx] or item.votes
 		item.awardedAt = time()
 		item.preAwardGuid = nil
@@ -1228,8 +1286,8 @@ function Session:OnTradeCompleteReceived(data)
 	self:notifyTradeFrame()
 end
 
-function Session:OnHeartbeatReceived(data)
-	if not data.sessionId or self:IsHolder() then
+function Session:OnHeartbeatReceived(data, sender)
+	if not data.sessionId or self:IsHolder() or not mayHold(sender) then
 		return
 	end
 	lastHeartbeatAt = time()
@@ -1466,7 +1524,7 @@ function Session:OnSyncRequestReceived(data, sender)
 	end
 end
 
-function Session:OnSyncDataReceived(data)
+function Session:OnSyncDataReceived(data, sender)
 	if self:IsHolder() or not data.sessionId then
 		return
 	end
@@ -1478,6 +1536,9 @@ function Session:OnSyncDataReceived(data)
 			self:notifyLootFrame()
 			self:notifyTradeFrame()
 		end
+		return
+	end
+	if not mayHold(sender) then
 		return
 	end
 	-- Sent to the whole group when several asked at once: it's only for those who did, or who
@@ -1531,7 +1592,11 @@ function Session:OnSyncDataReceived(data)
 	self:notifySessionFrame()
 end
 
+-- A running pass older than this isn't resumed at login: it was left running by mistake.
+local STALE_SECONDS = 6 * 3600
+
 local function restoreFromSaved()
+	Session.nextIdx = PLC.db.char.nextIdx or 1
 	local saved = PLC.db.char.activeSession
 	if not saved then
 		return
@@ -1542,7 +1607,7 @@ local function restoreFromSaved()
 	Session.items = saved.items or {}
 	Session.responses = saved.responses or {}
 	Session.lastHolderSeenAt = saved.lastHolderSeenAt or time()
-	Session.nextIdx = saved.nextIdx or 1
+	Session.nextIdx = math.max(Session.nextIdx, saved.nextIdx or 1)
 	Session.responseTimeoutSeconds = saved.responseTimeoutSeconds or PLC.db.profile.responseTimeoutSeconds
 	Session.responseSet = PLC.Responses.Sanitize(saved.responseSet)
 	Session.isCollector = saved.isCollector or false
@@ -1552,13 +1617,19 @@ local function restoreFromSaved()
 	-- Only a save explicitly marked active resumes. Saves from before state was persisted
 	-- (state == nil) used to be treated as active, which resurrected long-dead sessions on every
 	-- reload and made that client ignore everyone else's session_start as the "holder."
-	if isOwner and saved.sessionId and saved.state == "active" then
+	local fresh = time() - (saved.lastHolderSeenAt or 0) <= STALE_SECONDS
+	if isOwner and saved.sessionId and saved.state == "active" and fresh then
 		-- A formal review pass was active -- resume it fully, heartbeat included.
 		Session.state = "active"
 		Session.sentFirstBatch = true
 		Session.responseSet = Session.responseSet or PLC.Responses:GetConfigured()
+		resumedAtLogin = true
 		startHeartbeat()
 		print(L["CHAT_PREFIX"] .. L["SESSION_RESTORED"])
+	elseif isOwner and saved.sessionId and saved.state == "active" then
+		-- Left running hours ago: it's over. The items stay, for the next pass.
+		Session.state = "ended"
+		Session.isCollector = next(Session.items) ~= nil
 	elseif isOwner and saved.state then
 		-- Ended, but items may still be awaiting trade/disenchant -- keep owner (IsOwner) without
 		-- resuming the review pass or its heartbeat.

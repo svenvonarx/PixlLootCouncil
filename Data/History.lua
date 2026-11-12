@@ -197,7 +197,8 @@ function History:RecordAward(item, winnerGuid, reason)
 		groupSize = item.groupSize,
 		note = note,
 		id = serverTime() .. "-" .. historyCounter,
-		owner = normalizeName(ownerEntry and ownerEntry.name),
+		-- Only the holder records awards, so without a roster entry it's this player.
+		owner = normalizeName((ownerEntry and ownerEntry.name) or UnitName("player")),
 	}
 	historyCounter = historyCounter + 1
 

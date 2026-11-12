@@ -59,8 +59,25 @@ end
 
 -- Items this character can't use get a Pass by themselves (Data/AutoPass.lua), with a note so the
 -- council knows why, and never show here. Sent once the rows are built: sending refreshes this
--- window, which mustn't happen in the middle of building it.
+-- window, which mustn't happen in the middle of building it. All of them in one message
+-- (Session:SendMyResponses): a mage passes on half a raid night's loot at once.
 local passing = {} -- [idx] = true, a pass on its way
+local passTimer
+
+local function sendPasses()
+	passTimer = nil
+	local Session = PLC.Session
+	local answers = {}
+	for idx in pairs(passing) do
+		if Session.state == "active" and Session.items[idx] and not myResponse(idx) then
+			answers[idx] = { response = "PASS", note = PLC.AutoPass:Note() }
+		end
+	end
+	wipe(passing)
+	if next(answers) then
+		Session:SendMyResponses(answers)
+	end
+end
 
 local function shouldAutoPass(idx, item)
 	if passing[idx] or not PLC.db.profile.autoPass or not PLC.Responses:Find("PASS") then
@@ -68,13 +85,7 @@ local function shouldAutoPass(idx, item)
 	end
 	if PLC.AutoPass:ShouldPass(item.link, item.itemString) then
 		passing[idx] = true
-		PLC:ScheduleTimer(function()
-			passing[idx] = nil
-			local Session = PLC.Session
-			if Session.state == "active" and Session.items[idx] and not myResponse(idx) then
-				Session:SendMyResponse(idx, "PASS", PLC.AutoPass:Note())
-			end
-		end, 0)
+		passTimer = passTimer or PLC:ScheduleTimer(sendPasses, 0)
 		return true
 	end
 	return false
@@ -125,10 +136,17 @@ local function sessionRows()
 					timeoutSeconds = Session.responseTimeoutSeconds,
 					responses = responses,
 					ownerName = Session.owner and PLC.Roster:ShortName(Session.owner.name) or "?",
+					-- One answer for every copy, in one message.
 					respond = function(answer, note)
-						for _, copy in ipairs(copies) do
-							Session:SendMyResponse(copy, answer, note)
+						if #copies == 1 then
+							Session:SendMyResponse(idx, answer, note)
+							return
 						end
+						local answers = {}
+						for _, copy in ipairs(copies) do
+							answers[copy] = { response = answer, note = note }
+						end
+						Session:SendMyResponses(answers)
 					end,
 				}
 				byItem[key] = row

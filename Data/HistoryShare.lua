@@ -97,7 +97,10 @@ function History:OnHistoryShared(data, sender)
 	end
 	if count > 0 then
 		self:notifyFrame()
-		print(L["CHAT_PREFIX"] .. string.format(L["HISTORY_SHARE_RECEIVED"], count, (strsplit("-", sender))))
+		-- quiet: an Award All's own entries (Comms/Sync.lua:FlushBatch), which need no chat line.
+		if not data.quiet then
+			print(L["CHAT_PREFIX"] .. string.format(L["HISTORY_SHARE_RECEIVED"], count, (strsplit("-", sender))))
+		end
 	end
 end
 

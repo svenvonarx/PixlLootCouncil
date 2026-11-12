@@ -7,6 +7,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- auto pass, but read from the item's own tooltip, which the game already colors red for whatever
 -- this character can't meet: another class's token ("Classes: ..."), an armor or weapon type it
 -- can't use, a profession it doesn't have or a pattern it already knows, a level it hasn't reached.
+-- A pattern for the character's own profession that only needs more skill doesn't pass.
 -- That works the same in every client language. On top, RCLootCouncil's weapon rule, kept to what
 -- holds in TBC: a caster weapon (Intellect, no Strength or Agility) for a physical class, and a
 -- physical one (Strength or Agility, no Intellect) for a pure caster. Hybrids never pass on stats.
@@ -17,6 +18,7 @@ PLC.AutoPass = AutoPass
 local PHYSICAL = { WARRIOR = true, ROGUE = true, HUNTER = true }
 local CASTER = { PRIEST = true, MAGE = true, WARLOCK = true }
 local WEAPON_CLASS = (Enum and Enum.ItemClass and Enum.ItemClass.Weapon) or 2
+local RECIPE_CLASS = (Enum and Enum.ItemClass and Enum.ItemClass.Recipe) or 9
 
 local scanTooltip
 local cache = {} -- [itemString] = true/false, once the item's tooltip could be read
@@ -29,7 +31,8 @@ local function isRed(fontString)
 	return r and r > 0.95 and g < 0.2 and b < 0.2
 end
 
--- true: something on the tooltip is red. nil: the tooltip couldn't be read yet (not cached).
+-- true: something on the tooltip is red; second value: one of the red lines says it's already known
+-- (ITEM_SPELL_KNOWN). nil: the tooltip couldn't be read yet (not cached).
 local function tooltipSaysUnusable(link)
 	if not scanTooltip then
 		scanTooltip = CreateFrame("GameTooltip", "PixlLootCouncilAutoPassTooltip", nil, "GameTooltipTemplate")
@@ -42,15 +45,33 @@ local function tooltipSaysUnusable(link)
 		scanTooltip:Hide()
 		return nil
 	end
-	local red = false
+	local red, known = false, false
 	for i = 2, lines do
-		if isRed(_G["PixlLootCouncilAutoPassTooltipTextLeft" .. i]) or isRed(_G["PixlLootCouncilAutoPassTooltipTextRight" .. i]) then
+		local left = _G["PixlLootCouncilAutoPassTooltipTextLeft" .. i]
+		if isRed(left) or isRed(_G["PixlLootCouncilAutoPassTooltipTextRight" .. i]) then
 			red = true
-			break
+			if ITEM_SPELL_KNOWN and left and left:GetText() == ITEM_SPELL_KNOWN then
+				known = true
+			end
 		end
 	end
 	scanTooltip:Hide()
-	return red
+	return red, known
+end
+
+-- Whether this character has the profession a recipe is for, at any skill: the recipe's item
+-- subtype is the profession's name, in the client's language like the skill list.
+local function hasProfession(name)
+	if not name or not GetNumSkillLines then
+		return false
+	end
+	for i = 1, GetNumSkillLines() do
+		local skillName, isHeader = GetSkillLineInfo(i)
+		if not isHeader and skillName == name then
+			return true
+		end
+	end
+	return false
 end
 
 local function wrongWeaponStats(link)
@@ -79,7 +100,7 @@ function AutoPass:ShouldPass(link, itemString)
 	if cache[key] ~= nil then
 		return cache[key]
 	end
-	local _, _, _, _, _, _, _, _, equipLoc, _, _, classID = C_Item.GetItemInfo(link)
+	local _, _, _, _, _, _, subType, _, equipLoc, _, _, classID = C_Item.GetItemInfo(link)
 	if not equipLoc then
 		return nil
 	end
@@ -87,9 +108,13 @@ function AutoPass:ShouldPass(link, itemString)
 	if equipLoc == "INVTYPE_CLOAK" then
 		pass = false
 	else
-		local red = tooltipSaysUnusable(link)
+		local red, known = tooltipSaysUnusable(link)
 		if red == nil then
 			return nil
+		end
+		if red and classID == RECIPE_CLASS and not known and hasProfession(subType) then
+			-- Their own profession, only not skilled enough yet: theirs to answer.
+			red = false
 		end
 		pass = red or (classID == WEAPON_CLASS and wrongWeaponStats(link))
 	end

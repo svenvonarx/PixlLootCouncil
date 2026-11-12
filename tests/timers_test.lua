@@ -61,5 +61,20 @@ local byName = PLC:ScheduleRepeatingTimer("Tick", 5, "x", nil)
 fire(byName)
 check("T3", got and got[1] == PLC and got[2] == "x" and got[3] == nil and byName.delay == 5, "a method name and arguments work as before")
 
+-- Game events: several parts of the addon listen to the same one (Core/Events.lua).
+local Events = {}
+do
+	local host = { RegisterEvent = function() end }
+	assert(loadfile("Core/Events.lua"))("PixlLootCouncil", host)
+	Events = host.Events
+end
+local heard = {}
+Events:RegisterHandler("LOOT_READY", function() error("first one breaks") end)
+Events:RegisterHandler("LOOT_READY", function(_, arg) heard[#heard + 1] = arg end)
+local reportedBefore = #reported
+Events.Dispatch("LOOT_READY", "corpse")
+check("E1", heard[1] == "corpse", "one listener failing doesn't keep the others from hearing the event")
+check("E2", #reported == reportedBefore + 1 and reported[#reported]:find("first one breaks", 1, true) ~= nil, "and the error is still reported")
+
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -9,6 +9,7 @@ _G.print = function() end
 _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 _G.strsplit = function(sep, s) local a, b = s:match("^(.-)" .. sep .. "(.*)$"); if a then return a, b end return s end
 _G.strtrim = function(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
+_G.strlower = string.lower
 _G.LE_PARTY_CATEGORY_HOME, _G.LE_PARTY_CATEGORY_INSTANCE = 1, 2
 _G.UnitIsGroupLeader = function() return current.leader end
 _G.IsInGroup = function(category) return current.inGroup and (category == nil or category == 1) end
@@ -18,7 +19,11 @@ _G.IsInRaid = function(category)
 end
 _G.UnitGUID = function() return current.guid end
 _G.IsPartyLFG = function() return current.inBattleground end
-_G.UnitName = function() return current.name end
+masterLooter = nil -- the client that's master looter, with Master Loot on; nil = another loot method
+_G.UnitName = function(unit)
+	if unit == "ml" then return masterLooter and masterLooter.name end
+	return current.name
+end
 _G.GetRealmName = function() return "Realm" end
 _G.C_ChatInfo = { SendChatMessage = function() end }
 _G.C_Item = { GetItemInfo = function(link) return "Item", "|cff|H" .. tostring(link) .. "|h[Item]|h|r", 4, 100, nil, nil, nil, nil, "INVTYPE_HEAD", 1 end }
@@ -115,7 +120,8 @@ local function advance(seconds)
 end
 
 -- A client --------------------------------------------------------------------------------------------
-local function newClient(name, guid)
+-- saved: what the character's saved data holds of an earlier session (db.char.activeSession).
+local function newClient(name, guid, saved)
 	local client = { name = name, guid = guid, inGroup = true, leader = false, handlers = {}, timers = {}, lootFrameShows = 0, synced = 0 }
 	local PLC = { Loot = {}, UI = {}, Comms = {} }
 	client.PLC = PLC
@@ -146,7 +152,11 @@ local function newClient(name, guid)
 		IterateGroup = function() return pairs({}) end,
 		ShortName = function(_, n) return n end,
 	}
-	PLC.CouncilRules = setmetatable({ IsMasterLootMethod = function() return false end }, { __index = function() return noop end })
+	PLC.CouncilRules = setmetatable({
+		IsMasterLootMethod = function() return masterLooter ~= nil end,
+		GetMasterLooterUnit = function() return masterLooter and "ml" or nil end,
+		AmIMasterLooter = function() return masterLooter == client end,
+	}, { __index = function() return noop end })
 	PLC.Preview = setmetatable({}, { __index = function() return noop end })
 	PLC.Gear, PLC.Professions, PLC.History = quiet, quiet, quiet
 	PLC.Loot.Detection, PLC.Loot.BagTracker = quiet, quiet
@@ -155,7 +165,7 @@ local function newClient(name, guid)
 	as(client, function()
 		assert(loadfile("Core/Events.lua"))("PixlLootCouncil", PLC)
 		assert(loadfile("Core/Defaults.lua"))("PixlLootCouncil", PLC)
-		PLC.db = { profile = deepcopy(PLC.Defaults.profile), char = {}, global = {} }
+		PLC.db = { profile = deepcopy(PLC.Defaults.profile), char = { activeSession = saved }, global = {} }
 		assert(loadfile("Data/Responses.lua"))("PixlLootCouncil", PLC)
 		assert(loadfile("Loot/Announce.lua"))("PixlLootCouncil", PLC)
 		assert(loadfile("Data/Session.lua"))("PixlLootCouncil", PLC)
@@ -448,6 +458,98 @@ advance(60)
 check("D30", everyone(hasSession), "everyone back from the loading screen one by one catches up")
 check("D31", count("session_sync_data") <= 2, "with at most two answers, not one each: " .. count("session_sync_data"))
 sendSeconds.session_sync_data = nil
+
+-- Item numbers used again ------------------------------------------------------------------------------------
+-- Raiders keep a pass's awarded items, to look back at. The next pass can use the same numbers, from
+-- another master looter or one whose list was cleared: its items are new ones, not awarded.
+local function award(idx, winner)
+	as(holder, function() holder.Session:SetPreAward(idx, winner.guid, "award") end)
+end
+local function awardAll()
+	as(holder, function() holder.Session:AwardAllPreAwarded() end)
+end
+reset()
+startSession(2)
+advance(2)
+award(1, ana); award(2, bo); awardAll()
+advance(3)
+check("N1", ana.Session.items[1] and ana.Session.items[1].awarded == ana.guid and ana.Session.state == "ended",
+	"(a pass is awarded and over; raiders keep its items, with who got them)")
+as(holder, function()
+	holder.Session.items, holder.Session.nextIdx = {}, 1
+	holder.Session:ApplyItems({ [1] = { idx = 1, itemString = "item:2001", quality = 4 }, [2] = { idx = 2, itemString = "item:2002", quality = 4 } })
+	holder.Session.nextIdx = 3
+	holder.Session:Start()
+end)
+advance(2)
+check("N2", everyone(function(r) return r.Session.items[1].itemString == "item:2001" and not r.Session.items[1].awarded end),
+	"the next pass's items with the same numbers are new ones, not awarded already")
+for k in pairs(sent) do sent[k] = nil end
+advance(60)
+check("N3", count("session_sync_request") == 0, "and nobody keeps asking to catch up")
+
+-- Dropped twice ------------------------------------------------------------------------------------------------
+-- Raiders answer once for both copies; the master looter gives them to two different people.
+reset()
+as(holder, function()
+	holder.Session:ApplyItems({ [1] = { idx = 1, itemString = "item:31099", quality = 4 }, [2] = { idx = 2, itemString = "item:31099", quality = 4 } })
+	holder.Session.nextIdx = 3
+	holder.Session:Start()
+end)
+advance(2)
+for k in pairs(sent) do sent[k] = nil end
+as(ana, function() ana.Session:SendMyResponses({ [1] = { response = "BIS" }, [2] = { response = "BIS" } }) end)
+as(bo, function() bo.Session:SendMyResponses({ [1] = { response = "OS", note = "pvp" }, [2] = { response = "OS", note = "pvp" } }) end)
+advance(2)
+check("T1", holderHas(ana, 1) and holderHas(ana, 2) and holderHas(bo, 2) and count("responses", ana) == 1 and count("response", ana) == 0,
+	"one answer for an item that dropped twice counts for both copies, in one message")
+check("T2", cy.Session.responses[2][bo.guid].note == "pvp", "and everyone on the council sees it on each copy, note included")
+award(1, ana); award(2, bo); awardAll()
+advance(3)
+check("T3", everyone(function(r) return r.Session.items[1].awarded == ana.guid and r.Session.items[2].awarded == bo.guid end),
+	"the two copies go to two different people, and everyone sees who got which")
+check("T4", di.Session.items[2].votes and di.Session.items[2].votes[bo.guid].response == "OS",
+	"with the votes kept on each, to look back at who else wanted it")
+
+-- Someone else's old session ------------------------------------------------------------------------------------
+-- A character whose own pass was left running resumes it at login. With a master looter in the
+-- raid, nobody follows it, and it ends once that character sees who the master looter is.
+reset()
+masterLooter = holder
+startSession(3)
+advance(3)
+masterLooter = bo -- (so Bo's client lets it start: the pass it "resumed")
+as(bo, function()
+	bo.Session.state = "inactive"
+	bo.Session:ApplyItems({ [1] = { idx = 1, itemString = "item:9001", quality = 4 } })
+	bo.Session.nextIdx = 2
+	bo.Session:Start()
+end)
+masterLooter = holder
+for k in pairs(sent) do sent[k] = nil end
+advance(60)
+local others = { ana, cy, di }
+local stayed = true
+for _, r in ipairs(others) do stayed = stayed and hasSession(r) end
+check("O1", stayed, "nobody leaves the master looter's session for someone else's")
+check("O2", count("session_sync_data") == 0, "and no whole sessions get sent back and forth: " .. count("session_sync_data"))
+as(bo, function() bo.Session:End() end)
+
+local old = newClient("Old", "guid-old", {
+	sessionId = "guid-old-1", state = "active", owner = { guid = "guid-old", name = "Old" }, nextIdx = 2,
+	items = { [1] = { idx = 1, itemString = "item:7001", sentIn = "guid-old-1" } }, lastHolderSeenAt = now - 600,
+})
+check("O3", as(old, function() return old.Session:IsHolder() end), "(a pass from ten minutes ago is resumed at login: a reload mid-raid)")
+as(old, function() old.Session:OnRosterRebuilt() end)
+check("O4", old.Session.state == "ended", "in a raid whose master looter is someone else, it ends")
+old.inGroup = false
+local ancient = newClient("Ancient", "guid-ancient", {
+	sessionId = "guid-ancient-1", state = "active", owner = { guid = "guid-ancient", name = "Ancient" }, nextIdx = 2,
+	items = { [1] = { idx = 1, itemString = "item:7002", sentIn = "guid-ancient-1" } }, lastHolderSeenAt = now - 8 * 3600,
+})
+check("O5", ancient.Session.state == "ended" and ancient.Session.items[1] ~= nil, "a pass left running hours ago isn't resumed at all; its items stay")
+ancient.inGroup = false
+masterLooter = nil
 
 -- What it costs ------------------------------------------------------------------------------------------------
 check("D25", holder.PLC.db.profile.sessionHeartbeatSeconds == 10, "heartbeats every 10 seconds by default, so a repair takes about 20")

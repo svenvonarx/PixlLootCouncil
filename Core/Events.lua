@@ -23,8 +23,15 @@ function Events.Dispatch(eventName, ...)
 	if not list then
 		return
 	end
+	-- Each on its own: one handler failing mustn't keep the others from hearing the event.
 	for _, fn in ipairs(list) do
-		fn(eventName, ...)
+		local ok, err = pcall(fn, eventName, ...)
+		if not ok then
+			local handler = geterrorhandler and geterrorhandler()
+			if handler then
+				handler(err)
+			end
+		end
 	end
 end
 

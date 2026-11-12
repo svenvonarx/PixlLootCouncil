@@ -251,8 +251,8 @@ check("B12", banked.awarded == ME and banked.awardReason == "bank" and banked.tr
 check("B13", Session.items[1] == banked and banked.votes and banked.votes[ME].response == "BIS",
 	"and stays listed, finished, with the votes it was awarded on, until the master looter removes it")
 check("B14", #sentOf("SendAward") == 1 and sentOf("SendAward")[1][4] == "bank" and #sentOf("SendTradeComplete") == 1, "everyone hears the reason, and that it's done")
-check("B15", windows.trades == nil, "Loot Trades stays closed with nothing to trade")
-check("B16", #chat == 1 and chat[1][1] == "ANNOUNCE_BANK" and LOCALE["ANNOUNCE_BANK"]:find("%s", 1, true) ~= nil, "raid chat gets the bank line, with no name")
+check("B15", windows.trades == 1, "Loot Trades opens with who got what, even with nothing to trade")
+check("B16", #chat == 1 and chat[1][1] == "ANNOUNCE_AWARDS" and LOCALE["ANNOUNCE_AWARDS"]:find("%d", 1, true) ~= nil, "raid chat gets one line for the whole Award All, with how many")
 
 local entries = PLC.lootDB.factionrealm["Pixl-Realm"] or select(2, next(PLC.lootDB.factionrealm))
 local entry = entries and entries[1]
@@ -669,6 +669,25 @@ local winner
 for _, row in ipairs(panel:buildRows()) do if row.awardedTo then winner = row.guid end end
 check("K3", winner == MULE, "the winner's row says who got it")
 local canManage = Session.CanManage
+-- Clicking an awarded item keeps it selected through the window's refreshes (a bag scan, any update).
+local clickIcon = SessionFrame.SelectItem
+session()
+Session:SetPreAward(1, MULE, "award"); Session:SetPreAward(2, MULE, "award")
+Session:AwardAllPreAwarded()
+SessionFrame:Open()
+check("K5", panel.currentIdx ~= nil and findUpvalue(PLC.UI.SessionFrame.Open, "detailContainer").shown,
+	"with everything awarded the window still shows an item, not a blank")
+clickIcon(SessionFrame, 2)
+SessionFrame:OnSessionUpdated(); SessionFrame:OnSessionUpdated()
+check("K6", panel.currentIdx == 2 and findUpvalue(PLC.UI.SessionFrame.Open, "detailContainer").shown,
+	"an awarded item clicked to look back at stays selected when the window refreshes")
+session()
+Session:SetPreAward(1, MULE, "award")
+Session.items[1].awarded, Session.items[1].preAwardGuid = MULE, nil -- item 1 gets awarded while it's selected
+SessionFrame:Open()
+SessionFrame:OnSessionUpdated()
+check("K7", panel.currentIdx == 2, "an item that gets awarded while selected still makes way for the next one to decide")
+
 Session.CanManage = function() return true end -- the master looter, who holds what they collected
 Session:RemoveAllItems()
 Session.CanManage = canManage

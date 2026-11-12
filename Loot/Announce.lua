@@ -79,7 +79,10 @@ function Announce:AnnounceSessionStart(items)
 	post(string.format(L["ANNOUNCE_SESSION_START"], count), channel)
 end
 
-function Announce:AnnounceAward(entry)
+-- One line for a whole Award All. Who got what is in everyone's Loot Trades window
+-- (UI/TradeFrame.lua): a line per item took a second each to leave, 40 seconds of raid chat for a
+-- night's loot, and the server dropped some when they went faster.
+function Announce:AnnounceAwards(count)
 	if not (iAmHolder() and PLC.db.profile.announce.award) then
 		return
 	end
@@ -87,13 +90,5 @@ function Announce:AnnounceAward(entry)
 	if not channel then
 		return
 	end
-	-- Disenchant deliberately omits the winner name -- the Enchanter isn't "the winner" the way a
-	-- regular award's recipient is, just the designated hand it passes through.
-	if entry.reason == "disenchant" then
-		post(string.format(L["ANNOUNCE_DISENCHANT"], entry.link), channel)
-	elseif entry.reason == "bank" then
-		post(string.format(L["ANNOUNCE_BANK"], entry.link), channel)
-	else
-		post(string.format(L["ANNOUNCE_AWARD"], entry.link, entry.winnerName), channel)
-	end
+	post(string.format(L["ANNOUNCE_AWARDS"], count), channel)
 end

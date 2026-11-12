@@ -95,9 +95,7 @@ L["LOOT_METHOD_NOT_MASTER"] = "This group's loot method isn't Master Loot -- Pix
 
 
 L["ANNOUNCE_SESSION_START"] = "[PixlLootCouncil] Loot session started with %d item(s) -- check your Loot Response window!"
-L["ANNOUNCE_AWARD"] = "[PixlLootCouncil] %s awarded to %s"
-L["ANNOUNCE_DISENCHANT"] = "[PixlLootCouncil] %s sent to disenchant"
-L["ANNOUNCE_BANK"] = "[PixlLootCouncil] %s sent to the bank"
+L["ANNOUNCE_AWARDS"] = "[PixlLootCouncil] %d item(s) awarded. Who got what is in the Loot Trades window (/plc trades)."
 
 L["COMMS_UNKNOWN_VERSION"] = "Ignored a message using protocol version %s (newer than this client understands)."
 
@@ -116,6 +114,7 @@ L["SESSION_ADDITEM_USAGE"] = "Usage: /plc additem <itemID or itemLink>"
 L["SESSION_ADDITEM_UNKNOWN"] = "Could not resolve that item -- check the itemID/link, or try again once it's cached."
 L["SESSION_ADDITEM_SUCCESS"] = "Added %s to the session."
 L["SESSION_ALREADY_AWARDED"] = "That item has already been awarded."
+L["SESSION_NOT_MASTER_LOOTER"] = "Someone else is master looter now, so your loot session from before has ended."
 L["SESSION_AWARD_UNKNOWN_WINNER"] = "Could not find that player in the roster."
 L["SESSION_REMOVED_ALL"] = "Removed %d item(s) from the loot session."
 L["SESSION_DROPPED_EXCLUDED"] = "Removed %d item(s) that aren't reviewed anymore from the loot session, such as %s."
@@ -269,7 +268,7 @@ L["OPTIONS_SECONDS"] = "%d seconds"
 L["OPTIONS_MINUTE"] = "%d minute"
 L["OPTIONS_MINUTES"] = "%d minutes"
 L["TIP_ANNOUNCE_START"] = "Post a line in raid chat when you start a session, so raiders know to respond."
-L["TIP_ANNOUNCE_AWARD"] = "Post who gets each item in raid chat when you press Award All."
+L["TIP_ANNOUNCE_AWARD"] = "Post one line in raid chat when you press Award All. Who got what shows in everyone's Loot Trades window."
 L["TIP_RC_BRIDGE"] = "When your master looter uses RCLootCouncil, their items open in your Loot Response window. This only works while RCLootCouncil itself is disabled on this character."
 L["TIP_MIRROR_RC"] = "When your master looter uses RCLootCouncil and shares awards with the raid, keep them in your own Loot History."
 L["TIP_AUTO_START"] = "As master looter, a session opens by itself a few seconds after you collect loot. Turn this off to start sessions yourself, from the Loot Timers window."

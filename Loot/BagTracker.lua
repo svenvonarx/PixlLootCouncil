@@ -341,7 +341,7 @@ local function inBags(item)
 	return not item.traded and (item.itemGUID or (item.bagged and not item.lootSlot)) and item.instance ~= nil
 end
 
-local function findExtraCopies(counts)
+local function findExtraCopies(counts, snapshot)
 	local Session = PLC.Session
 	local extra = {}
 	if Session.preview or not Session:CanManage() then
@@ -382,7 +382,10 @@ local function findExtraCopies(counts)
 				if excess == 0 then
 					break
 				end
-				if not Session.items[idx].awarded then
+				-- Never one whose own copy is in the bags: that one is real. The one that isn't may
+				-- be an awarded item handed over outside the addon, which stays for Loot Trades.
+				local item = Session.items[idx]
+				if not item.awarded and not (item.itemGUID and snapshot[item.itemGUID]) then
 					table.insert(extra, idx)
 					excess = excess - 1
 				end
@@ -514,13 +517,17 @@ function BagTracker:Scan()
 				entry = type(copy) == "table" and copy or nil
 			end
 			if entry then
-				local before = item.tradeExpiresAt
+				local before, wasBoe, wasUntradable = item.tradeExpiresAt, item.boe, item.untradable
 				applyStatus(item, self:GetTradeStatus(entry.bag, entry.slot))
 				-- The tooltip only has minute precision; don't churn on sub-minute differences.
 				if before and item.tradeExpiresAt and math.abs(before - item.tradeExpiresAt) < 60 then
 					item.tradeExpiresAt = before
 				end
-				changed = true
+				-- Only a real change counts: every scan saying "changed" redrew the windows each time
+				-- the bags moved.
+				if item.tradeExpiresAt ~= before or item.boe ~= wasBoe or item.untradable ~= wasUntradable then
+					changed = true
+				end
 			end
 		end
 	end
@@ -533,7 +540,7 @@ function BagTracker:Scan()
 		if #gone > 0 then
 			dropGoneItems(gone)
 		end
-		local extra = findExtraCopies(counts)
+		local extra = findExtraCopies(counts, snapshot)
 		if #extra > 0 then
 			dropExtraCopies(extra)
 		end
