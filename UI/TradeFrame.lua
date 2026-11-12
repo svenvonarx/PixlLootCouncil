@@ -293,6 +293,8 @@ local function ensureFrame()
 	Primitives.makeResizable(frame, frameWidth, 140, frameWidth, 600)
 	frame:SetScript("OnHide", function()
 		stopTicker()
+		-- A preview waits for this window to close before it ends (Data/Preview.lua).
+		PLC.Preview:CheckFinished()
 	end)
 
 	frame.bg = Primitives.createTexture(frame, "BACKGROUND", "frame")
@@ -373,6 +375,10 @@ end
 
 function TradeFrame:OnSessionUpdated()
 	self:Refresh()
+end
+
+function TradeFrame:IsShown()
+	return frame ~= nil and frame:IsShown()
 end
 
 -- Forces the window open even if it was manually closed (still hides itself if there's nothing to

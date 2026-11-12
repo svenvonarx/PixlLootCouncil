@@ -48,6 +48,8 @@ PLC.Session = { items = {}, sessionId = "S2", owner = { guid = ML, name = "Brukt
 local ROSTER = { [ANA] = { name = "Ana-Realm", class = "MAGE" }, [BO] = { name = "Bo-Realm", class = "ROGUE" }, [ME] = { name = "Me-Realm", class = "MAGE" } }
 PLC.Roster = { Get = function(_, guid) return ROSTER[guid] end, ShortName = function(_, name) return name and name:match("^[^-]+") end }
 PLC.Loot.BagTracker = { StatusText = function() return nil end }
+local finishChecks = 0
+PLC.Preview = { CheckFinished = function() finishChecks = finishChecks + 1 end }
 assert(loadfile("UI/TradeFrame.lua"))("PixlLootCouncil", PLC)
 local TradeFrame = PLC.UI.TradeFrame
 
@@ -84,6 +86,7 @@ PLC.Session.items = {
 }
 TradeFrame:Open()
 check("W1", window().shown, "Loot Trades opens when an Award All arrives")
+check("W1a", TradeFrame:IsShown(), "and says it's showing, which a preview waits on")
 check("W2", kinds() == "collect2,result1,result3", "what's mine to collect first, then who got the rest: " .. kinds())
 local columns = upvalue(TradeFrame.Refresh, "dataTable").columns
 local name, r, g = columns[3].render(shownRows[2])
@@ -97,7 +100,9 @@ columns[5].update(trade, shownRows[1])
 check("W6", trade.tradeButton.shown, "and Trade on my own")
 
 -- When it shows -------------------------------------------------------------------------------------------
+local checksBefore = finishChecks
 window().scripts.OnHide(window()); window():Hide()
+check("W7", finishChecks == checksBefore + 1, "closing it lets a preview that was waiting for it end")
 PLC.Session.items[2].traded = true -- collected
 TradeFrame:Refresh()
 check("S1", not window().shown and kinds() == "result1,result2,result3", "results alone don't bring it up by themselves: not at every login")

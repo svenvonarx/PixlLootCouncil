@@ -4,6 +4,12 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
+## Unreleased
+
+- **Fixed:** a preview ended the moment you pressed Award All when nothing was left to trade, which is
+  always the case alone, so the Loot Trades window with who got what never showed. The preview now
+  stays until you close that window.
+
 ## 0.9.1-beta
 
 Fixes for problems found by going through the whole addon again, and awards announced in a window

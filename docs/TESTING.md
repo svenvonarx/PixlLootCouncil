@@ -795,6 +795,8 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
 `luajit tests/delivery_test.lua`, `trades_test.lua`, `award_all_test.lua`, `banking_test.lua`,
 `bags_test.lua`, `loot_window_test.lua`, `autopass_test.lua` and `timers_test.lua` check the rules.
 In game, with at least three clients:
+- **Preview alone:** `/plc preview 10` with nobody else, stage everything to yourself, Award All: Loot
+  Trades opens with the ten items and your name. The preview ends when you close it.
 - **Who got what:** `/plc preview 10`, answer on the raiders, stage everything, Award All. On every
   client Loot Trades opens within a second or two: your own items on top with Trade, then every
   item with its winner in class color and Awarded / Disenchanted / Banked. Raid chat gets one line.

@@ -197,11 +197,18 @@ function Preview:Stop(message)
 	print(L["CHAT_PREFIX"] .. (message or L["PREVIEW_ENDED"]))
 end
 
--- A preview finishes by itself once its review is over and nothing awarded is left to trade.
+-- A preview finishes by itself once its review is over, nothing awarded is left to trade, and the
+-- Loot Trades window with who got what is closed: ending right after Award All put the real loot
+-- list back before anyone saw the results, which a preview alone always did (every award is one's
+-- own, so nothing is left to trade).
 function Preview:CheckFinished()
 	local Session = PLC.Session
 	if not Session.preview or stopping or Session.state == "active" or not Session:IsOwner() then
 		return
+	end
+	local TradeFrame = PLC.UI and PLC.UI.TradeFrame
+	if TradeFrame and TradeFrame.IsShown and TradeFrame:IsShown() then
+		return -- UI/TradeFrame.lua checks again when it closes
 	end
 	for _, item in pairs(Session.items) do
 		if item.awarded and not item.traded then

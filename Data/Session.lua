@@ -1045,15 +1045,16 @@ function Session:AwardAllPreAwarded()
 		error(err, 0)
 	end
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_AWARD_ALL_RESULT"], count))
+	-- Loot Trades: what's to hand out, and who got what. Before the session ends, so a preview
+	-- sees it open and waits for it (Data/Preview.lua:CheckFinished).
+	if count > 0 and PLC.UI and PLC.UI.TradeFrame and PLC.UI.TradeFrame.Open then
+		PLC.UI.TradeFrame:Open()
+	end
 	-- Award All is now also the deliberate "I'm done reviewing" signal, not just a bulk-commit --
 	-- confirmed explicitly (the alternative, leaving End Session as a separate step so voting
 	-- could keep going on other items, was declined). End() already handles broadcasting
 	-- session_end, stopping the heartbeat, and pruning -- nothing else here needs to change.
 	self:End()
-	-- Loot Trades: what's to hand out, and who got what.
-	if count > 0 and PLC.UI and PLC.UI.TradeFrame and PLC.UI.TradeFrame.Open then
-		PLC.UI.TradeFrame:Open()
-	end
 end
 
 -- A practice session sets the real state aside; a real one ends any practice run in progress.
