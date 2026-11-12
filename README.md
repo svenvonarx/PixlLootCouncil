@@ -76,6 +76,8 @@ arrive.
   can still get are shown: not ones whose trade time ran out.
 - **Loot Trades** lists what you're owed. **Trade** opens the trade and places the items, **Follow**
   walks you to the other player, and items you disenchant yourself get a one-click **Disenchant**.
+  Below that it lists who got what in the last review, for everyone: awards are announced there
+  instead of a line each in raid chat.
 
 ### Loot history
 
@@ -121,8 +123,8 @@ arrive.
    (the default), this happens by itself a few seconds after you collect loot.
 3. For each item, click **Award** next to a candidate, **Disenchant**, or **Banking** for items you
    keep. This only *stages* the pick and moves on to the next item.
-4. Press **Award All** when you're done. The awards are announced, recorded in the history, and the
-   session ends.
+4. Press **Award All** when you're done. Everyone's **Loot Trades** window opens with who got what,
+   raid chat gets one line, the awards are recorded in the history, and the session ends.
 5. In **Loot Trades**, click **Trade** next to each item (or open a trade with the winner) and confirm
    the trade.
 
@@ -139,7 +141,9 @@ When a session starts, the **Loot Response** window opens. Pick a response for e
 note if you like. Items your character can't use (another class's token, plate on a mage, a pattern
 for a profession you don't have) get a Pass by themselves and don't show; Options → General turns
 that off. It stays open until every item is answered or its time
-runs out. Awarded items show up in **Loot Trades** with a **Trade** button.
+runs out. An item that dropped twice is one line: you answer once, and the master looter can still
+give the two copies to different people. After Award All, **Loot Trades** opens with who got what,
+and a **Trade** button on anything awarded to you.
 
 If you pick Raider in the welcome window, you're in **raider mode**: when you're master looter, the
 addon doesn't loot, collect or start sessions by itself, so you can run the loot by hand or with

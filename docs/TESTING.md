@@ -791,6 +791,28 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   `/plc share`, `/plc share 2026/11/05` and `/plc share nonsense` (explains the date). A player who
   awarded nothing sees "no awards of your own". Share again: the others get nothing new.
 
+### 2.28 Review fixes and the awards window (0.9.1)
+`luajit tests/delivery_test.lua`, `trades_test.lua`, `award_all_test.lua`, `banking_test.lua`,
+`bags_test.lua`, `loot_window_test.lua`, `autopass_test.lua` and `timers_test.lua` check the rules.
+In game, with at least three clients:
+- **Who got what:** `/plc preview 10`, answer on the raiders, stage everything, Award All. On every
+  client Loot Trades opens within a second or two: your own items on top with Trade, then every
+  item with its winner in class color and Awarded / Disenchanted / Banked. Raid chat gets one line.
+  Close it, `/reload`: it doesn't come up by itself; `/plc trades` shows it. The next session's Award
+  All replaces the list.
+- **Dropped twice:** `/plc additem` the same item twice, start a session: raiders see one line with a
+  2. Answer once. The master looter sees the answer on both, awards them to two different players,
+  Award All: Loot Trades shows the two winners.
+- **Numbers used again:** after that, Remove All on the master looter, `/reload` there (not on the
+  raiders), add two other items and start a session: they come up to vote on for the raiders.
+- **Looking back:** click an awarded item in the Loot Session window, then open and close a bag a
+  few times: it stays selected with its votes. With everything awarded the window isn't blank.
+- **Old session:** on a second character with a session left running (start one, log out without
+  ending it), join the master looter's raid and log in: chat says the old session ended, and the raid
+  stays on the master looter's session.
+- **Passes:** as a mage in a 40-item preview, the plate and tokens pass at once and your BiS click on
+  a cloth item reaches the master looter without delay.
+
 ### 2.27 Second raid night (0.9.0)
 `luajit tests/protocol_test.lua`, `delivery_test.lua`, `bags_test.lua`, `banking_test.lua`,
 `autopass_test.lua` and `loot_window_test.lua` check the rules. In game, with the raid:

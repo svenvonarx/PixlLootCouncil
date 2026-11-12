@@ -27,7 +27,7 @@ Group messages in WoW only reach whoever is there to receive them, so someone on
 
 - A compact **Loot Response** window: one line per item, with a countdown across the row and an optional note. An item that dropped twice is one line, answered once. It's only as tall as the items need, and you can resize it to suit your screen.
 - **Only what you can use.** Another class's tokens, armor or weapons you can't use and patterns for a profession you don't have get a Pass by themselves, so the window shows only what's worth answering.
-- Your awards show up in **Loot Trades**, where **Trade** opens the trade and places the items and **Follow** walks you to the other player.
+- After Award All, **Loot Trades** opens for everyone with who got what. On your own awards, **Trade** opens the trade and places the items and **Follow** walks you to the other player.
 - The master looter can customize the response buttons, and everyone in the session sees the same ones.
 - **Raider mode**: master looting for your own runs with another addon, such as Gargul? Pick Raider in the welcome window, or type `/plc raider`. As master looter, PixlLootCouncil then loots, collects and starts nothing by itself, and sessions others start still open.
 

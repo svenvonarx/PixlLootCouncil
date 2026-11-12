@@ -4,6 +4,37 @@ local _, PLC = ...
 PLC.CHANGELOG_TEXT = [[
 # Changelog
 
+## Unreleased
+
+Fixes for problems found by going through the whole addon again, and awards announced in a window
+instead of raid chat.
+
+- **Who got what, in a window.** After Award All, everyone's Loot Trades window opens with who got
+  each item, in class colors, below what's theirs to collect or hand out. Raid chat gets one line
+  for the whole Award All instead of one per item, which took a second each to send. Raiders
+  without the addon no longer see who got what in chat.
+- **Awards arrive at once.** The awards and the session's end are now a small message of their own,
+  so they reach the raid in a second or two at any size. The history entries follow right after.
+- **An item that dropped twice** is still one line to answer, and the answer now goes out as one
+  message. The master looter gives the two copies to different people as before.
+- **Automatic passes go out as one message** instead of one per item, so your own answers no longer
+  wait behind them. A pattern for your own profession that only needs more skill no longer passes.
+- **Fixed: new items could show as already awarded** for raiders, and never came up to vote on, when
+  the master looter's item numbers started over (list cleared, then a reload) or another master
+  looter ran the next session. Raiders' clients then kept asking to catch up.
+- **Fixed: looking back at an awarded item** in the Loot Session window only lasted until the
+  window's next refresh. It now stays selected, and the window no longer goes blank once everything
+  is awarded.
+- **Fixed: someone else's old session could take over the raid.** A session left running was
+  resumed at login, and everyone followed it. With Master Loot on, only the master looter's session
+  is followed now. A resumed session ends by itself if someone else is master looter, and one left
+  running for more than 6 hours isn't resumed.
+- **Fixed: the "listed twice" cleanup could remove the wrong copy**, the one really in your bags,
+  when the other was awarded and handed over outside the addon.
+- **Fixed:** one part of the addon failing on a game event could keep the other parts from hearing
+  it.
+- The Loot Session window redraws only when something changed, not on every bag update.
+
 ## 0.9.0-beta
 
 Fixes and changes from the second raid night. **Everyone in the raid needs this version**: catch-ups,
