@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.9.1-beta
 
 Fixes for problems found by going through the whole addon again, and awards announced in a window
-instead of raid chat.
+instead of raid chat. **Everyone in the raid needs this version**: awards now arrive in a message
+older versions read only in part.
 
 - **Who got what, in a window.** After Award All, everyone's Loot Trades window opens with who got
   each item, in class colors, below what's theirs to collect or hand out. Raid chat gets one line
