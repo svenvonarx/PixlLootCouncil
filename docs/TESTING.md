@@ -810,6 +810,9 @@ In game, with at least three clients:
 - **Old session:** on a second character with a session left running (start one, log out without
   ending it), join the master looter's raid and log in: chat says the old session ended, and the raid
   stays on the master looter's session.
+- **Share during a session:** as master looter with a session running, press Share in Loot History and
+  type `/plc share`: chat says to share once it has ended, and nothing is sent. End the session: both
+  work.
 - **Passes:** as a mage in a 40-item preview, the plate and tokens pass at once and your BiS click on
   a cloth item reaches the master looter without delay.
 

@@ -87,7 +87,7 @@ arrive.
 - **Share** sends the awards you handed out yourself, among what the window shows, to everyone online
   in your guild and group: for anyone who missed some. `/plc share` does the same for the last 7 days,
   `/plc share 2026/11/05` from that date on. Others only take awards the sender handed out, and skip
-  what they already have.
+  what they already have. It waits until your own loot session has ended.
 
 ### Everything else
 

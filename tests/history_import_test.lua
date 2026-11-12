@@ -120,6 +120,18 @@ check("S6", #sends == 2 and #sends[1].data.entries == 1 and sends[1].data.entrie
 	"from what the window shows (the button): its filters count")
 PLC.db.profile.historyFilters.class = {}
 
+local holding = true
+PLC.Session = { IsHolder = function() return holding end }
+sends, printed = {}, {}
+check("S6a", History:Share("2026/11/01") == 0 and #sends == 0 and printed[1]:find("HISTORY_SHARE_SESSION", 1, true),
+	"not while running a loot session: nothing is sent, and chat says to share once it has ended")
+sends, printed = {}, {}
+slash.share("")
+check("S6b", #sends == 0, "the command neither")
+holding = false
+sends, printed = {}, {}
+check("S6c", History:Share("2026/11/01") == 2 and #sends == 2, "once the session has ended it shares as before")
+
 sends, printed = {}, {}
 check("S7", History:Share("2027/01/01") == 0 and #sends == 0 and printed[1]:find("HISTORY_SHARE_NONE", 1, true), "nothing to share: nothing sent, and chat says so")
 

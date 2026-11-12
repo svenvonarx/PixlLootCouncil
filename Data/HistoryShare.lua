@@ -48,6 +48,12 @@ end
 -- the server lets an addon send 1 message a second after the first 10, so a raid night takes a while.
 -- Returns how many entries are on their way. db: see CollectOwnEntries.
 function History:Share(fromDate, toDate, db)
+	-- Not while holding a loot session: a share goes out on the channel catch-up answers use, and a
+	-- raider coming back from a loading screen would wait behind a whole night's history.
+	if PLC.Session and PLC.Session:IsHolder() then
+		print(L["CHAT_PREFIX"] .. L["HISTORY_SHARE_SESSION"])
+		return 0
+	end
 	local entries = self:CollectOwnEntries(fromDate, toDate, db)
 	if #entries == 0 then
 		print(L["CHAT_PREFIX"] .. L["HISTORY_SHARE_NONE"])

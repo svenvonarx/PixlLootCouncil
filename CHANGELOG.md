@@ -30,6 +30,8 @@ instead of raid chat.
 - **Fixed:** one part of the addon failing on a game event could keep the other parts from hearing
   it.
 - The Loot Session window redraws only when something changed, not on every bag update.
+- **Share waits for your session to end.** The Share button and `/plc share` do nothing while you're
+  running a loot session, and say so, because a share would delay raiders catching up on it.
 
 ## 0.9.0-beta
 
