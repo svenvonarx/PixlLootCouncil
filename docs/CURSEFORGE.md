@@ -2,7 +2,7 @@
 
 **Loot council for TBC Anniversary Classic.** The master looter collects the raid's loot as it drops, the council reviews everyone's interest in one window, and a single click hands it all out. Trades are guided, and every award is kept in a loot history you can browse and export.
 
-> **Beta.** This is an early test version. Please report what you find on [GitHub](https://github.com/svenvonarx/PixlLootCouncil/issues).
+> Found a problem? Please report it on [GitHub](https://github.com/svenvonarx/PixlLootCouncil/issues).
 
 ## Sessions that reach everyone
 

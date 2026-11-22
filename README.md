@@ -5,8 +5,7 @@ raid's loot as it drops, the council reviews everyone's interest in one window, 
 **Award All** hands everything out. Trades are guided, and every award is kept in a loot history you
 can browse and export.
 
-> **Beta.** This is an early test version. Expect rough edges, and please report what you find (see
-> [Reporting bugs](#reporting-bugs)).
+> Found a problem? Please report it (see [Reporting bugs](#reporting-bugs)).
 
 ## Features
 

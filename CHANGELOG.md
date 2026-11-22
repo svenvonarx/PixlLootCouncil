@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.0.0
+
+The first full release, after three raid nights of testing. Everyone in the raid should be on the
+same version.
 
 - **Fixed: "Blocked action" messages in combat**, and the Loot Trades window not opening during a
   fight. Every row carried a hidden one-click Disenchant button, and the game doesn't let a window
