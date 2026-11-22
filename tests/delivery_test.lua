@@ -147,7 +147,12 @@ local function newClient(name, guid, saved)
 		Send = function(_, cmd, data, distribution, target, _, onSent) send(client, cmd, data, distribution, target, onSent) end,
 	}
 	PLC.Roster = {
-		Get = function(_, g) for _, c in ipairs(clients) do if c.guid == g then return { name = c.name .. "-Realm", class = "MAGE" } end end end,
+		Get = function(_, g) for _, c in ipairs(clients) do if c.guid == g and not c.leftGroup then return { name = c.name .. "-Realm", class = "MAGE" } end end end,
+		-- As Data/Roster.lua does it: in the group, or what the session remembers of its voters.
+		GetKnown = function(self, g)
+			local voter = PLC.Session.voters[g]
+			return self:Get(g) or (voter and { name = voter.name, class = voter.class, left = true }) or nil
+		end,
 		GetCouncil = function() return {} end,
 		IterateGroup = function() return pairs({}) end,
 		ShortName = function(_, n) return n end,
@@ -550,6 +555,48 @@ local ancient = newClient("Ancient", "guid-ancient", {
 check("O5", ancient.Session.state == "ended" and ancient.Session.items[1] ~= nil, "a pass left running hours ago isn't resumed at all; its items stay")
 ancient.inGroup = false
 masterLooter = nil
+
+-- Left the raid --------------------------------------------------------------------------------------------------
+-- Someone answers and leaves the group. Their vote stays, and they can still be given the item.
+reset()
+startSession(2)
+advance(2)
+respond(ana, 1, "BIS")
+advance(2)
+ana.leftGroup = true
+check("G1", holder.Session.responses[1][ana.guid].response == "BIS" and holder.Session.voters[ana.guid].name == "Ana-Realm",
+	"an answer from someone who then leaves the group stays, with who they were")
+award(1, ana); awardAll()
+advance(3)
+check("G2", holder.Session.items[1].awarded == ana.guid and holder.Session.items[1].winnerName == "Ana-Realm",
+	"and they can still be awarded the item")
+check("G3", cy.Session.items[1].awarded == ana.guid and cy.Session.items[1].votes[ana.guid].response == "BIS",
+	"with everyone seeing who got it and how they'd voted")
+ana.leftGroup = nil
+
+-- The council changes a vote --------------------------------------------------------------------------------------
+reset()
+startSession(2)
+advance(2)
+respond(bo, 1, "UPGRADE")
+advance(2)
+check("V1", not as(di, function() return di.Session:SetResponseFor(1, bo.guid, "BIS") end) and holder.Session.responses[1][bo.guid].response == "UPGRADE",
+	"a raider who isn't on the council can't change anyone's answer")
+dropRule = function(message, recipient) return message.cmd == "response" and recipient == bo end
+check("V2", as(holder, function() return holder.Session:SetResponseFor(1, bo.guid, "BIS") end), "the council can")
+advance(2)
+check("V3", cy.Session.responses[1][bo.guid].response == "BIS" and cy.Session.responses[1][bo.guid].editedBy == "Holder",
+	"everyone sees the new answer, and who changed it")
+dropRule = nil
+check("V4", bo.Session.responses[1][bo.guid].response == "UPGRADE", "(Bo's own client missed the change)")
+as(bo, function() bo.Session:ResendMyResponses() end)
+advance(2)
+check("V5", holder.Session.responses[1][bo.guid].response == "BIS", "Bo's client sending its answers again doesn't undo it")
+as(holder, function() holder.Session:SetResponseFor(2, cy.guid, "OS") end)
+advance(2)
+check("V6", di.Session.responses[2][cy.guid].response == "OS", "the council can also answer for someone who hasn't")
+award(1, bo); awardAll()
+check("V7", not as(holder, function() return holder.Session:SetResponseFor(1, bo.guid, "UPGRADE") end), "not once the item is awarded")
 
 -- What it costs ------------------------------------------------------------------------------------------------
 check("D25", holder.PLC.db.profile.sessionHeartbeatSeconds == 10, "heartbeats every 10 seconds by default, so a repair takes about 20")

@@ -61,6 +61,7 @@ end)
 -- ADDON_ACTION_BLOCKED/FORBIDDEN fire independently of Lua errors and are the main signal for
 -- taint regressions (protected/secure API misuse) — captured from a dedicated frame so this
 -- works from file-load time, before the Ace addon object exists.
+local said = {} -- [message] = true, already printed to chat this login
 local watcher = CreateFrame("Frame")
 watcher:RegisterEvent("ADDON_ACTION_BLOCKED")
 watcher:RegisterEvent("ADDON_ACTION_FORBIDDEN")
@@ -72,7 +73,9 @@ watcher:SetScript("OnEvent", function(_, event, blockedAddon, functionName)
 	local kind = event == "ADDON_ACTION_BLOCKED" and "blocked" or "forbidden"
 	local message = string.format("%s: %s", event, tostring(functionName))
 	ErrorHandler:LogTaint(kind, message)
-	if L then
+	-- In chat once per action and login; /plc errors has every one.
+	if L and not said[message] then
+		said[message] = true
 		local template = kind == "blocked" and L["TAINT_BLOCKED"] or L["TAINT_FORBIDDEN"]
 		print((L["CHAT_PREFIX"] or "") .. string.format(template, tostring(functionName)))
 	end

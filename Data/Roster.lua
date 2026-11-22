@@ -8,6 +8,7 @@ local Roster = {}
 PLC.Roster = Roster
 
 Roster.members = {} -- [guid] = entry
+Roster.known = {} -- [guid] = { guid, name, class, role, left = true }: everyone seen in the group this login
 
 local function addUnit(members, unit, profile)
 	if not UnitExists(unit) then
@@ -58,6 +59,9 @@ function Roster:Rebuild()
 	end
 
 	self.members = members
+	for guid, entry in pairs(members) do
+		self.known[guid] = { guid = guid, name = entry.name, class = entry.class, role = entry.role, left = true }
+	end
 	if PLC.Session and PLC.Session.OnRosterRebuilt then
 		PLC.Session:OnRosterRebuilt()
 	end
@@ -71,6 +75,33 @@ end
 
 function Roster:Get(guid)
 	return self.members[guid]
+end
+
+-- Someone who's in the group, or was: their votes and awards still need a name and a class after
+-- they leave. From the group as it was this login, then what the session remembers of its voters
+-- (Data/Session.lua, kept through a reload), then what the game still knows about that player.
+function Roster:GetKnown(guid)
+	if not guid then
+		return nil
+	end
+	local entry = self.members[guid] or self.known[guid]
+	if entry then
+		return entry
+	end
+	local voter = PLC.Session and PLC.Session.voters and PLC.Session.voters[guid]
+	if voter then
+		return { guid = guid, name = voter.name, class = voter.class, left = true }
+	end
+	if GetPlayerInfoByGUID then
+		local _, class, _, _, _, name, realm = GetPlayerInfoByGUID(guid)
+		if name and name ~= "" then
+			if not realm or realm == "" then
+				realm = GetRealmName() or ""
+			end
+			return { guid = guid, name = name .. "-" .. realm, class = class, left = true }
+		end
+	end
+	return nil
 end
 
 -- Display-only helper -- entry.name itself always stays "Name-Realm" (addUnit above appends the

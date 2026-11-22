@@ -21,6 +21,12 @@ local dataTable
 local tickerHandle
 local userClosed = false -- true once manually closed while something was still pending
 local wasEmpty = true -- previous refresh had no rows; see Refresh()
+-- The one-click Disenchant is a secure button, and the game protects whatever contains one: in
+-- combat an addon may not show, hide or move it. So it's only made for a row that needs it (the
+-- master looter's own item to disenchant), never for raiders, whose window then works in combat
+-- like any other. Once this window has one, its updates wait for the end of combat.
+local hasSecureButton = false
+local afterCombat -- nil, or what to do once combat ends: { open = bool, hide = bool }
 
 local ROW_HEIGHT = Theme.LAYOUT.buttonHeight + 6
 local TRADE_BUTTON_WIDTH = 54
@@ -54,7 +60,7 @@ local REASON_LABELS = { award = "SESSIONFRAME_AWARDED", disenchant = "SESSIONFRA
 
 -- The winner as the award recorded them, or as the roster knows them now.
 local function winnerOf(item)
-	local entry = PLC.Roster:Get(item.awarded)
+	local entry = PLC.Roster:GetKnown(item.awarded)
 	local name = item.winnerName or (entry and entry.name)
 	return name and PLC.Roster:ShortName(name) or "?", item.winnerClass or (entry and entry.class)
 end
@@ -71,7 +77,7 @@ local function buildRows()
 			if kind == "result" then
 				partnerName, partnerClass = winnerOf(item)
 			elseif kind == "handout" then
-				local entry = PLC.Roster:Get(item.awarded)
+				local entry = PLC.Roster:GetKnown(item.awarded)
 				partnerName = string.format(L["TRADEFRAME_TO"], (entry and PLC.Roster:ShortName(entry.name)) or "?")
 			elseif kind == "collect" then
 				local owner = PLC.Session.owner
@@ -203,8 +209,6 @@ local COLUMNS = {
 			holder:SetSize(TRADE_BUTTON_WIDTH, Theme.LAYOUT.buttonHeight)
 			holder.tradeButton = ButtonWidget.createButton(holder, L["TRADEFRAME_TRADE"], TRADE_BUTTON_WIDTH)
 			holder.tradeButton:SetPoint("LEFT")
-			holder.disenchantButton = ButtonWidget.createActionButton(holder, L["VOTINGFRAME_DISENCHANT"], TRADE_BUTTON_WIDTH)
-			holder.disenchantButton:SetPoint("LEFT")
 			return holder
 		end,
 		update = function(holder, rowData)
@@ -212,9 +216,22 @@ local COLUMNS = {
 			holder.tradeButton:SetScript("OnClick", function()
 				PLC.Loot.Trade:StartTrade(rowData.idx)
 			end)
-			holder.disenchantButton:SetShown(rowData.isSelf)
-			if rowData.isSelf then
-				PLC.Loot.Trade:ConfigureDisenchantButton(holder.disenchantButton, rowData.idx)
+			-- Made the first time a row needs it, and never in combat (see hasSecureButton): a row
+			-- that needs one during combat gets it when combat ends.
+			if rowData.isSelf and not holder.disenchantButton then
+				if InCombatLockdown() then
+					afterCombat = afterCombat or {}
+				else
+					holder.disenchantButton = ButtonWidget.createActionButton(holder, L["VOTINGFRAME_DISENCHANT"], TRADE_BUTTON_WIDTH)
+					holder.disenchantButton:SetPoint("LEFT")
+					hasSecureButton = true
+				end
+			end
+			if holder.disenchantButton then
+				holder.disenchantButton:SetShown(rowData.isSelf)
+				if rowData.isSelf then
+					PLC.Loot.Trade:ConfigureDisenchantButton(holder.disenchantButton, rowData.idx)
+				end
 			end
 		end,
 	},
@@ -319,6 +336,10 @@ local function ensureFrame()
 	header.close:SetPoint("RIGHT", -6, 0)
 	header.close:SetScript("OnClick", function()
 		userClosed = true
+		if hasSecureButton and InCombatLockdown() then
+			afterCombat = { hide = true } -- the game won't let it close before
+			return
+		end
 		frame:Hide()
 	end)
 
@@ -342,6 +363,15 @@ end
 -- themselves, or it would come up at every login: Open does, when an Award All arrives.
 -- open: show it whatever was closed before.
 function TradeFrame:Refresh(open)
+	if hasSecureButton and InCombatLockdown() then
+		-- Nothing in this window may change now; it catches up when combat ends.
+		afterCombat = afterCombat or {}
+		afterCombat.open = afterCombat.open or open or nil
+		if open then
+			afterCombat.hide = nil
+		end
+		return
+	end
 	local rows, actionable = buildRows()
 	if #rows == 0 then
 		stopTicker()
@@ -376,6 +406,20 @@ end
 function TradeFrame:OnSessionUpdated()
 	self:Refresh()
 end
+
+-- Combat is over: what had to wait.
+PLC.Events:RegisterHandler("PLAYER_REGEN_ENABLED", function()
+	local waiting = afterCombat
+	afterCombat = nil
+	if not waiting then
+		return
+	end
+	if waiting.hide and frame then
+		frame:Hide()
+		return
+	end
+	TradeFrame:Refresh(waiting.open)
+end)
 
 function TradeFrame:IsShown()
 	return frame ~= nil and frame:IsShown()

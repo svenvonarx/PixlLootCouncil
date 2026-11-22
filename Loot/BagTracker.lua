@@ -454,6 +454,40 @@ local function dropExcludedItems()
 	end
 end
 
+-- An item added by hand (/plc additem): if a copy is in this player's bags, it's that copy, with its
+-- trade time, like collected loot. A copy no other session item is tied to gets tied to this one;
+-- with every copy taken (a stack), it still reads their trade status. Not in the bags at all: it's
+-- someone else's, and stays without a timer.
+function BagTracker:LinkManualItem(item)
+	local itemID = itemIDFromString(item.itemString)
+	if not itemID or not hasGuidApi() then
+		return false
+	end
+	local taken = {}
+	for _, other in pairs(PLC.Session.items) do
+		if other ~= item and other.itemGUID then
+			taken[other.itemGUID] = true
+		end
+	end
+	local snapshot = snapshotBags()
+	local free, any
+	for guid, entry in pairs(snapshot) do
+		if entry.itemID == itemID then
+			any = any or entry
+			if not taken[guid] and not free then
+				free = entry
+				item.itemGUID = guid
+			end
+		end
+	end
+	local entry = free or any
+	if not entry then
+		return false
+	end
+	applyStatus(item, self:GetTradeStatus(entry.bag, entry.slot))
+	return true
+end
+
 local function remind(item, threshold)
 	item.tradeWarned = item.tradeWarned or {}
 	if item.tradeWarned[threshold] then

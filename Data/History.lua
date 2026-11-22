@@ -148,7 +148,7 @@ end
 
 -- Called from Data/Session.lua:AwardBaggedItem (holder only).
 function History:RecordAward(item, winnerGuid, reason)
-	local winnerEntry = PLC.Roster:Get(winnerGuid)
+	local winnerEntry = PLC.Roster:GetKnown(winnerGuid) -- in the group, or someone who answered and left
 	if not winnerEntry then
 		return
 	end

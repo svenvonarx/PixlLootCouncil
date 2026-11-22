@@ -7,6 +7,7 @@ local out = print
 local printed = {}
 _G.print = function(s) printed[#printed + 1] = tostring(s) end
 _G.time = os.time
+_G.strtrim = _G.strtrim or function(text) return (text:gsub("^%s+", ""):gsub("%s+$", "")) end
 _G.date = os.date
 _G.GetServerTime = os.time
 _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
@@ -96,7 +97,8 @@ _G.C_ChatInfo = { SendChatMessage = function(text, channel) chat[#chat + 1] = { 
 -- The addon around the files under test ------------------------------------------------------------
 local PLC = { Loot = {}, UI = { Widgets = {} } }
 function PLC:RegisterOnEnable() end
-function PLC:RegisterSlashCommand() end
+local slash = {}
+function PLC:RegisterSlashCommand(name, _, fn) slash[name] = fn end
 function PLC:SetDefaultSlashHandler() end
 function PLC:RegisterEvent() end
 function PLC:ScheduleTimer() end
@@ -156,8 +158,10 @@ local ROSTER = {
 	[MULE] = { name = "Mule-Realm", class = "ROGUE" },
 	[OTHER] = { name = "Other-Realm", class = "MAGE" },
 }
+local LEFT = {} -- [guid] = entry: answered, then left the group
 PLC.Roster = {
 	Get = function(_, guid) return ROSTER[guid] end,
+	GetKnown = function(_, guid) return ROSTER[guid] or LEFT[guid] end,
 	IterateGroup = function() return pairs(ROSTER) end,
 	ShortName = function(_, name) return name and name:match("^[^-]+") end,
 }
@@ -542,6 +546,56 @@ check("V1", table.concat(order, ",") == "Other,Mule,Aaron,Pixl", "votes are orde
 ROSTER[THIRD] = nil
 for i = #ACTIVE, 1, -1 do ACTIVE[i] = nil end
 for i, resp in ipairs(savedActive) do ACTIVE[i] = resp end
+
+-- Left the group, and changing a vote ---------------------------------------------------------------------
+session()
+local GONE = "Player-Gone"
+LEFT[GONE] = { name = "Audio-Realm", class = "PRIEST", left = true }
+Session.responses[1][GONE] = { response = "BIS", note = "pvp set" }
+Session.responses[1][MULE] = { response = "BIS", editedBy = "Brukt" }
+panel:ShowItem(1)
+local audio, mule
+for _, row in ipairs(panel:buildRows()) do
+	if row.guid == GONE then audio = row end
+	if row.guid == MULE then mule = row end
+end
+check("L1", audio and audio.left and audio.shortName == "Audio" and audio.response == "BIS" and audio.note == "pvp set",
+	"someone who answered and left the group still has their row, vote and note")
+check("L2", mule and mule.editedBy == "Brukt", "a vote the council changed carries who changed it")
+check("L3", panel:CanChangeResponses(), "the holder can change answers on an item still to decide")
+local menu
+PLC.UI.Widgets.PopupMenu = { Open = function(_, entries) menu = entries end }
+panel:OpenResponseMenu(frame(), MULE)
+check("L4", menu and #menu == #ACTIVE and menu[1].checked == true, "from a menu of the session's answers, the current one ticked")
+local changed
+local realSet = Session.SetResponseFor
+Session.SetResponseFor = function(_, idx, guid, key) changed = idx .. ":" .. guid .. ":" .. key end
+menu[1].onClick()
+check("L5", changed == "1:" .. MULE .. ":" .. ACTIVE[1].key, "picking one changes that raider's answer for this item")
+Session.SetResponseFor = realSet
+Session.items[1].awarded = MULE
+check("L6", not panel:CanChangeResponses(), "not on an item that's awarded")
+Session.items[1].awarded = nil
+LEFT[GONE] = nil
+
+-- /plc additem ----------------------------------------------------------------------------------------------
+local two = Session.ParseItemArgs("|cffa335ee|Hitem:32837:0:0|h[Warglaive]|h|r|cffa335ee|Hitem:32838:0:0|h[Other Warglaive]|h|r")
+check("A1", #two == 2 and two[2]:find("32838", 1, true) ~= nil, "two links Shift-clicked one after the other are two items")
+local ids = Session.ParseItemArgs(" 32837, 32838 ")
+check("A2", #ids == 2 and ids[1] == 32837 and ids[2] == 32838, "so are two item IDs")
+check("A3", Session.ParseItemArgs("Warglaive of Azzinoth")[1] == "Warglaive of Azzinoth" and #Session.ParseItemArgs("  ") == 0, "a name still works, and nothing is nothing")
+session("Player-Other")
+Session.state = "inactive"
+local linked = {}
+PLC.Loot.BagTracker.LinkManualItem = function(_, entry) linked[#linked + 1] = entry; entry.tradeExpiresAt = 99999 end
+local realInfo = C_Item.GetItemInfo
+C_Item.GetItemInfo = function(link) return "Name", "|cffa335ee|Hitem:" .. tostring(link):match("%d+") .. ":0:0|h[Item]|h|r", 4, 100, nil, nil, nil, nil, "INVTYPE_HEAD", 1 end
+Session.items, Session.nextIdx = {}, 1
+slash.additem("32837 32838")
+check("A4", Session.items[1] and Session.items[2] and Session.items[2].itemString:find("32838", 1, true) ~= nil, "the command adds every item it's given")
+check("A5", #linked == 2 and Session.items[1].tradeExpiresAt == 99999, "and each looks for its copy in the bags, for its trade time")
+C_Item.GetItemInfo = realInfo
+PLC.Loot.BagTracker.LinkManualItem = nil
 
 -- Collecting the same item twice ------------------------------------------------------------------------
 -- A slow server (a 25-player boss) can confirm a hand-out after the bag scan already saw the item

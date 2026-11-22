@@ -42,6 +42,16 @@ Session.isCollector = false -- true once this client has silently bagged at leas
 -- settings and broadcast by the holder (session_start, sync, "council" on roster changes), so every
 -- client agrees on who sees the voting grid. nil = no session info yet; fall back to the local roster.
 Session.council = nil
+-- [guid] = { name, class } of everyone who answered: their votes are still shown, and they can still
+-- be awarded an item, after they left the group. Saved with the session, and sent with a catch-up.
+Session.voters = {}
+
+local function rememberVoter(guid)
+	local entry = guid and PLC.Roster:Get(guid)
+	if entry then
+		Session.voters[guid] = { name = entry.name, class = entry.class }
+	end
+end
 
 local heartbeatTimerHandle
 local persist -- forward-declared: SetEnchanter (above its definition) calls it
@@ -274,6 +284,7 @@ function persist()
 			responseSet = Session.responseSet,
 			isCollector = Session.isCollector,
 			council = Session.council,
+			voters = Session.voters,
 		}
 	else
 		PLC.db.char.activeSession = nil
@@ -794,7 +805,7 @@ end
 -- already has in their bag, or anything else that didn't come through this client's own loot
 -- window. Holder-only once a review pass is active; works pre-Start() too (silent collection,
 -- same as CollectDetectedItems) as long as this client is the designated collector.
-function Session:AddManualItem(itemIdOrLink)
+function Session:AddManualItem(itemIdOrLink, attempt)
 	PLC.Preview:Stop(L["PREVIEW_ENDED_REAL_LOOT"])
 	if self.state == "active" and not self:IsHolder() then
 		print(L["CHAT_PREFIX"] .. L["SESSION_NOT_HOLDER"])
@@ -803,6 +814,13 @@ function Session:AddManualItem(itemIdOrLink)
 
 	local _, link, quality, _, _, _, _, _, _, icon = C_Item.GetItemInfo(itemIdOrLink)
 	if not link then
+		-- The game doesn't know the item yet, and asked the server just now: once more in a moment.
+		if (attempt or 1) < 4 and C_Item.GetItemInfoInstant and C_Item.GetItemInfoInstant(itemIdOrLink) then
+			PLC:ScheduleTimer(function()
+				self:AddManualItem(itemIdOrLink, (attempt or 1) + 1)
+			end, 0.7)
+			return
+		end
 		print(L["CHAT_PREFIX"] .. L["SESSION_ADDITEM_UNKNOWN"])
 		return
 	end
@@ -820,6 +838,11 @@ function Session:AddManualItem(itemIdOrLink)
 		bagged = true, -- manually added items are, by definition, already somewhere in a bag
 	}
 	self.items[idx] = entry
+	-- Its copy in this player's bags, if there is one, gives it its trade time (and it leaves the
+	-- list if that copy leaves the bags, like collected loot).
+	if PLC.Loot.BagTracker.LinkManualItem then
+		PLC.Loot.BagTracker:LinkManualItem(entry)
+	end
 	self.isCollector = true
 	persist()
 	-- Same reasoning as CollectDetectedItems above: notify regardless of state, so an
@@ -829,10 +852,12 @@ function Session:AddManualItem(itemIdOrLink)
 
 	if self.state == "active" then
 		entry.deadlineAt = time() + self.responseTimeoutSeconds
+		entry.tradeSynced = entry.tradeExpiresAt ~= nil or entry.boe or entry.untradable or nil
 		self:broadcastNewItems({ [idx] = entry })
 	end
 
 	print(L["CHAT_PREFIX"] .. string.format(L["SESSION_ADDITEM_SUCCESS"], link))
+	return entry
 end
 
 -- Records a FINAL award decision for an already-bagged item -- by review time everything is
@@ -860,7 +885,7 @@ function Session:AwardBaggedItem(idx, winnerGuid, reason)
 		print(L["CHAT_PREFIX"] .. L["SESSION_ALREADY_AWARDED"])
 		return false
 	end
-	local winnerEntry = PLC.Roster:Get(winnerGuid)
+	local winnerEntry = PLC.Roster:GetKnown(winnerGuid) -- in the group, or someone who answered and left
 	if not winnerEntry then
 		print(L["CHAT_PREFIX"] .. L["SESSION_AWARD_UNKNOWN_WINNER"])
 		return false
@@ -1158,6 +1183,7 @@ function Session:SendMyResponse(idx, response, note)
 		return
 	end
 	local guid = UnitGUID("player")
+	rememberVoter(guid)
 	self.responses[idx] = self.responses[idx] or {}
 	self.responses[idx][guid] = { response = response, note = note }
 	PLC.Comms.Sync:SendResponse(self.sessionId, idx, guid, response, note)
@@ -1173,6 +1199,7 @@ function Session:SendMyResponses(answers)
 		return
 	end
 	local guid = UnitGUID("player")
+	rememberVoter(guid)
 	local sent = {}
 	for idx, answer in pairs(answers) do
 		if self.items[idx] and answer.response then
@@ -1195,9 +1222,39 @@ function Session:OnResponseReceived(data)
 	if not data.sessionId or data.sessionId ~= self.sessionId then
 		return
 	end
+	rememberVoter(data.guid)
 	self.responses[data.idx] = self.responses[data.idx] or {}
-	self.responses[data.idx][data.guid] = { response = data.response, note = data.note }
+	self.responses[data.idx][data.guid] = { response = data.response, note = data.note, editedBy = data.editedBy }
 	self:notifyVotingFrame(data.idx, data.guid)
+end
+
+-- The council corrects a raider's answer, or gives one for them: BiS recorded as BiS, not as the
+-- Upgrade they clicked, in the grid and in the loot history. Their note stays. Sent as an answer
+-- from that raider, marked with who changed it, which every version understands.
+function Session:SetResponseFor(idx, guid, response)
+	local item = self.items[idx]
+	if self.state ~= "active" or not item or item.awarded or not guid or not response then
+		return false
+	end
+	if not (self:IsHolder() or self:IsCouncilMember()) then
+		return false
+	end
+	local existing = self.responses[idx] and self.responses[idx][guid]
+	if existing and existing.response == response then
+		return false
+	end
+	local note = existing and existing.note
+	local editedBy = PLC.Roster:ShortName(UnitName("player"))
+	rememberVoter(guid)
+	self.responses[idx] = self.responses[idx] or {}
+	self.responses[idx][guid] = { response = response, note = note, editedBy = editedBy }
+	PLC.Comms.Sync:SendResponse(self.sessionId, idx, guid, response, note, editedBy)
+	if self:IsHolder() then
+		persist()
+	end
+	self:notifyVotingFrame(idx, guid)
+	self:notifyLootFrame()
+	return true
 end
 
 -- guid is the one row that changed, so VotingFrame can target-refresh just that row instead of
@@ -1216,7 +1273,7 @@ function Session:OnAwardReceived(data)
 	if item then
 		item.awarded = data.winnerGuid
 		item.awardReason = data.reason or "award"
-		local winner = PLC.Roster:Get(data.winnerGuid)
+		local winner = PLC.Roster:GetKnown(data.winnerGuid)
 		item.winnerName, item.winnerClass = winner and winner.name, winner and winner.class
 		item.votes = self.responses[data.idx] or item.votes
 		item.awardedAt = time()
@@ -1365,11 +1422,16 @@ function Session:OnResponsesReceived(data)
 	if not data.sessionId or data.sessionId ~= self.sessionId or type(data.responses) ~= "table" or not data.guid then
 		return
 	end
+	rememberVoter(data.guid)
 	for idx, r in pairs(data.responses) do
 		if self.items[idx] and type(r) == "table" and r.response then
 			self.responses[idx] = self.responses[idx] or {}
-			self.responses[idx][data.guid] = { response = r.response, note = r.note }
-			self:notifyVotingFrame(idx, data.guid)
+			-- A raider sending their answers again doesn't undo the council's correction.
+			local existing = self.responses[idx][data.guid]
+			if not (existing and existing.editedBy) then
+				self.responses[idx][data.guid] = { response = r.response, note = r.note }
+				self:notifyVotingFrame(idx, data.guid)
+			end
 		end
 	end
 	if self:IsHolder() then
@@ -1482,6 +1544,7 @@ local function sessionSnapshot()
 		responseSet = Session.responseSet,
 		preview = Session.preview or nil,
 		council = councilList(Session.council),
+		voters = Session.voters,
 	}
 end
 
@@ -1579,6 +1642,13 @@ function Session:OnSyncDataReceived(data, sender)
 	if next(missing) then
 		PLC.Comms.Sync:SendResponses(self.sessionId, mine, missing)
 	end
+	if type(data.voters) == "table" then
+		for guid, voter in pairs(data.voters) do
+			if type(voter) == "table" and type(voter.name) == "string" and not self.voters[guid] then
+				self.voters[guid] = { name = voter.name, class = voter.class }
+			end
+		end
+	end
 	itemsBehindLast, previousResponded, mineAtLastBeat = false, nil, nil
 	lastHeartbeatAt = time()
 	self.lastHolderSeenAt = data.lastHolderSeenAt or time()
@@ -1613,6 +1683,7 @@ local function restoreFromSaved()
 	Session.responseSet = PLC.Responses.Sanitize(saved.responseSet)
 	Session.isCollector = saved.isCollector or false
 	Session.council = saved.council
+	Session.voters = saved.voters or {}
 
 	local isOwner = saved.owner and saved.owner.guid == UnitGUID("player")
 	-- Only a save explicitly marked active resumes. Saves from before state was persisted
@@ -1683,11 +1754,38 @@ end)
 
 -- Real utility command, not a debug stub -- lets the ML add an item that didn't come through
 -- their own loot window (a world drop someone already picked up, etc).
+-- Every item in the command: links (Shift-clicked one after another, with or without spaces) or
+-- item IDs. The same item twice is two items.
+function Session.ParseItemArgs(args)
+	local list = {}
+	for link in (args or ""):gmatch("|c%x+|Hitem:.-|h%[.-%]|h|r") do
+		list[#list + 1] = link
+	end
+	if #list == 0 then
+		for link in (args or ""):gmatch("|Hitem:.-|h%[.-%]|h") do
+			list[#list + 1] = link
+		end
+	end
+	if #list == 0 then
+		for id in (args or ""):gmatch("%d+") do
+			list[#list + 1] = tonumber(id)
+		end
+	end
+	-- An item's name, as before: the game knows it if it has seen the item.
+	local name = strtrim(args or "")
+	if #list == 0 and name ~= "" then
+		list[1] = name
+	end
+	return list
+end
+
 PLC:RegisterSlashCommand("additem", L["SLASH_ADDITEM"], function(args)
-	local itemArg = args:match("^%s*(.-)%s*$")
-	if itemArg == "" then
+	local list = Session.ParseItemArgs(args)
+	if #list == 0 then
 		print(L["CHAT_PREFIX"] .. L["SESSION_ADDITEM_USAGE"])
 		return
 	end
-	Session:AddManualItem(tonumber(itemArg) or itemArg)
+	for _, itemArg in ipairs(list) do
+		Session:AddManualItem(itemArg)
+	end
 end)

@@ -102,10 +102,34 @@ function Panel:buildRows()
 		end
 	end
 
+	-- Everyone in the group, and whoever answered (or got the item) and has left it since: their vote
+	-- still counts when looking back, and they can still be given the item.
+	local candidates = {}
 	for guid, entry in PLC.Roster:IterateGroup() do
+		candidates[guid] = entry
+	end
+	local gone = {}
+	for guid in pairs(responses or {}) do
+		gone[guid] = true
+	end
+	if item and item.awarded then
+		gone[item.awarded] = true
+	end
+	for guid in pairs(gone) do
+		if not candidates[guid] then
+			local known = PLC.Roster:GetKnown(guid)
+			if known then
+				candidates[guid] = { name = known.name, class = known.class, role = known.role, left = true }
+			end
+		end
+	end
+
+	for guid, entry in pairs(candidates) do
 		local r = responses and responses[guid]
 		local row = {
 			guid = guid,
+			left = entry.left or nil, -- answered, then left the group
+			editedBy = r and r.editedBy, -- the council member who changed this answer
 			name = entry.name, -- full "Name-Realm", for the sort below and the history hover
 			itemLink = item and item.link,
 			shortName = PLC.Roster:ShortName(entry.name),
@@ -252,6 +276,38 @@ function Panel:updateStageButtons()
 	updateStageButton(self.bankButton, reason == "bank", L["VOTINGFRAME_BANKING"])
 end
 
+-- The council, on an item that's still to be decided in a running session.
+function Panel:CanChangeResponses()
+	local Session = PLC.Session
+	local item = self.currentIdx and Session.items[self.currentIdx]
+	return item ~= nil and not item.awarded and Session.state == "active"
+		and (Session:IsHolder() or Session:IsCouncilMember()) and true or false
+end
+
+-- The session's answers as a menu, for changing `guid`'s answer on the item shown.
+function Panel:OpenResponseMenu(owner, guid)
+	local PopupMenu = PLC.UI.Widgets.PopupMenu
+	if PopupMenu.IsOpen and PopupMenu.IsOpen(owner) then
+		PopupMenu.Close()
+		return
+	end
+	local idx = self.currentIdx
+	local votes = PLC.Session:VotesFor(idx)
+	local current = votes and votes[guid] and votes[guid].response
+	local entries = {}
+	for _, resp in ipairs(PLC.Responses:GetActive()) do
+		table.insert(entries, {
+			text = resp.text,
+			color = { r = resp.color.r, g = resp.color.g, b = resp.color.b },
+			checked = resp.key == current,
+			onClick = function()
+				PLC.Session:SetResponseFor(idx, guid, resp.key)
+			end,
+		})
+	end
+	PopupMenu.Open(owner, entries, { width = 150 })
+end
+
 function Panel:ShowItem(idx)
 	self.currentIdx = idx
 	self.rowsData = self:buildRows()
@@ -287,6 +343,7 @@ function Panel:OnItemUpdated(idx, guid)
 	local r = responses and responses[guid]
 	self.rowsData[rowIndex].response = r and r.response
 	self.rowsData[rowIndex].note = r and r.note
+	self.rowsData[rowIndex].editedBy = r and r.editedBy
 	self.dataTable:RefreshRow(rowIndex)
 	self:updateHeader()
 end
@@ -446,7 +503,7 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton, bankButton)
 				holder.roleText = ROLE_ABBR[rowData.role]
 				Primitives.setClassIcon(holder.classIcon, rowData.class)
 				local r, g, b = classColor(rowData.class)
-				holder.text:SetText(rowData.shortName)
+				holder.text:SetText(rowData.left and string.format(L["VOTINGFRAME_LEFT"], rowData.shortName) or rowData.shortName)
 				holder.text:SetTextColor(r, g, b)
 				holder.received:SetShown(rowData.received)
 			end,
@@ -473,21 +530,43 @@ function VotingFrame.CreatePanel(parent, header, disenchantButton, bankButton)
 				holder.noteIcon:SetPoint("RIGHT", -2, 0)
 				holder.noteIcon:Hide()
 				holder:SetScript("OnEnter", function(frame)
+					local lines = {}
 					if frame.note and frame.note ~= "" then
+						lines[#lines + 1] = frame.note
+					end
+					if frame.editedBy then
+						lines[#lines + 1] = string.format(L["VOTINGFRAME_CHANGED_BY"], frame.editedBy)
+					end
+					if frame.canChange then
+						lines[#lines + 1] = L["VOTINGFRAME_CHANGE_HINT"]
+					end
+					if #lines > 0 then
 						GameTooltip:SetOwner(frame, "ANCHOR_TOP")
-						GameTooltip:SetText(frame.note, nil, nil, nil, nil, true)
+						GameTooltip:SetText(lines[1], nil, nil, nil, nil, true)
+						for i = 2, #lines do
+							GameTooltip:AddLine(lines[i], 0.7, 0.7, 0.7, true)
+						end
 						GameTooltip:Show()
 					end
 				end)
 				holder:SetScript("OnLeave", function()
 					GameTooltip:Hide()
 				end)
+				-- The council can change an answer, or give one for a raider (Session:SetResponseFor).
+				holder:SetScript("OnMouseUp", function(frame)
+					if frame.canChange then
+						self:OpenResponseMenu(frame, frame.guid)
+					end
+				end)
 				return holder
 			end,
 			update = function(holder, rowData)
+				holder.guid, holder.editedBy = rowData.guid, rowData.editedBy
+				holder.canChange = self:CanChangeResponses()
 				local resp = PLC.Responses:Find(rowData.response)
 				if resp then
-					holder.text:SetText(resp.text)
+					-- A star marks an answer the council changed; hovering says who.
+					holder.text:SetText(rowData.editedBy and (resp.text .. " *") or resp.text)
 					holder.text:SetTextColor(resp.color.r, resp.color.g, resp.color.b)
 				elseif rowData.response then
 					-- An answer from a button this session doesn't have (a client on an older version).

@@ -74,12 +74,13 @@ function Sync:SendItemAdd(sessionId, items)
 	Protocol:Send("item_add", { sessionId = sessionId, items = items }, ch)
 end
 
-function Sync:SendResponse(sessionId, idx, guid, response, note)
+-- editedBy: the council member who changed this raider's answer (Session:SetResponseFor), or nil.
+function Sync:SendResponse(sessionId, idx, guid, response, note, editedBy)
 	local ch = channel()
 	if not ch then
 		return
 	end
-	Protocol:Send("response", { sessionId = sessionId, idx = idx, guid = guid, response = response, note = note }, ch)
+	Protocol:Send("response", { sessionId = sessionId, idx = idx, guid = guid, response = response, note = note, editedBy = editedBy }, ch)
 end
 
 function Sync:SendAward(sessionId, idx, winnerGuid, reason)

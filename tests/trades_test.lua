@@ -30,10 +30,16 @@ end
 _G.CreateFrame = function() return stub() end
 _G.UIParent = stub()
 
-local PLC = { UI = { Widgets = {} }, Loot = {} }
+local inCombat = false
+_G.InCombatLockdown = function() return inCombat end
+local events = {}
+local PLC = { UI = { Widgets = {} }, Loot = {}, Events = { RegisterHandler = function(_, event, fn) events[event] = fn end } }
 PLC.UI.Theme = { LAYOUT = { headerHeight = 32, buttonHeight = 28 } }
 PLC.UI.Widgets.Primitives = setmetatable({ color = function() return 1, 1, 1 end }, { __index = function() return function() return stub() end end })
-PLC.UI.Widgets.Button = setmetatable({}, { __index = function() return function() return stub() end end })
+local secureButtons = 0
+PLC.UI.Widgets.Button = setmetatable({
+	createActionButton = function() secureButtons = secureButtons + 1; return stub() end,
+}, { __index = function() return function() return stub() end end })
 PLC.UI.Widgets.ScrollFrame = { RESERVED_WIDTH = 14 }
 local shownRows
 PLC.UI.Widgets.DataTable = { Create = function()
@@ -46,8 +52,9 @@ local owner = false
 PLC.Session = { items = {}, sessionId = "S2", owner = { guid = ML, name = "Brukt-Realm" }, preview = false,
 	IsOwner = function() return owner end }
 local ROSTER = { [ANA] = { name = "Ana-Realm", class = "MAGE" }, [BO] = { name = "Bo-Realm", class = "ROGUE" }, [ME] = { name = "Me-Realm", class = "MAGE" } }
-PLC.Roster = { Get = function(_, guid) return ROSTER[guid] end, ShortName = function(_, name) return name and name:match("^[^-]+") end }
+PLC.Roster = { Get = function(_, guid) return ROSTER[guid] end, GetKnown = function(_, guid) return ROSTER[guid] end, ShortName = function(_, name) return name and name:match("^[^-]+") end }
 PLC.Loot.BagTracker = { StatusText = function() return nil end }
+PLC.Loot.Trade = { ConfigureDisenchantButton = function() end }
 local finishChecks = 0
 PLC.Preview = { CheckFinished = function() finishChecks = finishChecks + 1 end }
 assert(loadfile("UI/TradeFrame.lua"))("PixlLootCouncil", PLC)
@@ -93,7 +100,7 @@ local name, r, g = columns[3].render(shownRows[2])
 check("W3", name == "Ana" and r == 0.2 and g == 0.8, "each with the winner's name, in their class color")
 check("W4", columns[4].render(shownRows[3]) == "SESSIONFRAME_DISENCHANTED" and columns[4].render(shownRows[2]) == "SESSIONFRAME_AWARDED",
 	"and whether it was awarded, disenchanted or banked")
-local trade = stub({ tradeButton = stub(), disenchantButton = stub() })
+local trade = stub({ tradeButton = stub() })
 columns[5].update(trade, shownRows[2])
 check("W5", not trade.tradeButton.shown, "with nothing to click on someone else's item")
 columns[5].update(trade, shownRows[1])
@@ -123,6 +130,37 @@ PLC.Session.items = { [1] = item(1, ANA), [2] = item(2, BO, { traded = true }), 
 TradeFrame:Open()
 check("M1", kinds() == "handout1,result2,result3", "what's still to hand out first; handed over, it stays as a result: " .. kinds())
 check("M2", columns[4].render(shownRows[3]) == "SESSIONFRAME_BANKED", "banked items say so")
+
+-- In combat ---------------------------------------------------------------------------------------------------
+-- The one-click Disenchant is a secure button, and the game blocks showing or hiding anything that
+-- contains one during combat: with one on every row, the window failed for every raider in a fight.
+check("C1", secureButtons == 0, "a raider's window, and a master looter's without an item to disenchant, has no secure button at all")
+owner = false
+inCombat = true
+PLC.Session.items = { [1] = item(1, ANA), [2] = item(2, ME) }
+window():Hide()
+TradeFrame:Open()
+check("C2", window().shown and kinds() == "collect2,result1", "so in combat it opens and updates like any window")
+inCombat = false
+
+owner = true
+PLC.Session.items = { [1] = item(1, ME, { awardReason = "disenchant" }) }
+TradeFrame:Open()
+local cell = stub({ tradeButton = stub() })
+columns[5].update(cell, shownRows[1])
+check("C3", secureButtons == 1 and cell.disenchantButton ~= nil, "the master looter's own item to disenchant gets the button, out of combat")
+inCombat = true
+PLC.Session.items[2] = item(2, ANA)
+TradeFrame:Refresh()
+check("C4", kinds() == "self1", "with that button in the window, nothing in it changes during combat")
+inCombat = false
+events.PLAYER_REGEN_ENABLED()
+check("C5", kinds() == "self1,handout2", "and it catches up when combat ends")
+inCombat = true
+local fresh = stub({ tradeButton = stub() })
+columns[5].update(fresh, shownRows[1])
+check("C6", fresh.disenchantButton == nil and secureButtons == 1, "the button is never made in combat")
+inCombat = false
 
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

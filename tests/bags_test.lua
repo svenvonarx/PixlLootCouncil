@@ -173,5 +173,27 @@ setup({ id = GLAIVE, guid = "W1" }, { id = GLAIVE, manual = true })
 later(1); later(10)
 check("L7", Session.items[2] ~= nil, "an item added by hand may be in someone else's bags: it doesn't count")
 
+-- Added by hand ---------------------------------------------------------------------------------------------
+-- /plc additem: its copy in the bags gives it a trade time, like collected loot.
+setup({ id = HELM, guid = "H1" })
+bag[2] = { id = GLAIVE, guid = "W1" }
+bag[3] = { id = GLAIVE, guid = "W2" }
+BagTracker.GetTradeStatus = function() return "timer", 3600 end
+local first = { itemString = "item:" .. GLAIVE, bagged = true }
+Session.items[2] = first
+check("M1", BagTracker:LinkManualItem(first) and first.itemGUID ~= nil and first.tradeExpiresAt == now + 3600,
+	"an item added by hand takes its trade time from its copy in the bags")
+local second = { itemString = "item:" .. GLAIVE, bagged = true }
+Session.items[3] = second
+BagTracker:LinkManualItem(second)
+check("M2", second.itemGUID ~= nil and second.itemGUID ~= first.itemGUID, "a second one takes the other copy")
+local third = { itemString = "item:" .. GLAIVE, bagged = true }
+Session.items[4] = third
+BagTracker:LinkManualItem(third)
+check("M3", third.itemGUID == nil and third.tradeExpiresAt == now + 3600, "with every copy taken (a stack), it still shows their trade time")
+local elsewhere = { itemString = "item:39999", bagged = true }
+check("M4", not BagTracker:LinkManualItem(elsewhere) and elsewhere.tradeExpiresAt == nil, "one that isn't in the bags is someone else's: no timer")
+BagTracker.GetTradeStatus = function() return "free" end
+
 out(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
