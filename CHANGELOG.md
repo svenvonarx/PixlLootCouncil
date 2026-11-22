@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed: "Blocked action" messages in combat**, and the Loot Trades window not opening during a
+  fight. Every row carried a hidden one-click Disenchant button, and the game doesn't let a window
+  with such a button change in combat. Now only the master looter's own items to disenchant get
+  one, so for raiders the window works in combat like any other. A master looter's window with
+  such an item catches up when combat ends. A blocked action is also said once in chat, not every
+  time.
+- **Votes stay when someone leaves the group.** They keep their row in the Loot Session window,
+  marked as left, also on awarded items you look back at, and they can still be awarded an item.
+- **The council can change an answer.** Click a raider's answer in the Loot Session window to pick
+  another, or to answer for someone who hasn't. The item then goes into the history under that
+  answer. A star marks a changed answer and hovering it says who changed it. The raider's note
+  stays. Only on items that aren't awarded yet.
+- **`/plc additem` takes several items**: links Shift-clicked one after the other, or several item
+  IDs. Before, only the first was added.
+- **`/plc additem` tracks trade time.** An item you add that's in your own bags gets its trade timer
+  like collected loot, and leaves the list if it leaves your bags unawarded. One that's in someone
+  else's bags stays without a timer, as before.
+
 ## 0.9.2-beta
 
 - **Fixed:** a preview ended the moment you pressed Award All when nothing was left to trade, which is

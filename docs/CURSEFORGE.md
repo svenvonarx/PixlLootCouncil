@@ -18,7 +18,8 @@ Group messages in WoW only reach whoever is there to receive them, so someone on
 
 ## For the council
 
-- **One review window.** See every candidate's response, note, equipped items and item level difference, sorted from BiS down to Pass. Anyone who already received the item is marked, and hovering a name shows what they've received.
+- **One review window.** See every candidate's response, note, equipped items and item level difference, sorted from BiS down to Pass. Anyone who already received the item is marked, and hovering a name shows what they've received. Votes stay when someone leaves the group.
+- **Change an answer.** Click a raider's answer to correct it, or to answer for them, so the history says BiS when it was BiS.
 - **Stage, then commit.** Pick a winner for each item, send it to the raid's Enchanter, or keep it as **Banking**, then hand everything out with **Award All**.
 - **Look back.** Awarded items stay in the window with the votes they were awarded on, until the master looter clears them.
 - **You decide who's on it**: raid leader and assistants, guild ranks, or individual names.

@@ -57,7 +57,10 @@ arrive.
 ### For the council
 
 - **One review window** with every candidate's response and note, equipped items, item level
-  difference and role.
+  difference and role. Someone who answered and then left the group keeps their row, marked as left.
+- **Change an answer.** The council can click a raider's answer to change it, or to answer for
+  someone who hasn't, so an item goes into the history as BiS instead of the Upgrade they clicked.
+  A star marks a changed answer, and hovering it says who changed it.
 - A red **Has** next to anyone who has already received the item. Hover a name to see what that
   player has received, or the item to see who already got it.
 - The session holder stages a pick per item: **Award** to a candidate, **Disenchant** to the raid's
@@ -165,7 +168,7 @@ off.
 | `/plc history` | Open the Loot History window |
 | `/plc share [yyyy/mm/dd]` | Share the awards you handed out with your guild and group: the last 7 days, or from that date on |
 | `/plc options` | Open the options |
-| `/plc additem <link or ID>` | Add an item to the session by hand |
+| `/plc additem <links or IDs>` | Add one or more items to the session by hand; a copy in your bags gives each its trade time |
 | `/plc sync` | Re-sync the current session from its holder |
 | `/plc forceend` | End a session whose holder stopped responding |
 | `/plc errors` | Show captured Lua errors (include these in bug reports) |

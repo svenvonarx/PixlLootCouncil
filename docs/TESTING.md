@@ -791,6 +791,28 @@ section needs the real thing: a master looter running RCLootCouncil, and you wit
   `/plc share`, `/plc share 2026/11/05` and `/plc share nonsense` (explains the date). A player who
   awarded nothing sees "no awards of your own". Share again: the others get nothing new.
 
+### 2.29 Third raid's feedback (1.0.0)
+`luajit tests/trades_test.lua`, `delivery_test.lua`, `banking_test.lua`, `bags_test.lua` and
+`roster_test.lua` check the rules. In game:
+- **Combat:** as a raider, be in combat (a target dummy) when the master looter presses Award All:
+  Loot Trades opens with who got what, and chat shows no "Blocked action" line. `/plc errors` stays
+  free of ADDON_ACTION_BLOCKED.
+- **Combat, master looter:** stage an item to yourself as Disenchant (you're the Enchanter), Award
+  All: the row has its Disenchant button. Enter combat, have a trade complete or close the window:
+  nothing errors, and it updates or closes when combat ends.
+- **Left the group:** a raider answers BiS on an item and leaves the raid: their row stays, as
+  "Name (left)", with the vote and note. Award the item to them: it works, and Loot Trades shows
+  "To: Name". `/reload` on the master looter: the row is still named.
+- **Change an answer:** as the master looter or a council member, click a raider's Upgrade: a menu
+  with the session's answers opens; pick BiS. Every council client shows "BiS *", hovering says who
+  changed it, the note is still there. Award it: the history entry says BiS. Click "Waiting for
+  response..." on someone and pick an answer: it's set for them. A raider who isn't on the council
+  gets no menu. On an awarded item there's no menu.
+- **additem:** with two tradable raid items in your bags, `/plc additem` and Shift-click both links
+  into one command: both are added, each with its trade time. Add an item that's not in your bags
+  (by ID): it's added without a timer. Trade away an added item without awarding it: it leaves the
+  list after about 10 seconds.
+
 ### 2.28 Review fixes and the awards window (0.9.1)
 `luajit tests/delivery_test.lua`, `trades_test.lua`, `award_all_test.lua`, `banking_test.lua`,
 `bags_test.lua`, `loot_window_test.lua`, `autopass_test.lua` and `timers_test.lua` check the rules.
